@@ -7,7 +7,7 @@ import { ROOT_DIR, PROTOTYPE_DIR, GENERATED_DIR, ENV_FILE } from './src/lib/path
 import { registerRoutes, json, jsonError, readJsonBody } from './src/api/routes.js';
 
 loadEnv(ENV_FILE);
-const PORT = Number(process.env.PORT || 3100);
+const PORT = parseInt(process.env.PORT || '3100', 10) || 3100;
 
 const exact = new Map();
 const dynamic = []; // { method, segments:['api','jobs',':id'], handler }
@@ -42,12 +42,22 @@ function serveStatic(res, pathname) {
   const root = pathname.startsWith('/generated/') ? GENERATED_DIR : PROTOTYPE_DIR;
   const rel = pathname.startsWith('/generated/') ? pathname.slice('/generated/'.length) : (pathname === '/' ? 'index.html' : pathname);
   const full = safeJoin(root, rel);
-  if (!full || !fs.existsSync(full) || !fs.statSync(full).isFile()) {
+  if (!full) {
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     return res.end('Not Found');
   }
-  res.writeHead(200, { 'Content-Type': CONTENT_TYPES[path.extname(full).toLowerCase()] || 'application/octet-stream', 'Cache-Control': 'no-store' });
-  fs.createReadStream(full).pipe(res);
+  const contentType = CONTENT_TYPES[path.extname(full).toLowerCase()] || 'application/octet-stream';
+  const stream = fs.createReadStream(full);
+  stream.on('error', (err) => {
+    const code = err.code === 'ENOENT' || err.code === 'EISDIR' ? 404 : 500;
+    if (res.headersSent) { res.destroy(); return; }
+    res.writeHead(code, { 'Content-Type': 'text/plain' });
+    res.end(code === 404 ? 'Not Found' : 'Server Error');
+  });
+  stream.on('open', () => {
+    res.writeHead(200, { 'Content-Type': contentType, 'Cache-Control': 'no-store' });
+    stream.pipe(res);
+  });
 }
 
 registerRoutes(route);

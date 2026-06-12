@@ -1,9 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { safeJoin, dataUrlToBuffer } from '../src/lib/files.js';
 
-const root = path.resolve('prototype');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'prototype');
 
 test('safeJoin 正常路径', () => {
   assert.equal(safeJoin(root, '/index.html'), path.join(root, 'index.html'));
