@@ -5,8 +5,10 @@ import { loadEnv } from './src/lib/env.js';
 import { safeJoin } from './src/lib/files.js';
 import { ROOT_DIR, PROTOTYPE_DIR, GENERATED_DIR, ENV_FILE } from './src/lib/paths.js';
 import { registerRoutes, json, jsonError, readJsonBody } from './src/api/routes.js';
+import { bootstrap } from './src/bootstrap.js';
 
 loadEnv(ENV_FILE);
+bootstrap();
 const PORT = parseInt(process.env.PORT || '3100', 10) || 3100;
 
 const exact = new Map();

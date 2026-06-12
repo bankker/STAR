@@ -4,12 +4,5 @@
                "fallback": [{ "provider": "openrouter", "model": "anthropic/claude-sonnet-4-6" }] },
   "world":   { "provider": "dashscope",  "model": "qwen-flash" },
   "plan":    { "provider": "dashscope",  "model": "qwen-flash" },
-  "image":   { "provider": "gemini",     "model": "gemini-3-pro-image-preview",
-               "fallback": [{ "provider": "openrouter", "model": "google/gemini-3-pro-image-preview" }] },
-  "video":   { "provider": "kling",      "model": "kling-v3-std",
-               "fallback": [{ "provider": "openrouter", "model": "kwaivgi/kling-v3.0-std" }] },
-  "music":   { "provider": "suno",       "model": "v5" },
-  "tts":     { "provider": "dashscope",  "model": "qwen-tts" },
-  "asr":     { "provider": "dashscope",  "model": "qwen3-asr-flash" },
   "providers": {}
 }
