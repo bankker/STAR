@@ -1,0 +1,14 @@
+{
+  "name": "ai-star-studio",
+  "version": "3.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "check": "node scripts/check.mjs",
+    "test": "node --test test/",
+    "smoke": "node scripts/smoke.mjs"
+  }
+}
