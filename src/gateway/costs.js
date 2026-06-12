@@ -16,7 +16,7 @@ export function setPriceOverrides(map) { overrides = map || {}; }
 
 function price(providerId, model) {
   const merged = { ...BASE_PRICES, ...overrides };
-  return merged[`${providerId}:${model}`] || merged[`${providerId}:*`] || {};
+  return { ...(merged[`${providerId}:*`] || {}), ...(merged[`${providerId}:${model}`] || {}) };
 }
 
 const round = (n) => Math.round(n * 10000) / 10000;
@@ -24,28 +24,29 @@ const round = (n) => Math.round(n * 10000) / 10000;
 export function estimateRequest(capability, providerId, model, request = {}) {
   const p = price(providerId, model);
   if (TEXT_CAPS.has(capability)) {
+    // 注意：JSON.stringify 含结构字符，token 估算刻意偏保守（偏高 10–16%）
     const chars = JSON.stringify(request.messages || request.prompt || '').length;
     const inTok = Math.ceil(chars / 3);
     const outTok = request.maxTokens || 1024;
     return round(((p.inputPerMTok || 0) * inTok + (p.outputPerMTok || 0) * outTok) / 1e6);
   }
-  if (capability === 'image') return round((p.perImage || 0.1) * (request.count || 1));
-  if (capability === 'video') return round((p.perSecond || 0.1) * (request.durationSec || 5));
+  if (capability === 'image') return round((p.perImage ?? 0.1) * (request.count || 1));
+  if (capability === 'video') return round((p.perSecond ?? 0.1) * (request.durationSec || 5));
   if (capability === 'music') return round(p.perSong ?? 0.5);
-  if (capability === 'tts') return round((p.perKChar || 0.05) * (String(request.text || '').length / 1000));
-  if (capability === 'asr') return round((p.perMinute || 0.02) * ((request.durationSec || 60) / 60));
+  if (capability === 'tts') return round((p.perKChar ?? 0.05) * (String(request.text || '').length / 1000));
+  if (capability === 'asr') return round((p.perMinute ?? 0.02) * ((request.durationSec || 60) / 60));
   return 0;
 }
 
 export function costOfUsage(providerId, model, usage = {}) {
   const p = price(providerId, model);
   let usd = 0;
-  if (usage.inputTokens) usd += (p.inputPerMTok || 0) * usage.inputTokens / 1e6;
-  if (usage.outputTokens) usd += (p.outputPerMTok || 0) * usage.outputTokens / 1e6;
-  if (usage.images) usd += (p.perImage || 0) * usage.images;
-  if (usage.seconds) usd += (p.perSecond || 0) * usage.seconds;
-  if (usage.songs) usd += (p.perSong || 0) * usage.songs;
-  if (usage.chars) usd += (p.perKChar || 0) * usage.chars / 1000;
-  if (usage.minutes) usd += (p.perMinute || 0) * usage.minutes;
+  if (usage.inputTokens > 0) usd += (p.inputPerMTok || 0) * usage.inputTokens / 1e6;
+  if (usage.outputTokens > 0) usd += (p.outputPerMTok || 0) * usage.outputTokens / 1e6;
+  if (usage.images > 0) usd += (p.perImage || 0) * usage.images;
+  if (usage.seconds > 0) usd += (p.perSecond || 0) * usage.seconds;
+  if (usage.songs > 0) usd += (p.perSong || 0) * usage.songs;
+  if (usage.chars > 0) usd += (p.perKChar || 0) * usage.chars / 1000;
+  if (usage.minutes > 0) usd += (p.perMinute || 0) * usage.minutes;
   return round(usd);
 }

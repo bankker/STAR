@@ -29,3 +29,19 @@ test('通配符回退 provider:*', () => {
   setPriceOverrides({ 'agg:*': { perImage: 0.2 } });
   assert.equal(costOfUsage('agg', 'whatever-model', { images: 1 }), 0.2);
 });
+
+test('显式 0 价不被默认值覆盖', () => {
+  setPriceOverrides({ 'z:m': { perImage: 0 } });
+  assert.equal(estimateRequest('image', 'z', 'm', {}), 0);
+});
+
+test('specific 键只覆盖字段，不遮蔽通配其余字段', () => {
+  setPriceOverrides({ 'agg:*': { perImage: 0.2, inputPerMTok: 5 }, 'agg:special': { inputPerMTok: 10 } });
+  assert.equal(costOfUsage('agg', 'special', { images: 1 }), 0.2);
+  assert.equal(costOfUsage('agg', 'special', { inputTokens: 1_000_000 }), 10);
+});
+
+test('负用量不产生负成本', () => {
+  setPriceOverrides({ 'fake:m': { inputPerMTok: 3 } });
+  assert.equal(costOfUsage('fake', 'm', { inputTokens: -1_000_000 }), 0);
+});
