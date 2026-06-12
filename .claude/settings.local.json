@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(\"---\")",
+      "PowerShell(Get-ChildItem F:\\\\ -Directory | Select-Object Name; \"---\"; Get-ChildItem \"$env:USERPROFILE\\\\projects\",\"$env:USERPROFILE\\\\source\",\"D:\\\\projects\" -Directory -ErrorAction SilentlyContinue | Select-Object FullName)",
+      "PowerShell($roots = @\\(\"F:\\\\BankerOS\", \"$env:USERPROFILE\\\\Desktop\", \"$env:USERPROFILE\\\\Downloads\", \"$env:USERPROFILE\\\\Documents\"\\); foreach \\($r in $roots\\) { if \\(Test-Path $r\\) { Get-ChildItem $r -Filter \"start_all.bat\" -Recurse -Depth 3 -ErrorAction SilentlyContinue | Select-Object -First 5 FullName } })"
+    ]
+  }
+}
