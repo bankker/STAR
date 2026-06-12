@@ -99,3 +99,33 @@ test('适配器抛非 GatewayError 时归一为 provider_error 并可降级', as
   const r = await execute('chat', { messages: [] });
   assert.equal(r.provider, 'b');
 });
+
+test('config 的 params 透传给 invoke', async () => {
+  let seen = null;
+  const spy = { ...fake('a'), invoke: async (cap, req) => { seen = req; return { text: 'ok' }; } };
+  setup([spy], { chat: { provider: 'a', model: 'm1', params: { temperature: 0.7 } } });
+  await execute('chat', { messages: [] });
+  assert.deepEqual(seen.params, { temperature: 0.7 });
+  assert.equal(seen.model, 'm1');
+});
+
+test('resolveRoute 对未配置能力抛 bad_request', () => {
+  setup([fake('a')], { chat: { provider: 'a', model: 'm1' } });
+  assert.throws(() => resolveRoute('video'), (e) => e.code === 'bad_request');
+});
+
+test('成功但无 usage 时记账 estUsd 0', async () => {
+  const noUsage = { ...fake('a'), invoke: async () => ({ text: 'ok' }) };
+  const ledger = setup([noUsage], { chat: { provider: 'a', model: 'm1' } });
+  await execute('chat', { messages: [] });
+  const line = JSON.parse(fs.readFileSync(ledger, 'utf8').trim());
+  assert.equal(line.ok, true);
+  assert.equal(line.estUsd, 0);
+  assert.deepEqual(line.usage, {});
+});
+
+test('非 retriable 覆盖在聚合错误中保留', async () => {
+  const stubborn = { ...fake('a'), invoke: async () => { throw gatewayError('quota', '账号封禁', { providerId: 'a', retriable: false }); } };
+  setup([stubborn, fake('b')], CHAIN.chat ? CHAIN : { chat: { provider: 'a', model: 'm1', fallback: [{ provider: 'b', model: 'm2' }] } });
+  await assert.rejects(() => execute('chat', { messages: [] }), (e) => e.code === 'quota' && e.retriable === false && e.attempts.length === 1);
+});

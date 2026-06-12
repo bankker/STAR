@@ -16,6 +16,7 @@ export function resolveRoute(capability) {
 }
 
 export function makeCtx(providerId, onProgress) {
+  // 每次调用读取最新配置（热更新生效）；与 resolveRoute 的快照可能存在极短窗口差异，属有意为之
   const settings = (loadConfig().providers || {})[providerId] || {};
   const base = { providerId, proxy: settings.proxy, timeoutMs: settings.timeoutMs || 120000 };
   return {
@@ -71,12 +72,16 @@ function aggregate(capability, attempts, last = null) {
   const e = gatewayError(
     last?.code || tail.code || 'provider_error',
     `能力 ${capability} 调用失败（尝试 ${attempts.length} 个 Provider）`,
-    { providerId: tail.provider || null, hint: last?.hint || tail.hint || '查看各环节原因，修复 key/配额后重试' },
+    {
+      providerId: tail.provider || null,
+      hint: last?.hint || tail.hint || '查看各环节原因，修复 key/配额后重试',
+      retriable: last ? last.retriable : undefined, // 保留触发方的 retriable 覆盖；undefined → 按错误码自动判定
+    },
   );
-  e.attempts = attempts;
+  e.attempts = Object.freeze([...attempts]);
   e.toJSON = () => ({
     code: e.code, message: e.message, providerId: e.providerId,
-    retriable: e.retriable, ...(e.hint ? { hint: e.hint } : {}), attempts,
+    retriable: e.retriable, ...(e.hint ? { hint: e.hint } : {}), attempts: e.attempts,
   });
   return e;
 }
