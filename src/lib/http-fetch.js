@@ -18,8 +18,9 @@ export async function fetchBuffer(url, opts = {}) {
 }
 
 function normalizeOpts(url, opts) {
-  const headers = { 'content-type': 'application/json', ...(opts.headers || {}) };
-  const body = opts.body === undefined ? undefined
+  const hasBody = opts.body !== undefined;
+  const headers = { ...(hasBody ? { 'content-type': 'application/json' } : {}), ...(opts.headers || {}) };
+  const body = !hasBody ? undefined
     : (typeof opts.body === 'string' ? opts.body : JSON.stringify(opts.body));
   return { method: opts.method || 'POST', headers, body, timeoutMs: opts.timeoutMs || 120000, proxy: opts.proxy, providerId: opts.providerId };
 }
@@ -54,6 +55,7 @@ function proxyFetch(url, o) {
       host: p.hostname, port: Number(p.port) || 80, method: 'CONNECT',
       path: `${target.hostname}:${target.port || 443}`,
     });
+    // 超时统一用此定时器；connectReq.destroy() 会连带关闭已建立的隧道 socket
     const timer = setTimeout(() => {
       fail('timeout', `代理请求超时（${o.timeoutMs}ms）: ${url}`);
       connectReq.destroy();
@@ -74,11 +76,13 @@ function proxyFetch(url, o) {
           const buffer = Buffer.concat(chunks);
           done(resolve, o.wantBuffer ? { status: resp.statusCode, buffer } : { status: resp.statusCode, text: buffer.toString('utf8') });
         });
+        resp.on('error', (e) => fail('network', `代理响应流错误: ${e.message}`, e));
       });
       req.on('error', (e) => fail('network', `代理隧道请求失败: ${e.message}`, e));
       if (o.body) req.write(o.body);
       req.end();
     });
+    connectReq.on('response', (res) => fail('network', `代理 CONNECT 失败: HTTP ${res.statusCode}`));
     connectReq.on('error', (e) => fail('network', `代理连接失败: ${e.message}`, e));
     connectReq.end();
   });
