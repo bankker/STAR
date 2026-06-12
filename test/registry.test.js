@@ -56,3 +56,24 @@ test('CAPABILITIES 含 M2 预留', () => {
     assert.ok(CAPABILITIES.includes(c), c);
   }
 });
+
+test('loadConfig 校验失败不污染缓存', () => {
+  registerProvider(fake('alpha', ['chat']));
+  const file = tmpConfig({ chat: { provider: 'ghost', model: 'm' } });
+  initConfig(file);
+  assert.throws(() => loadConfig(), /未注册/);
+  fs.writeFileSync(file, JSON.stringify({ chat: { provider: 'alpha', model: 'm1' } }));
+  assert.equal(loadConfig().chat.provider, 'alpha');
+});
+
+test('fallback 非数组与路由非对象被拒绝', () => {
+  registerProvider(fake('alpha', ['chat']));
+  initConfig(tmpConfig({ chat: { provider: 'alpha', model: 'm', fallback: 'oops' } }));
+  assert.throws(() => loadConfig(), /fallback 必须是数组/);
+  initConfig(tmpConfig({ chat: null }));
+  assert.throws(() => loadConfig(), /必须是对象/);
+});
+
+test('registerProvider 拒绝空 capabilities', () => {
+  assert.throws(() => registerProvider(fake('empty', [])), /非空数组/);
+});
