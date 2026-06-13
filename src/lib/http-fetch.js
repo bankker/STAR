@@ -117,12 +117,21 @@ export async function fetchStream(url, opts, onChunk) {
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let carry = '';
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    carry += decoder.decode(value, { stream: true });
-    const { datas, rest } = splitSSE(carry);
-    carry = rest;
-    for (const d of datas) onChunk(d);
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      carry += decoder.decode(value, { stream: true });
+      const { datas, rest } = splitSSE(carry);
+      carry = rest;
+      for (const d of datas) onChunk(d);
+    }
+  } catch (err) {
+    if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+      throw gatewayError('timeout', `流读取超时（${o.timeoutMs}ms）: ${url}`, { providerId: o.providerId });
+    }
+    throw err;
+  } finally {
+    reader.cancel().catch(() => {});
   }
 }
