@@ -5,7 +5,7 @@ const TEXT_CAPS = new Set(['chat', 'content', 'world', 'plan']);
 const auth = (env) => ({ authorization: `Bearer ${env.DASHSCOPE_API_KEY}` });
 
 // Doc calibration: GET /compatible-mode/v1/models is not documented by Aliyun.
-// Probe uses a minimal chat completion call (max_tokens: 1) instead.
+// 探测用 qwen-turbo 发 max_tokens:1 的最小请求（compatible-mode 无 GET /models 端点），可校验 key 且成本可忽略
 
 const adapter = {
   id: 'dashscope',

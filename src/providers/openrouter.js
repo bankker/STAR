@@ -4,8 +4,6 @@ const API = 'https://openrouter.ai/api/v1';
 const TEXT_CAPS = new Set(['chat', 'content', 'world', 'plan']);
 const auth = (env) => ({ authorization: `Bearer ${env.OPENROUTER_API_KEY}` });
 
-// Doc calibration: GET /api/v1/key returns 404. Use GET /api/v1/models for probe instead.
-
 const adapter = {
   id: 'openrouter',
   label: 'OpenRouter 聚合兜底',
@@ -15,7 +13,8 @@ const adapter = {
 
   async probe(ctx) {
     const t = Date.now();
-    await ctx.fetchJson(`${API}/models`, { method: 'GET', headers: auth(ctx.env), timeoutMs: 5000 });
+    // GET /api/v1/key 校验当前 key（无效 key → 401 → auth 错误）；/models 是公开端点不能用于鉴权探测
+    await ctx.fetchJson(`${API}/key`, { method: 'GET', headers: auth(ctx.env), timeoutMs: 5000 });
     return { ok: true, latencyMs: Date.now() - t };
   },
 
