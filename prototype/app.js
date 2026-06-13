@@ -57,6 +57,7 @@ function boot() {
   setInterval(() => renderHealth(), 10000);
   renderRoutes();
   initChat();
+  initImage();
   $('#health-refresh').addEventListener('click', () => renderHealth(true));
   renderJobs(); setInterval(renderJobs, 3000);
   renderUsage(); setInterval(renderUsage, 30000);
@@ -131,4 +132,29 @@ async function submitWithConfirm(path, payload, outEl) {
   }
   if (first.error) { outEl.textContent = errText(first.error); return null; }
   return first;
+}
+
+function fileToDataUrl(input) {
+  return new Promise((resolve) => {
+    const f = input.files && input.files[0];
+    if (!f) return resolve(null);
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.readAsDataURL(f);
+  });
+}
+
+function initImage() {
+  $('#image-send').addEventListener('click', async () => {
+    const prompt = $('#image-prompt').value.trim();
+    if (!prompt) return;
+    const btn = $('#image-send'); btn.disabled = true;
+    $('#image-out').textContent = '生成中…（目标 ≤60s）';
+    const ref = await fileToDataUrl($('#image-ref'));
+    const r = await api('/api/ai/image', { prompt, refImages: ref ? [ref] : [] });
+    btn.disabled = false;
+    $('#image-out').innerHTML = r.error
+      ? esc(errText(r.error)).replace(/\n/g, '<br>')
+      : r.files.map(mediaHtml).join('') + `<div>—— ${esc(r.provider)}/${esc(r.model)}</div>`;
+  });
 }

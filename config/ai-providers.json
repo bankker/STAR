@@ -4,5 +4,7 @@
                "fallback": [{ "provider": "openrouter", "model": "anthropic/claude-sonnet-4-6" }] },
   "world":   { "provider": "dashscope",  "model": "qwen-flash" },
   "plan":    { "provider": "dashscope",  "model": "qwen-flash" },
+  "image":   { "provider": "gemini",     "model": "gemini-3-pro-image",
+               "fallback": [{ "provider": "openrouter", "model": "google/gemini-3-pro-image" }] },
   "providers": {}
 }

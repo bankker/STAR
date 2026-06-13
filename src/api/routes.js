@@ -105,4 +105,13 @@ export function registerRoutes(route) {
     const s = summarize({ sinceMs: Date.now() - 7 * 86400e3 });
     json(res, { ...s, textBudgetUsd: 2, textWarn: s.textUsd >= 1.6 });
   });
+
+  route('POST /api/ai/image', async (req, res, { readJsonBody }) => {
+    const body = await readJsonBody();
+    if (!body.prompt) return jsonError(res, 'bad_request', 'prompt 必填');
+    try {
+      const r = await execute('image', { prompt: body.prompt, refImages: body.refImages || [], aspect: body.aspect });
+      json(res, { files: r.files, provider: r.provider, model: r.model });
+    } catch (e) { sendGatewayError(res, e); }
+  });
 }
