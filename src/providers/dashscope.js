@@ -10,7 +10,7 @@ const auth = (env) => ({ authorization: `Bearer ${env.DASHSCOPE_API_KEY}` });
 const adapter = {
   id: 'dashscope',
   label: '阿里云百炼',
-  capabilities: ['chat', 'content', 'world', 'plan', 'tts', 'asr'],
+  capabilities: ['chat', 'content', 'world', 'plan'], // tts/asr 随 Task 15 的 invokeTts/invokeAsr 一起加回
   envKeys: ['DASHSCOPE_API_KEY'],
   isConfigured: (env) => Boolean(env.DASHSCOPE_API_KEY),
 

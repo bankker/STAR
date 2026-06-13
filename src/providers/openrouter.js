@@ -7,7 +7,7 @@ const auth = (env) => ({ authorization: `Bearer ${env.OPENROUTER_API_KEY}` });
 const adapter = {
   id: 'openrouter',
   label: 'OpenRouter 聚合兜底',
-  capabilities: ['chat', 'content', 'world', 'plan', 'image', 'video'],
+  capabilities: ['chat', 'content', 'world', 'plan'], // image/video 随 Task 12/13 的实现一起加回
   envKeys: ['OPENROUTER_API_KEY'],
   isConfigured: (env) => Boolean(env.OPENROUTER_API_KEY),
 
