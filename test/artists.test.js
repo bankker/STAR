@@ -63,3 +63,10 @@ test('坏存档文件不崩，按空数组处理', () => {
   assert.equal(listArtists().length, 1);
   assert.ok(getArtist(a.id));
 });
+
+test('updateArtist 部分更新 voiceProfile 不抹掉 ttsVoice', () => {
+  const a = createArtist({ name: 'CHEL', voiceProfile: { description: '低沉磁性', ttsVoice: 'voice-1' } });
+  const u = updateArtist(a.id, { voiceProfile: { description: '清澈甜美' } });
+  assert.equal(u.voiceProfile.description, '清澈甜美');
+  assert.equal(u.voiceProfile.ttsVoice, 'voice-1');   // 未传的子字段保留
+});

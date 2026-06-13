@@ -7,6 +7,8 @@ let artistsFile = null;
 export function initArtists(file) {
   artistsFile = file;
   fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.tmp`;
+  if (fs.existsSync(tmp)) { try { fs.unlinkSync(tmp); } catch {} }
 }
 
 const STR = (v) => (typeof v === 'string' ? v : '');
@@ -69,7 +71,12 @@ export function updateArtist(id, profile) {
   const arr = readArtists();
   const i = arr.findIndex((a) => a.id === id);
   if (i === -1) return null;
-  const v = validateProfile({ ...arr[i], ...profile });
+  const merged = {
+    ...arr[i],
+    ...profile,
+    voiceProfile: { ...arr[i].voiceProfile, ...profile.voiceProfile },
+  };
+  const v = validateProfile(merged);
   arr[i] = { ...v, id, createdAt: arr[i].createdAt, updatedAt: new Date().toISOString() };
   writeArtists(arr);
   return arr[i];
