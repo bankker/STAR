@@ -112,6 +112,12 @@ try {
   const badCreate = await call('/api/artist', { profile: { name: '' } });
   ok('空艺名被拒', badCreate.status === 200 && badCreate.data.error?.code === 'bad_request', badCreate.data.error?.code);
 
+  const gal = await call(`/api/artist/${created.data.id}/gallery`);
+  ok('gallery 初始为空', gal.status === 200 && Array.isArray(gal.data.assets) && gal.data.assets.length === 0);
+
+  const galMiss = await call('/api/artist/nope_x/gallery');
+  ok('gallery 未知艺人 404', galMiss.status === 200 && galMiss.data.error?.code === 'not_found', galMiss.data.error?.code);
+
   const del = await call(`/api/artist/${created.data.id}`, undefined, 'DELETE');
   ok('artist 删除', del.status === 200 && del.data.ok === true);
 } catch (e) {
