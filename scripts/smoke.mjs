@@ -79,6 +79,28 @@ try {
 
   const badJson = await fetch(`${BASE}/api/ai/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{not json' });
   ok('坏 JSON → 400', badJson.status === 400);
+
+  // —— 艺人创设（S1）——
+  const iv = await call('/api/artist/interview', { messages: [{ role: 'user', content: '冷艳电子歌手' }] });
+  ok('artist interview 路由可用', iv.status === 200 && (Boolean(iv.data.reply) || Boolean(iv.data.error)), iv.data.error?.code || 'ok');
+
+  const fin = await call('/api/artist/finalize', { transcript: '冷艳电子歌手' });
+  ok('artist finalize 路由可用', fin.status === 200 && (Boolean(fin.data.draft) || Boolean(fin.data.error)), fin.data.error?.code || 'ok');
+
+  const created = await call('/api/artist', { profile: { name: 'SMOKE艺人', persona: '冷艳', visualIdentity: '银发' } });
+  ok('artist 创建', created.status === 200 && created.data.id?.startsWith('art_'), created.data.id);
+
+  const listed = await call('/api/artists');
+  ok('artist 列表含新建', listed.status === 200 && listed.data.artists.some((a) => a.id === created.data.id));
+
+  const got = await call(`/api/artist/${created.data.id}`);
+  ok('artist 详情', got.status === 200 && got.data.artist?.persona === '冷艳');
+
+  const badCreate = await call('/api/artist', { profile: { name: '' } });
+  ok('空艺名被拒', badCreate.status === 200 && badCreate.data.error?.code === 'bad_request', badCreate.data.error?.code);
+
+  const del = await call(`/api/artist/${created.data.id}`, undefined, 'DELETE');
+  ok('artist 删除', del.status === 200 && del.data.ok === true);
 } catch (e) {
   ok('smoke 执行', false, e.message);
 } finally {
