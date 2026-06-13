@@ -6,13 +6,14 @@ let started = false;
 
 function withTimeout(promise, ms) {
   let timer;
+  promise.catch(() => {}); // 超时先发生时，迟到的 probe rejection 不能变成 unhandled rejection
   return Promise.race([
     promise.finally(() => clearTimeout(timer)),
     new Promise((_, rej) => { timer = setTimeout(() => rej(new Error(`探测超时(${ms}ms)`)), ms); timer.unref(); }),
   ]);
 }
 
-export async function refreshHealth() {
+async function doRefresh() {
   await Promise.all(listProviders().map(async (p) => {
     if (!p.isConfigured(process.env)) { state.set(p.id, { state: 'unconfigured' }); return; }
     const t = Date.now();
@@ -23,6 +24,12 @@ export async function refreshHealth() {
       state.set(p.id, { state: 'error', detail: e.message, lastCheck: new Date().toISOString() });
     }
   }));
+}
+
+let inflight = null;
+export function refreshHealth() {
+  if (!inflight) inflight = doRefresh().finally(() => { inflight = null; });
+  return inflight;
 }
 
 export function getHealthSnapshot() {

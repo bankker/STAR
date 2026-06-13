@@ -1,5 +1,7 @@
 const $ = (sel) => document.querySelector(sel);
 
+const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
 async function api(path, body, method) {
   const res = await fetch(path, {
     method: method || (body ? 'POST' : 'GET'),
@@ -20,10 +22,10 @@ const STATE_LABEL = { online: '在线', error: '故障', unconfigured: '未接�
 
 async function renderHealth(refresh) {
   const data = await api('/api/health' + (refresh ? '?refresh=1' : ''));
-  if (data.error) return;
+  if (data.error || !Array.isArray(data.providers)) return;
   $('#health-grid').innerHTML = data.providers.map((p) =>
-    `<span class="badge ${p.state}" title="${p.detail || ''} ${p.capabilities.join('/')}">` +
-    `<i class="dot"></i>${p.label} · ${STATE_LABEL[p.state] || p.state}` +
+    `<span class="badge ${esc(p.state)}" title="${esc(p.detail)} ${(p.capabilities || []).map(esc).join('/')}">` +
+    `<i class="dot"></i>${esc(p.label)} · ${STATE_LABEL[p.state] || esc(p.state)}` +
     (p.latencyMs ? ` · ${p.latencyMs}ms` : '') + '</span>').join('');
 }
 
