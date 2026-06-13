@@ -140,6 +140,7 @@ function fileToDataUrl(input) {
     if (!f) return resolve(null);
     const r = new FileReader();
     r.onload = () => resolve(r.result);
+    r.onerror = () => resolve(null);
     r.readAsDataURL(f);
   });
 }

@@ -5,7 +5,6 @@ const BASE_PRICES = {
   'dashscope:qwen-flash': { inputPerMTok: 0.05, outputPerMTok: 0.4 },
   'dashscope:qwen-tts': { perKChar: 0.03 },
   'dashscope:qwen3-asr-flash': { perMinute: 0.01 },
-  'gemini:gemini-3-pro-image-preview': { perImage: 0.12 },
   'gemini:gemini-3-pro-image': { perImage: 0.12 },
   'kling:kling-v3-std': { perSecond: 0.07 },
   'suno:v5': { perSong: 0.4 },

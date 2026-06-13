@@ -38,13 +38,30 @@ async function invokeText(request, ctx) {
 }
 
 async function invokeImage(request, ctx) {
+  const content = [{ type: 'text', text: request.prompt }];
+  for (const ref of request.refImages || []) {
+    content.push({ type: 'image_url', image_url: { url: ref } });
+  }
   const data = await ctx.fetchJson(`${API}/chat/completions`, {
     headers: auth(ctx.env), timeoutMs: 180000,
-    body: { model: request.model, messages: [{ role: 'user', content: request.prompt }], modalities: ['image', 'text'] },
+    body: { model: request.model, messages: [{ role: 'user', content }], modalities: ['image', 'text'] },
   });
-  const img = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-  if (!img) throw gatewayError('provider_error', 'OpenRouter 未返回图像', { providerId: 'openrouter' });
-  const { mime, buf } = dataUrlToBuffer(img);
+  const msg = data.choices?.[0]?.message || {};
+  // OpenRouter 扩展形态 message.images[]；兼容 OpenAI 内容分片形态
+  const fromImages = msg.images?.[0]?.image_url?.url;
+  const fromParts = Array.isArray(msg.content)
+    ? msg.content.find((p) => p.type === 'image_url')?.image_url?.url
+    : null;
+  const imgUrl = fromImages || fromParts;
+  if (!imgUrl) throw gatewayError('provider_error', `OpenRouter 未返回图像: ${JSON.stringify(msg).slice(0, 200)}`, { providerId: 'openrouter' });
+  let buf; let mime = 'image/png';
+  if (imgUrl.startsWith('data:')) {
+    try { ({ mime, buf } = dataUrlToBuffer(imgUrl)); }
+    catch (e) { throw gatewayError('provider_error', `OpenRouter 图像 dataUrl 解析失败: ${e.message}`, { providerId: 'openrouter', retriable: false }); }
+  } else {
+    buf = await ctx.fetchBuffer(imgUrl, { method: 'GET', headers: {}, timeoutMs: 120000 });
+    if (/\.jpe?g(\?|$)/i.test(imgUrl)) mime = 'image/jpeg';
+  }
   return { files: [ctx.saveFile(buf, mime === 'image/jpeg' ? 'jpg' : 'png')], usage: { images: 1 } };
 }
 
