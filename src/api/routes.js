@@ -203,7 +203,9 @@ export function registerRoutes(route) {
 
   route('POST /api/artist/finalize', async (req, res, { readJsonBody }) => {
     const body = await readJsonBody();
-    if (!body.transcript) return jsonError(res, 'bad_request', 'transcript 必填');
+    if (!body.transcript || (Array.isArray(body.transcript) && body.transcript.length === 0)) {
+      return jsonError(res, 'bad_request', 'transcript 必填且不能为空');
+    }
     try {
       const { system, messages } = buildFinalizeMessages(body.transcript);
       const r = await execute('content', { system, messages, maxTokens: 1200 });

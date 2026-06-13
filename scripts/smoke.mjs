@@ -96,6 +96,9 @@ try {
   const got = await call(`/api/artist/${created.data.id}`);
   ok('artist 详情', got.status === 200 && got.data.artist?.persona === '冷艳');
 
+  const updated = await call(`/api/artist/${created.data.id}`, { profile: { name: 'SMOKE艺人改名' } }, 'PUT');
+  ok('artist 更新', updated.status === 200 && updated.data.artist?.name === 'SMOKE艺人改名', updated.data.artist?.name);
+
   const badCreate = await call('/api/artist', { profile: { name: '' } });
   ok('空艺名被拒', badCreate.status === 200 && badCreate.data.error?.code === 'bad_request', badCreate.data.error?.code);
 
