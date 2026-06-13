@@ -7,6 +7,11 @@ const SAFE_ID = /^[A-Za-z0-9_-]+$/;
 export function initConversations(dir) {
   convDir = dir;
   fs.mkdirSync(dir, { recursive: true });
+  try {
+    for (const f of fs.readdirSync(dir)) {
+      if (f.endsWith('.tmp')) fs.unlinkSync(path.join(dir, f));
+    }
+  } catch {}
 }
 
 function emptyConv(artistId) {
