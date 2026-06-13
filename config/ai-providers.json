@@ -1,14 +1,57 @@
 {
-  "chat":    { "provider": "anthropic",  "model": "claude-sonnet-4-6" },
-  "content": { "provider": "anthropic",  "model": "claude-sonnet-4-6",
-               "fallback": [{ "provider": "openrouter", "model": "anthropic/claude-sonnet-4-6" }] },
-  "world":   { "provider": "dashscope",  "model": "qwen-flash" },
-  "plan":    { "provider": "dashscope",  "model": "qwen-flash" },
-  "image":   { "provider": "gemini",     "model": "gemini-3-pro-image",
-               "fallback": [{ "provider": "openrouter", "model": "google/gemini-3-pro-image" }] },
-  "video":   { "provider": "kling", "model": "kling-v2-6" },
-  "music":   { "provider": "suno", "model": "V5" },
-  "tts":     { "provider": "dashscope", "model": "qwen-tts" },
-  "asr":     { "provider": "dashscope", "model": "qwen3-asr-flash" },
+  "chat": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-6",
+    "fallback": [
+      {
+        "provider": "openrouter",
+        "model": "deepseek/deepseek-chat-v3-0324"
+      }
+    ]
+  },
+  "content": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-6",
+    "fallback": [
+      {
+        "provider": "openrouter",
+        "model": "deepseek/deepseek-chat-v3-0324"
+      }
+    ]
+  },
+  "world": {
+    "provider": "dashscope",
+    "model": "qwen-flash"
+  },
+  "plan": {
+    "provider": "dashscope",
+    "model": "qwen-flash"
+  },
+  "image": {
+    "provider": "gemini",
+    "model": "gemini-3-pro-image",
+    "fallback": [
+      {
+        "provider": "openrouter",
+        "model": "google/gemini-3-pro-image-preview"
+      }
+    ]
+  },
+  "video": {
+    "provider": "kling",
+    "model": "kling-v2-6"
+  },
+  "music": {
+    "provider": "suno",
+    "model": "V5"
+  },
+  "tts": {
+    "provider": "dashscope",
+    "model": "qwen-tts"
+  },
+  "asr": {
+    "provider": "dashscope",
+    "model": "qwen3-asr-flash"
+  },
   "providers": {}
 }

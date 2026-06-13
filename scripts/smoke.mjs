@@ -37,7 +37,7 @@ server.unref();
 try {
   await waitReady();
 
-  const health = await call('/api/health');
+  const health = await call('/api/health?refresh=1');   // 等探测完成再读状态，避免 online 误判为 unknown
   ok('health 返回 provider 三态', health.status === 200 && Array.isArray(health.data.providers)
     && health.data.providers.every((p) => ['online', 'error', 'unconfigured', 'unknown'].includes(p.state)),
     health.data.providers?.map((p) => `${p.id}:${p.state}`).join(' '));

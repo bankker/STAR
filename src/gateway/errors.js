@@ -27,7 +27,7 @@ export function gatewayError(code, message, opts = {}) {
 
 export function fromHttpStatus(status, bodyText, providerId) {
   const snippet = String(bodyText == null ? '' : bodyText).slice(0, 300);
-  if (status === 401 || status === 403) return gatewayError('auth', `HTTP ${status}`, { providerId, hint: '检查该平台 API key 是否有效' });
+  if (status === 401 || status === 403) return gatewayError('auth', `HTTP ${status}: ${snippet}`, { providerId, hint: '检查 key 是否有效、账号数据策略/额度/模型权限是否满足' });
   if (status === 429) return gatewayError('quota', 'HTTP 429 限流', { providerId, hint: '稍后重试或检查平台配额/余额' });
   if (status >= 500) return gatewayError('provider_error', `HTTP ${status}: ${snippet}`, { providerId });
   return gatewayError('bad_request', `HTTP ${status}: ${snippet}`, { providerId });
