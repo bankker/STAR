@@ -87,3 +87,42 @@ function proxyFetch(url, o) {
     connectReq.end();
   });
 }
+
+export function splitSSE(buf) {
+  const datas = [];
+  let nl;
+  while ((nl = buf.indexOf('\n')) >= 0) {
+    const line = buf.slice(0, nl).trim();
+    buf = buf.slice(nl + 1);
+    if (line.startsWith('data:')) {
+      const d = line.slice(5).trim();
+      if (d) datas.push(d);
+    }
+  }
+  return { datas, rest: buf };
+}
+
+// 流式读取（SSE/分块）。每个 data: 负载字符串回调 onChunk。代理隧道暂不支持流式。
+export async function fetchStream(url, opts, onChunk) {
+  const o = normalizeOpts(url, opts);
+  if (o.proxy) throw gatewayError('bad_request', '流式暂不支持代理隧道', { providerId: o.providerId });
+  let res;
+  try {
+    res = await fetch(url, { method: o.method, headers: o.headers, body: o.body, signal: AbortSignal.timeout(o.timeoutMs) });
+  } catch (err) {
+    if (err.name === 'TimeoutError' || err.name === 'AbortError') throw gatewayError('timeout', `请求超时（${o.timeoutMs}ms）: ${url}`, { providerId: o.providerId });
+    throw gatewayError('network', `网络错误: ${err.cause?.code || err.message}`, { providerId: o.providerId, cause: err });
+  }
+  if (res.status < 200 || res.status >= 300) throw fromHttpStatus(res.status, await res.text(), o.providerId);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let carry = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    carry += decoder.decode(value, { stream: true });
+    const { datas, rest } = splitSSE(carry);
+    carry = rest;
+    for (const d of datas) onChunk(d);
+  }
+}
