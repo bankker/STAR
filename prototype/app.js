@@ -88,6 +88,7 @@ function switchView(viewId) {
   if (viewId === 'dashboard') renderDashboard();
   if (viewId === 'companion') renderCompanionView();
   if (viewId === 'artist-creation') renderArtists();
+  if (viewId === 'photo-video') { updatePhotoArtistCard(); loadGallery(); }
 }
 
 function initRouter() {
@@ -390,6 +391,7 @@ function renderArtistPicker(artists) {
         closeArtistPicker();
         renderArtistPicker(state.artists);
         if (state.currentView === 'companion') renderCompanionView();
+        if (state.currentView === 'photo-video') { updatePhotoArtistCard(); loadGallery(); }
       });
     });
   }
@@ -997,6 +999,214 @@ function fileToDataUrl(input) {
   });
 }
 
+/* ── Photo Studio (S3) ── */
+const photoState = {
+  shot: '近景',
+  aspect: '3:4',
+  count: 1,
+  filter: 'all',   // 'all' | 'favorite'
+  generating: false,
+};
+
+function initSegCtrl(id, onSelect) {
+  const wrap = $(`#${id}`);
+  if (!wrap) return;
+  wrap.querySelectorAll('.seg-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      wrap.querySelectorAll('.seg-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      onSelect(btn.dataset.val);
+    });
+  });
+}
+
+function photoArtistName() {
+  const a = state.artists.find((x) => x.id === state.currentArtistId);
+  return a ? a.name : null;
+}
+
+function updatePhotoArtistCard() {
+  const textEl = $('#photo-lock-text');
+  if (!textEl) return;
+  const name = photoArtistName();
+  textEl.textContent = name ? `锁脸基准：${name}` : '请先在顶部选择/创设一个艺人';
+}
+
+function mediaTileHtml(asset) {
+  const url = esc(asset.url);
+  const id = esc(asset.id);
+  const shot = esc(asset.shot || '');
+  const aspect = esc(asset.aspect || '');
+  const isFav = asset.favorite;
+  return `<div class="media-tile" data-asset-id="${id}">
+    <div class="media-tile-img-wrap">
+      <img src="${url}" alt="" loading="lazy">
+      <span class="media-tile-lock lock-badge">⬡ 锁脸</span>
+      <div class="media-tile-actions">
+        <button class="tile-btn tile-fav${isFav ? ' faved' : ''}" data-id="${id}" title="${isFav ? '取消收藏' : '收藏'}">★</button>
+        <button class="tile-btn tile-redo" data-id="${id}" data-shot="${shot}" data-aspect="${aspect}" title="重抽">↻</button>
+        <button class="tile-btn tile-del" data-id="${id}" title="删除">🗑</button>
+      </div>
+    </div>
+    <div class="media-tile-meta">${shot ? shot + (aspect ? ' · ' + aspect : '') : aspect}</div>
+  </div>`;
+}
+
+function spinnerTileHtml() {
+  return `<div class="media-tile media-tile-placeholder">
+    <div class="media-tile-img-wrap">
+      <div class="tile-spinner-wrap">
+        <div class="job-spinner"></div>
+        <div class="tile-spinner-label">生成中…</div>
+      </div>
+    </div>
+    <div class="media-tile-meta">生成中</div>
+  </div>`;
+}
+
+async function loadGallery() {
+  if (!state.currentArtistId) {
+    const grid = $('#photo-gallery-grid');
+    if (grid) grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">
+      <div class="icon">📸</div>
+      <div class="title">请先选择艺人</div>
+      <div class="desc">从顶部艺人选择器选择或创设一名艺人。</div>
+    </div>`;
+    return;
+  }
+  const data = await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/gallery`);
+  if (data.error) return;
+  renderGallery(data.assets || []);
+}
+
+function renderGallery(assets) {
+  const grid = $('#photo-gallery-grid');
+  if (!grid) return;
+
+  let list = assets;
+  if (photoState.filter === 'favorite') list = assets.filter((a) => a.favorite);
+
+  if (!list.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">
+      <div class="icon">🖼️</div>
+      <div class="title">${photoState.filter === 'favorite' ? '还没有收藏' : '还没有写真'}</div>
+      <div class="desc">${photoState.filter === 'favorite' ? '点击★收藏任意写真。' : '左侧设置参数后点生成。'}</div>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = list.map(mediaTileHtml).join('');
+
+  // bind tile actions
+  grid.querySelectorAll('.tile-fav').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!state.currentArtistId) return;
+      await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/gallery/${encodeURIComponent(btn.dataset.id)}/favorite`, {});
+      loadGallery();
+    });
+  });
+
+  grid.querySelectorAll('.tile-redo').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!state.currentArtistId) return;
+      const genBtn = $('#photo-generate-btn');
+      if (genBtn) genBtn.disabled = true;
+      insertSpinners(1);
+      const stylePrompt = $('#photo-style-prompt') ? $('#photo-style-prompt').value.trim() : '';
+      const r = await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/photo`, {
+        shot: btn.dataset.shot || photoState.shot,
+        aspect: btn.dataset.aspect || photoState.aspect,
+        count: 1,
+        stylePrompt,
+      });
+      if (genBtn) genBtn.disabled = false;
+      if (r.error) { toast(errText(r.error), 'err'); loadGallery(); return; }
+      loadGallery();
+    });
+  });
+
+  grid.querySelectorAll('.tile-del').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!state.currentArtistId) return;
+      if (!confirm('确认删除这张写真？')) return;
+      await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/gallery/${encodeURIComponent(btn.dataset.id)}`, undefined, 'DELETE');
+      loadGallery();
+    });
+  });
+}
+
+function insertSpinners(n) {
+  const grid = $('#photo-gallery-grid');
+  if (!grid) return;
+  // remove existing empty-state if present
+  const empty = grid.querySelector('.empty-state');
+  if (empty) empty.remove();
+  const spinners = Array.from({ length: n }, spinnerTileHtml).join('');
+  grid.insertAdjacentHTML('afterbegin', spinners);
+}
+
+async function generatePhoto() {
+  if (!state.currentArtistId) {
+    toast('请先选择一名艺人', 'err');
+    return;
+  }
+  if (photoState.generating) return;
+  photoState.generating = true;
+
+  const genBtn = $('#photo-generate-btn');
+  const msgEl = $('#photo-gen-msg');
+  if (genBtn) genBtn.disabled = true;
+  if (msgEl) { msgEl.textContent = ''; }
+
+  const stylePrompt = $('#photo-style-prompt') ? $('#photo-style-prompt').value.trim() : '';
+  insertSpinners(photoState.count);
+
+  const r = await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/photo`, {
+    shot: photoState.shot,
+    aspect: photoState.aspect,
+    count: photoState.count,
+    stylePrompt,
+  });
+
+  photoState.generating = false;
+  if (genBtn) genBtn.disabled = false;
+
+  if (r.error) {
+    if (msgEl) { msgEl.textContent = errText(r.error); msgEl.style.color = 'var(--err)'; }
+    toast(errText(r.error), 'err');
+    loadGallery();
+    return;
+  }
+
+  if (msgEl) msgEl.textContent = '';
+  toast(`已生成 ${(r.assets || []).length} 张写真`, 'ok');
+  loadGallery();
+}
+
+function initPhotoStudio() {
+  // segmented controls
+  initSegCtrl('ctrl-shot', (v) => { photoState.shot = v; });
+  initSegCtrl('ctrl-aspect', (v) => { photoState.aspect = v; });
+  initSegCtrl('ctrl-count', (v) => { photoState.count = Number(v); });
+
+  // filter chips
+  const filterRow = $('#photo-filter-row');
+  if (filterRow) {
+    filterRow.querySelectorAll('.chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        filterRow.querySelectorAll('.chip').forEach((c) => c.classList.remove('active'));
+        chip.classList.add('active');
+        photoState.filter = chip.dataset.filter;
+        loadGallery();
+      });
+    });
+  }
+
+  // generate button
+  const genBtn = $('#photo-generate-btn');
+  if (genBtn) genBtn.addEventListener('click', generatePhoto);
+}
+
 /* ── Boot ── */
 function boot() {
   initRouter();
@@ -1004,6 +1214,7 @@ function boot() {
   initArtistStudio();
   initChatView();
   initSettings();
+  initPhotoStudio();
   initChat();
   initImage();
   initMusic();
