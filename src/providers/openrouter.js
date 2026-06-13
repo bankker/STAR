@@ -70,8 +70,8 @@ adapter.invokeStream = async (capability, request, ctx, onToken) => {
   const messages = request.system ? [{ role: 'system', content: request.system }, ...request.messages] : request.messages;
   let full = '';
   await ctx.fetchStream(`${API}/chat/completions`, {
-    headers: auth(ctx.env),
-    body: { model: request.model, messages, max_tokens: request.maxTokens || 1024, stream: true },
+    headers: { ...auth(ctx.env), accept: 'text/event-stream' },
+    body: { model: request.model, messages, max_tokens: request.maxTokens || 2048, stream: true },
   }, (data) => {
     if (data === '[DONE]') return;
     let j; try { j = JSON.parse(data); } catch { return; }
