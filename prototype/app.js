@@ -59,6 +59,7 @@ function boot() {
   initChat();
   $('#health-refresh').addEventListener('click', () => renderHealth(true));
   renderJobs(); setInterval(renderJobs, 3000);
+  renderUsage(); setInterval(renderUsage, 30000);
 }
 window.addEventListener('DOMContentLoaded', boot);
 
@@ -92,3 +93,42 @@ window.retryJobClick = async (id) => {
   if (r.error) alert(errText(r.error));
   renderJobs();
 };
+
+async function renderUsage() {
+  const u = await api('/api/usage');
+  if (u.error) return;
+  $('#usage-summary').textContent =
+    `本周 AI 成本 $${u.totalUsd}（文本 $${u.textUsd} / 红线 $${u.textBudgetUsd}）${u.textWarn ? ' ⚠️ 接近红线' : ''}`;
+}
+
+function confirmCost(estimate) {
+  return new Promise((resolve) => {
+    $('#confirm-text').textContent =
+      `将由 ${estimate.provider}/${estimate.model} 生成 ${estimate.capability}，预估成本 $${estimate.estimatedUsd}。继续？`;
+    $('#confirm-modal').classList.remove('hidden');
+    const ok = $('#confirm-ok'); const cancel = $('#confirm-cancel');
+    const done = (v) => {
+      $('#confirm-modal').classList.add('hidden');
+      ok.removeEventListener('click', yes); cancel.removeEventListener('click', no);
+      resolve(v);
+    };
+    const yes = () => done(true); const no = () => done(false);
+    ok.addEventListener('click', yes); cancel.addEventListener('click', no);
+  });
+}
+
+// 重媒体卡片公用：先拿 confirm_required 的报价 → 弹窗确认 → 带 confirm 重发
+async function submitWithConfirm(path, payload, outEl) {
+  outEl.textContent = '估算成本…';
+  const first = await api(path, payload);
+  if (first.error && first.error.code === 'confirm_required') {
+    if (!(await confirmCost(first.error.estimate))) { outEl.textContent = '已取消'; return null; }
+    const second = await api(path, { ...payload, confirm: true });
+    if (second.error) { outEl.textContent = errText(second.error); return null; }
+    outEl.textContent = `已提交任务 ${second.jobId}，进度见下方任务列表`;
+    renderJobs();
+    return second;
+  }
+  if (first.error) { outEl.textContent = errText(first.error); return null; }
+  return first;
+}

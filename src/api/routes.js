@@ -1,7 +1,9 @@
-import { execute } from '../gateway/gateway.js';
-import { GatewayError } from '../gateway/errors.js';
+import { execute, resolveRoute } from '../gateway/gateway.js';
+import { GatewayError, gatewayError } from '../gateway/errors.js';
 import { refreshHealth, getHealthSnapshot } from '../gateway/health.js';
-import { listJobs, getJob, retryJob, sanitize } from '../gateway/jobs.js';
+import { listJobs, getJob, retryJob, sanitize, submitJob } from '../gateway/jobs.js';
+import { estimateRequest } from '../gateway/costs.js';
+import { summarize } from '../gateway/ledger.js';
 
 const MAX_BODY = 1 * 1024 * 1024;
 const MAX_MEDIA_BODY = 32 * 1024 * 1024;
@@ -39,6 +41,31 @@ export function readJsonBody(req, pathname) {
   });
 }
 
+export function estimateFor(capability, request) {
+  const { chain, configured } = resolveRoute(capability);
+  const entry = configured[0] || chain[0];
+  if (!entry) throw gatewayError('bad_request', `能力 ${capability} 无可用路由`);
+  return {
+    capability, provider: entry.provider.id, model: entry.model,
+    estimatedUsd: estimateRequest(capability, entry.provider.id, entry.model, request),
+  };
+}
+
+// 重媒体统一提交流程：估算 → confirm 闸门 → 入队（CL-6）。Task 13/14 的 video/music 端点调用。
+export async function handleMediaSubmit(capability, res, body, buildRequest) {
+  let request;
+  try { request = buildRequest(body); }
+  catch (e) { return jsonError(res, 'bad_request', e.message); }
+  try {
+    const estimate = estimateFor(capability, request);
+    if (body.confirm !== true) {
+      return json(res, { error: { code: 'confirm_required', message: '需先确认预估成本', estimate } });
+    }
+    const job = submitJob(capability, request, { estimate });
+    json(res, { jobId: job.id, estimate });
+  } catch (e) { sendGatewayError(res, e); }
+}
+
 export function registerRoutes(route) {
   route('GET /api/ping', async (req, res) => json(res, { ok: true, ts: Date.now() }));
 
@@ -67,4 +94,15 @@ export function registerRoutes(route) {
     job ? json(res, { job: sanitize(job) }) : jsonError(res, 'not_found', `无此任务 ${params.id}`);
   });
   route('POST /api/jobs/:id/retry', async (req, res, { params }) => json(res, retryJob(params.id)));
+
+  route('POST /api/estimate', async (req, res, { readJsonBody }) => {
+    const { capability, request = {} } = await readJsonBody();
+    if (!capability) return jsonError(res, 'bad_request', 'capability 必填');
+    try { json(res, estimateFor(capability, request)); } catch (e) { sendGatewayError(res, e); }
+  });
+
+  route('GET /api/usage', async (req, res) => {
+    const s = summarize({ sinceMs: Date.now() - 7 * 86400e3 });
+    json(res, { ...s, textBudgetUsd: 2, textWarn: s.textUsd >= 1.6 });
+  });
 }
