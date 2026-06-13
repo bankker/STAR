@@ -3,138 +3,688 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AI Star Studio v3 — M1 工作台</title>
+<title>AI Star Studio</title>
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-<header>
-  <h1>AI Star Studio v3 <span class="sub">虚拟艺人创作工作室</span></h1>
-  <div id="usage-summary" class="usage">本周成本 —</div>
-</header>
+<div class="app-shell">
 
-<section id="health" class="panel">
-  <div class="panel-head"><h2>Provider 健康</h2><button id="health-refresh">重新探测</button></div>
-  <div id="health-grid" class="health-grid"></div>
-</section>
-
-<section id="artist-studio" class="panel">
-  <div class="panel-head"><h2>艺人工作室</h2><button id="artist-new">+ 创设新艺人</button></div>
-  <div id="artist-list" class="artist-list"></div>
-
-  <div id="artist-create" class="create-flow hidden">
-    <h3>对话式访谈捣人</h3>
-    <div id="interview-log" class="interview-log"></div>
-    <div class="row">
-      <input id="interview-input" placeholder="回答企划的问题，或描述你想要的艺人…">
-      <button id="interview-send">发送</button>
+  <!-- ══════════════════ SIDEBAR ══════════════════ -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">★</div>
+      <div class="logo-text">
+        <div class="main">AI Star Studio</div>
+        <div class="sub">虚拟艺人创作工作室</div>
+      </div>
     </div>
-    <button id="interview-finalize">根据对话生成档案</button>
 
-    <div id="draft-box" class="draft-box hidden">
-      <h3>艺人档案草稿（可改）</h3>
-      <label>艺名 <input data-f="name"></label>
-      <label>性别 <input data-f="gender"></label>
-      <label>人设 <input data-f="persona"></label>
-      <label>定位 <input data-f="positioning"></label>
-      <label>核心吸引力 <input data-f="coreAppeal"></label>
-      <label>说话风格 <input data-f="speakingStyle"></label>
-      <label>声线描述 <input data-f="voiceDescription"></label>
-      <label>音乐风格 <input data-f="musicStyle"></label>
-      <label>性格（逗号分隔） <input data-f="personality"></label>
-      <label>背景故事 <textarea data-f="backstory" rows="3"></textarea></label>
-      <label>视觉档案（图像提示词） <textarea data-f="visualIdentity" rows="2"></textarea></label>
-      <button id="artist-save">确认创建</button>
-      <span id="create-msg" class="msg"></span>
+    <div class="sidebar-nav">
+      <!-- 工作台 -->
+      <div class="nav-group-label">工作台</div>
+      <div class="nav-item active" data-view="artist-creation">
+        <span class="nav-icon">🎭</span>
+        <span class="nav-label">艺人创设</span>
+        <span class="nav-tag s1">S1</span>
+      </div>
+      <div class="nav-item" data-view="dashboard">
+        <span class="nav-icon">⊞</span>
+        <span class="nav-label">仪表盘</span>
+      </div>
+
+      <!-- 生产线 -->
+      <div class="nav-group-label">生产线</div>
+      <div class="nav-item" data-view="companion">
+        <span class="nav-icon">💬</span>
+        <span class="nav-label">对话陪伴</span>
+      </div>
+      <div class="nav-item" data-view="photo-video">
+        <span class="nav-icon">📸</span>
+        <span class="nav-label">写真/视频</span>
+      </div>
+      <div class="nav-item" data-view="music">
+        <span class="nav-icon">🎵</span>
+        <span class="nav-label">音乐工坊</span>
+      </div>
+      <div class="nav-item" data-view="interview">
+        <span class="nav-icon">🎬</span>
+        <span class="nav-label">访谈成片</span>
+      </div>
+      <div class="nav-item" data-view="shorts">
+        <span class="nav-icon">🎞️</span>
+        <span class="nav-label">短片/短剧</span>
+        <span class="nav-tag">S6</span>
+      </div>
+
+      <!-- 系统 -->
+      <div class="nav-group-label">系统</div>
+      <div class="nav-item" data-view="health">
+        <span class="nav-icon">⚡</span>
+        <span class="nav-label">能力健康</span>
+        <span class="nav-tag m1">M1</span>
+      </div>
+      <div class="nav-item" data-view="cost">
+        <span class="nav-icon">💰</span>
+        <span class="nav-label">成本账本</span>
+      </div>
+      <div class="nav-item" data-view="settings">
+        <span class="nav-icon">⚙️</span>
+        <span class="nav-label">设置</span>
+      </div>
+      <div class="nav-item" data-view="design-system">
+        <span class="nav-icon">🎨</span>
+        <span class="nav-label">设计系统</span>
+      </div>
     </div>
-  </div>
 
-  <div id="artist-detail" class="detail hidden"></div>
-
-  <div id="chat-view" class="chat-view hidden">
-    <div class="panel-head"><h3 id="chat-title"></h3><button id="chat-close">返回</button></div>
-    <div id="chat-state" class="ps"></div>
-    <div id="chat-log" class="interview-log"></div>
-    <div class="row">
-      <input id="chat-msg" placeholder="对 ta 说点什么…">
-      <button id="chat-send2">发送</button>
+    <!-- Provider status bar -->
+    <div class="sidebar-providers">
+      <div class="providers-label">
+        <span>PROVIDERS</span>
+        <span class="count" id="providers-count">— / 6 已配置</span>
+      </div>
+      <div class="provider-segments" id="provider-segments">
+        <div class="seg" data-idx="0"></div>
+        <div class="seg" data-idx="1"></div>
+        <div class="seg" data-idx="2"></div>
+        <div class="seg" data-idx="3"></div>
+        <div class="seg" data-idx="4"></div>
+        <div class="seg" data-idx="5"></div>
+      </div>
+      <div class="keyless-badge" id="keyless-badge">keyless 演示模式</div>
     </div>
-  </div>
-</section>
+  </nav>
 
-<details class="debug"><summary>能力调试台（M1）</summary>
-<main class="cards">
-  <section class="card" id="card-chat">
-    <h2>聊天 <span class="route" data-cap="chat"></span></h2>
-    <textarea id="chat-input" rows="3" placeholder="对艺人说点什么…"></textarea>
-    <button id="chat-send">发送</button>
-    <div id="chat-out" class="out"></div>
-  </section>
+  <!-- ══════════════════ MAIN ══════════════════ -->
+  <div class="main-area">
 
-  <section class="card" id="card-image">
-    <h2>图像 <span class="route" data-cap="image"></span></h2>
-    <textarea id="image-prompt" rows="2" placeholder="写真描述…"></textarea>
-    <input type="file" id="image-ref" accept="image/*">
-    <button id="image-send">生成图像</button>
-    <div id="image-out" class="out"></div>
-  </section>
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="breadcrumb">
+        <span>工作室</span>
+        <span class="sep">/</span>
+        <span class="current" id="topbar-title">艺人创设</span>
+      </div>
 
-  <section class="card" id="card-music">
-    <h2>音乐 <span class="route" data-cap="music"></span></h2>
-    <input id="music-title" placeholder="歌名">
-    <input id="music-style" placeholder="曲风，如：国风流行，女声，105BPM">
-    <textarea id="music-lyrics" rows="3" placeholder="歌词（可空，交给平台作词）"></textarea>
-    <button id="music-send">生成歌曲</button>
-    <div id="music-out" class="out"></div>
-  </section>
+      <!-- Artist Picker -->
+      <div class="artist-picker" id="artist-picker-wrap">
+        <button class="artist-picker-btn" id="artist-picker-btn" type="button">
+          <div class="picker-avatar placeholder" id="picker-avatar">🎭</div>
+          <div class="picker-info">
+            <div class="picker-name" id="picker-name">未选择艺人</div>
+            <div class="picker-persona" id="picker-persona">请创设或选择</div>
+          </div>
+          <span class="picker-caret">▾</span>
+        </button>
+        <div class="artist-picker-dropdown hidden" id="artist-picker-dropdown">
+          <div id="picker-artist-list"></div>
+          <div class="picker-create-btn" id="picker-goto-create">
+            <span>✦</span> 创设新艺人
+          </div>
+        </div>
+      </div>
 
-  <section class="card" id="card-video">
-    <h2>视频 <span class="route" data-cap="video"></span></h2>
-    <input type="file" id="video-ref" accept="image/*">
-    <textarea id="video-prompt" rows="2" placeholder="运镜与动作描述…"></textarea>
-    <select id="video-duration"><option value="5">5 秒</option><option value="10">10 秒</option></select>
-    <button id="video-send">生成视频（竖屏）</button>
-    <div id="video-out" class="out"></div>
-  </section>
+      <button class="topbar-new-btn" id="topbar-new-btn" type="button">
+        + 新建
+      </button>
+    </header>
 
-  <section class="card" id="card-tts">
-    <h2>配音 TTS <span class="route" data-cap="tts"></span></h2>
-    <textarea id="tts-text" rows="2" maxlength="1000" placeholder="台词（≤1000 字）"></textarea>
-    <input id="tts-voice" placeholder="音色（按平台文档，可空）">
-    <button id="tts-send">合成语音</button>
-    <div id="tts-out" class="out"></div>
-  </section>
+    <!-- ═══════ VIEWS ═══════ -->
+    <div class="view-area">
 
-  <section class="card" id="card-asr">
-    <h2>转写 ASR <span class="route" data-cap="asr"></span></h2>
-    <input type="file" id="asr-file" accept="audio/*">
-    <button id="asr-send">转写</button>
-    <div id="asr-out" class="out"></div>
-  </section>
-</main>
-</details>
+      <!-- ══ VIEW: 艺人创设 (S1) ══ -->
+      <div id="view-artist-creation" class="view">
+        <div class="view-h1">
+          艺人创设
+          <span class="pill s1">S1</span>
+        </div>
+        <p class="text-sm text-ink-3 mt-8 mb-16">通过对话访谈建立艺人档案，生成一致性参考包，创设虚拟艺人。</p>
 
-<section id="jobs" class="panel">
-  <div class="panel-head"><h2>生成任务</h2></div>
-  <div id="jobs-list"></div>
-</section>
+        <!-- Interview + Profile split -->
+        <div class="s1-layout" id="s1-main">
+          <!-- LEFT: Interview -->
+          <div class="panel interview-pane" style="padding:18px;">
+            <div class="flex items-center gap-8 mb-12">
+              <h2 style="margin:0">对话访谈</h2>
+              <span class="pill dim" id="interview-status-pill">等待开始</span>
+            </div>
+            <div class="interview-log-wrap" id="interview-log"></div>
+            <div class="interview-actions">
+              <input id="interview-input" placeholder="回答问题，或描述你想要的艺人…" autocomplete="off">
+              <button class="btn btn-primary btn-sm" id="interview-send">发送</button>
+            </div>
+            <div style="margin-top:10px;">
+              <button class="btn btn-ghost" id="interview-finalize" style="width:100%">
+                ✦ 生成档案
+              </button>
+            </div>
+            <div class="out hidden" id="interview-msg"></div>
+          </div>
 
-<section id="settings" class="panel">
-  <div class="panel-head"><h2>设置</h2></div>
-  <h3>能力路由（JSON，保存即热生效）</h3>
-  <textarea id="config-editor" rows="14" spellcheck="false"></textarea>
-  <button id="config-save">保存路由</button>
-  <div id="config-msg" class="out"></div>
-  <h3>API Key（仅写入服务端 .env，不回显）</h3>
-  <div id="keys-list"></div>
-</section>
+          <!-- RIGHT: Profile card -->
+          <div id="draft-panel">
+            <div class="profile-card" id="draft-box">
+              <div class="flex items-center gap-8 mb-12">
+                <h2 style="margin:0">艺人档案草稿</h2>
+                <span class="pill warn" id="draft-status-pill">草稿</span>
+              </div>
 
+              <!-- 身份 -->
+              <div class="profile-section">
+                <div class="profile-section-head">身份</div>
+                <div class="g2">
+                  <div class="profile-field">
+                    <label>艺名</label>
+                    <input data-f="name" placeholder="艺名">
+                  </div>
+                  <div class="profile-field">
+                    <label>性别</label>
+                    <input data-f="gender" placeholder="女 / 男 / 非二元">
+                  </div>
+                </div>
+                <div class="profile-field mt-8">
+                  <label>人设</label>
+                  <input data-f="persona" placeholder="一句话人设">
+                </div>
+                <div class="profile-field mt-8">
+                  <label>定位</label>
+                  <input data-f="positioning" placeholder="市场定位">
+                </div>
+              </div>
+
+              <!-- 真实感内核 -->
+              <div class="profile-section">
+                <div class="profile-section-head">真实感内核</div>
+                <div class="profile-field">
+                  <label>核心吸引力</label>
+                  <input data-f="coreAppeal" placeholder="核心吸引力">
+                </div>
+                <div class="profile-field mt-8">
+                  <label>说话风格</label>
+                  <input data-f="speakingStyle" placeholder="说话风格">
+                </div>
+                <div class="profile-field mt-8">
+                  <label>性格标签（逗号分隔）</label>
+                  <input data-f="personality" placeholder="活泼，温柔，治愈">
+                </div>
+                <div class="profile-field mt-8">
+                  <label>背景故事</label>
+                  <textarea data-f="backstory" rows="3" placeholder="背景故事…"></textarea>
+                </div>
+              </div>
+
+              <!-- 一致性参考包 -->
+              <div class="profile-section">
+                <div class="profile-section-head">一致性参考包</div>
+                <div class="profile-field">
+                  <label>声线描述</label>
+                  <input data-f="voiceDescription" placeholder="声线描述">
+                </div>
+                <div class="profile-field mt-8">
+                  <label>音乐风格</label>
+                  <input data-f="musicStyle" placeholder="音乐风格">
+                </div>
+                <div class="profile-field mt-8">
+                  <label>视觉档案（图像提示词）</label>
+                  <textarea data-f="visualIdentity" rows="2" placeholder="外观描述…"></textarea>
+                </div>
+              </div>
+
+              <div class="flex gap-8 mt-16">
+                <button class="btn btn-primary flex-1" id="artist-save">确认创建</button>
+                <button class="btn btn-accent btn-sm" id="gen-portrait-draft" disabled>出定妆照</button>
+              </div>
+              <div id="create-msg" class="out"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Portrait detail panel (shown after clicking an artist card) -->
+        <div id="artist-detail-panel" class="panel hidden mt-16">
+          <div id="artist-detail-content"></div>
+        </div>
+
+        <!-- Artist grid -->
+        <div style="margin-top:24px;">
+          <div class="flex items-center gap-12 mb-12">
+            <h2 style="margin:0">已创设艺人</h2>
+            <button class="btn btn-secondary btn-sm" id="artist-new">+ 创设新艺人</button>
+          </div>
+          <div class="artist-grid" id="artist-list"></div>
+        </div>
+      </div>
+
+      <!-- ══ VIEW: 仪表盘 ══ -->
+      <div id="view-dashboard" class="view hidden">
+        <div class="view-h1">仪表盘</div>
+        <p class="text-sm text-ink-3 mt-8 mb-16">工作室总览——艺人、成本、任务。</p>
+
+        <!-- Stat cards -->
+        <div class="g3 mb-16" id="dashboard-stats">
+          <div class="stat-card brand">
+            <div class="stat-label">艺人总数</div>
+            <div class="stat-value" id="dash-artist-count">—</div>
+          </div>
+          <div class="stat-card gold">
+            <div class="stat-label">本周 AI 成本</div>
+            <div class="stat-value" id="dash-cost">$—</div>
+            <div class="stat-sub" id="dash-cost-sub"></div>
+          </div>
+          <div class="stat-card ok">
+            <div class="stat-label">已在线 Provider</div>
+            <div class="stat-value" id="dash-providers">— / 6</div>
+          </div>
+        </div>
+
+        <!-- Pipeline entry cards -->
+        <h2 class="mb-12">生产线入口</h2>
+        <div class="g3 mb-20">
+          <div class="entry-card" data-view="companion">
+            <div class="ec-icon">💬</div>
+            <div class="ec-title">对话陪伴</div>
+            <div class="ec-desc">与艺人深度对话，调教人格，建立记忆与亲密度</div>
+            <div class="ec-status"><span class="pill s2">S2</span></div>
+          </div>
+          <div class="entry-card" data-view="photo-video">
+            <div class="ec-icon">📸</div>
+            <div class="ec-title">写真/视频</div>
+            <div class="ec-desc">锁脸生成写真与视频，可收藏、单点重抽</div>
+            <div class="ec-status"><span class="pill dim">P2</span></div>
+          </div>
+          <div class="entry-card" data-view="music">
+            <div class="ec-icon">🎵</div>
+            <div class="ec-title">音乐工坊</div>
+            <div class="ec-desc">作曲蓝图可编辑，渲染专业级音乐作品</div>
+            <div class="ec-status"><span class="pill dim">P3</span></div>
+          </div>
+          <div class="entry-card" data-view="interview">
+            <div class="ec-icon">🎬</div>
+            <div class="ec-title">访谈成片</div>
+            <div class="ec-desc">5 阶段管线自动合成艺人访谈成片</div>
+            <div class="ec-status"><span class="pill dim">P3</span></div>
+          </div>
+          <div class="entry-card" data-view="shorts">
+            <div class="ec-icon">🎞️</div>
+            <div class="ec-title">短片/短剧</div>
+            <div class="ec-desc">7 阶段管线，分镜单格重抽，逐集确认成本</div>
+            <div class="ec-status"><span class="pill dim">P3</span></div>
+          </div>
+          <div class="entry-card" data-view="health">
+            <div class="ec-icon">⚡</div>
+            <div class="ec-title">能力健康</div>
+            <div class="ec-desc">6 Provider 三态监控，降级链状态</div>
+            <div class="ec-status"><span class="pill m1">M1</span></div>
+          </div>
+        </div>
+
+        <!-- Recent jobs -->
+        <h2 class="mb-12">近期任务</h2>
+        <div id="dashboard-jobs">
+          <div class="empty-state">
+            <div class="icon">📋</div>
+            <div class="title">暂无任务</div>
+            <div class="desc">开启生产线后任务将在此显示</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ VIEW: 对话陪伴 (S2) ══ -->
+      <div id="view-companion" class="view hidden">
+        <div class="view-h1">
+          对话陪伴
+          <span class="pill s2">S2</span>
+        </div>
+        <p class="text-sm text-ink-3 mt-8 mb-12">与当前艺人深度对话——流式打字回复，记忆亲密度实时更新。</p>
+
+        <div id="companion-no-artist" class="panel">
+          <div class="empty-state">
+            <div class="icon">🎭</div>
+            <div class="title">请先选择艺人</div>
+            <div class="desc">从顶部艺人选择器选择或新建一名艺人，再开始对话。</div>
+          </div>
+        </div>
+
+        <div id="companion-chat-area" class="hidden">
+          <!-- State bar: mood + affinity -->
+          <div class="state-bar" id="companion-state-bar">
+            <div class="state-item">
+              <span class="state-label">心情</span>
+              <span class="state-val" id="companion-mood">—</span>
+            </div>
+            <div class="state-item" style="flex:1;">
+              <span class="state-label">亲密度</span>
+              <div class="affinity-bar-wrap">
+                <div class="progress-bar" style="margin:0;">
+                  <div class="fill" id="companion-affinity-bar" style="width:0%"></div>
+                </div>
+              </div>
+              <span class="state-val" id="companion-affinity">0</span>
+            </div>
+          </div>
+
+          <div class="panel chat-pane">
+            <div class="chat-log" id="chat-log"></div>
+            <div class="chat-input-row">
+              <input id="chat-msg" placeholder="对 ta 说点什么…" autocomplete="off">
+              <button class="btn btn-primary" id="chat-send2">发送</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ VIEW: 写真/视频 (P2 placeholder) ══ -->
+      <div id="view-photo-video" class="view hidden">
+        <div class="view-h1">写真/视频 <span class="pill dim">P2</span></div>
+        <div class="panel mt-16">
+          <div class="coming-soon">
+            <div class="cs-icon">📸</div>
+            <div class="cs-title">即将到来（P2）</div>
+            <div class="cs-desc">
+              锁脸写真与视频生成——通义万相适配器、3:4 写真画廊、9:16 竖屏视频、单点重抽、收藏管理。
+            </div>
+            <span class="pill dim cs-pill">开发中</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ VIEW: 音乐工坊 (P3 placeholder) ══ -->
+      <div id="view-music" class="view hidden">
+        <div class="view-h1">音乐工坊 <span class="pill dim">P3</span></div>
+        <div class="panel mt-16">
+          <div class="coming-soon">
+            <div class="cs-icon">🎵</div>
+            <div class="cs-title">即将到来（P3）</div>
+            <div class="cs-desc">
+              可编辑作曲蓝图确认后渲染，作品库可播放、带入短剧生产线。
+            </div>
+            <span class="pill dim cs-pill">开发中</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ VIEW: 访谈成片 (P3 placeholder) ══ -->
+      <div id="view-interview" class="view hidden">
+        <div class="view-h1">访谈成片 <span class="pill dim">P3</span></div>
+        <div class="panel mt-16">
+          <div class="coming-soon">
+            <div class="cs-icon">🎬</div>
+            <div class="cs-title">即将到来（P3）</div>
+            <div class="cs-desc">
+              5 阶段管线（script → audio → visual → subtitle → final）双人画面合成，阶段可暂停/重试。
+            </div>
+            <span class="pill dim cs-pill">开发中</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ VIEW: 短片/短剧 (P3 placeholder) ══ -->
+      <div id="view-shorts" class="view hidden">
+        <div class="view-h1">短片/短剧 <span class="pill s1">S6</span></div>
+        <div class="panel mt-16">
+          <div class="coming-soon">
+            <div class="cs-icon">🎞️</div>
+            <div class="cs-title">即将到来（P3）</div>
+            <div class="cs-desc">
+              7 阶段管线，分镜板单格重抽，低成本↔高质量档位，逐集/整剧成本闸门，选角定妆。
+            </div>
+            <span class="pill dim cs-pill">开发中</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ VIEW: 能力健康 ══ -->
+      <div id="view-health" class="view hidden">
+        <div class="view-h1">
+          能力健康
+          <span class="pill m1">M1</span>
+        </div>
+        <p class="text-sm text-ink-3 mt-8 mb-16">6 个 Provider 实时三态——在线 / 故障 / 未接入。</p>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Provider 状态</h2>
+            <button class="btn btn-secondary btn-sm" id="health-refresh">🔄 重新探测</button>
+          </div>
+          <div id="health-grid"></div>
+        </div>
+      </div>
+
+      <!-- ══ VIEW: 成本账本 ══ -->
+      <div id="view-cost" class="view hidden">
+        <div class="view-h1">成本账本 <span class="pill m1">M1</span></div>
+        <p class="text-sm text-ink-3 mt-8 mb-16">AI 用量与成本汇总——keyless 模式下显示零。</p>
+
+        <div class="g3 mb-16">
+          <div class="stat-card gold">
+            <div class="stat-label">本周 AI 总成本</div>
+            <div class="stat-value" id="cost-total">$0.00</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">文本生成成本</div>
+            <div class="stat-value" id="cost-text">$0.00</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">文本预算红线</div>
+            <div class="stat-value" id="cost-budget">$0.00</div>
+            <div class="stat-sub" id="cost-warn"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h2>近期任务</h2></div>
+          <div id="cost-jobs-list"></div>
+        </div>
+      </div>
+
+      <!-- ══ VIEW: 设置 ══ -->
+      <div id="view-settings" class="view hidden">
+        <div class="view-h1">设置 <span class="pill m1">M1</span></div>
+        <p class="text-sm text-ink-3 mt-8 mb-16">路由配置与 API Key 管理——Key 仅写入服务端 .env，不回显完整值。</p>
+
+        <div class="g2" style="align-items:start;">
+          <!-- Route config -->
+          <div class="panel">
+            <h2 class="mb-12">能力路由（JSON）</h2>
+            <p class="text-sm text-ink-3 mb-12">保存即热生效，无需重启服务器。</p>
+            <div class="config-editor-wrap">
+              <textarea id="config-editor" rows="18" spellcheck="false" placeholder="加载中…"></textarea>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
+              <button class="btn btn-primary" id="config-save">保存路由</button>
+              <span id="config-msg" class="config-msg"></span>
+            </div>
+          </div>
+
+          <!-- API Keys -->
+          <div class="panel">
+            <h2 class="mb-12">API Key 管理</h2>
+            <p class="text-sm text-ink-3 mb-12">粘贴新 Key 后回车提交，已配置的只显示末四位。</p>
+            <div id="keys-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ VIEW: 设计系统 ══ -->
+      <div id="view-design-system" class="view hidden">
+        <div class="view-h1">设计系统</div>
+        <p class="text-sm text-ink-3 mt-8 mb-16">Color tokens、组件画廊——前端对齐参照。</p>
+
+        <!-- Color tokens -->
+        <div class="panel mb-16">
+          <h2 class="mb-12">颜色 Tokens</h2>
+          <div class="swatch-grid">
+            <div class="swatch"><div class="swatch-color" style="background:#0c0d12"></div><div class="swatch-label">--bg</div></div>
+            <div class="swatch"><div class="swatch-color" style="background:#171a24"></div><div class="swatch-label">--panel</div></div>
+            <div class="swatch"><div class="swatch-color" style="background:#1d212e"></div><div class="swatch-label">--panel-2</div></div>
+            <div class="swatch"><div class="swatch-color" style="background:#272c3a"></div><div class="swatch-label">--line</div></div>
+            <div class="swatch"><div class="swatch-color" style="background:#333a4d"></div><div class="swatch-label">--line-2</div></div>
+            <div class="swatch"><div class="swatch-color" style="background:#eef1f7"></div><div class="swatch-label">--ink</div></div>
+            <div class="swatch"><div class="swatch-color" style="background:#aab2c5"></div><div class="swatch-label">--ink-2</div></div>
+            <div class="swatch"><div class="swatch-color" style="background:#6e7689"></div><div class="swatch-label">--ink-3</div></div>
+            <div class="swatch"><div class="swatch-color" style="background:#7c5cff"></div><div class="swatch-label">--brand</div></div>
+            <div class="swatch"><div class="swatch-color" style="background:#a78bff"></div><div class="swatch-label">--brand-2</div></div>
+            <div class="swatch"><div class="swatch-color" style="background:#26d6c4"></div><div class="swatch-label">--accent</div></div>
+            <div class="swatch"><div class="swatch-color" style="background:#ffce6b"></div><div class="swatch-label">--gold</div></div>
+            <div class="swatch"><div class="swatch-color" style="background:#ff7eb6"></div><div class="swatch-label">--pink</div></div>
+            <div class="swatch"><div class="swatch-color" style="background:#39d98a"></div><div class="swatch-label">--ok</div></div>
+            <div class="swatch"><div class="swatch-color" style="background:#ffb547"></div><div class="swatch-label">--warn</div></div>
+            <div class="swatch"><div class="swatch-color" style="background:#ff6b6b"></div><div class="swatch-label">--err</div></div>
+          </div>
+        </div>
+
+        <!-- Typography -->
+        <div class="panel mb-16">
+          <h2 class="mb-12">排版阶梯</h2>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="font-size:21px;font-weight:800;color:var(--ink)">H1 — 21px / 800 — 艺人创设</div>
+            <div style="font-size:15px;font-weight:700;color:var(--ink)">H2 — 15px / 700 — Provider 状态</div>
+            <div style="font-size:14.5px;font-weight:700;color:var(--ink)">卡片标题 — 14.5px / 700</div>
+            <div style="font-size:14px;font-weight:400;color:var(--ink)">正文 — 14px / 400 — 普通内容</div>
+            <div style="font-size:13px;font-weight:400;color:var(--ink-2)">次要 — 13px / 400 — 辅助说明</div>
+            <div style="font-size:11.5px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:var(--ink-3)">LABEL — 11.5px / 600 UPPERCASE</div>
+            <div style="font-size:11px;color:var(--ink-3)">微标签 — 11px / 400</div>
+          </div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="panel mb-16">
+          <h2 class="mb-12">按钮</h2>
+          <div class="flex gap-8" style="flex-wrap:wrap;align-items:center;">
+            <button class="btn btn-primary">主按钮</button>
+            <button class="btn btn-secondary">次按钮</button>
+            <button class="btn btn-ghost">幽灵按钮</button>
+            <button class="btn btn-accent">强调</button>
+            <button class="btn btn-danger">危险</button>
+            <button class="btn btn-primary btn-sm">小主按钮</button>
+            <button class="btn btn-secondary btn-sm">小次按钮</button>
+            <button class="btn btn-primary" disabled>禁用</button>
+          </div>
+        </div>
+
+        <!-- Chips & Pills & Tags -->
+        <div class="panel mb-16">
+          <h2 class="mb-12">Chip / Pill / Tag</h2>
+          <div class="flex gap-8" style="flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+            <span class="chip">默认 chip</span>
+            <span class="chip active">激活 chip</span>
+          </div>
+          <div class="flex gap-8" style="flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+            <span class="pill s1">S1</span>
+            <span class="pill s2">S2</span>
+            <span class="pill m1">M1</span>
+            <span class="pill ok">在线</span>
+            <span class="pill warn">待确认</span>
+            <span class="pill dim">开发中</span>
+          </div>
+          <div class="flex gap-8" style="flex-wrap:wrap;align-items:center;">
+            <span class="tag">国风</span>
+            <span class="tag">治愈</span>
+            <span class="tag">活泼</span>
+            <span class="lock-badge">⬡ 锁脸</span>
+          </div>
+        </div>
+
+        <!-- Inputs -->
+        <div class="panel mb-16">
+          <h2 class="mb-12">输入控件</h2>
+          <div class="g2" style="gap:12px;">
+            <div class="field">
+              <div class="label-upper">单行输入</div>
+              <input placeholder="请输入…">
+            </div>
+            <div class="field">
+              <div class="label-upper">多行文本</div>
+              <textarea rows="2" placeholder="请输入…"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Health rows -->
+        <div class="panel mb-16">
+          <h2 class="mb-12">HealthStat 行</h2>
+          <div class="health-row">
+            <div class="health-dot ok"></div>
+            <div class="health-provider">OpenRouter</div>
+            <span class="pill ok">在线</span>
+            <span class="health-latency">142ms</span>
+          </div>
+          <div class="health-row">
+            <div class="health-dot err"></div>
+            <div class="health-provider">DashScope</div>
+            <span class="pill" style="background:rgba(255,107,107,.1);color:var(--err);border-color:rgba(255,107,107,.25)">故障</span>
+          </div>
+          <div class="health-row">
+            <div class="health-dot warn"></div>
+            <div class="health-provider">Suno</div>
+            <span class="pill warn">未接入</span>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /view-area -->
+  </div><!-- /main-area -->
+</div><!-- /app-shell -->
+
+<!-- Cost confirm modal (preserved from original) -->
 <div id="confirm-modal" class="modal hidden">
   <div class="modal-box">
     <h3>生成成本确认</h3>
-    <p id="confirm-text"></p>
-    <button id="confirm-ok">确认生成</button>
-    <button id="confirm-cancel">取消</button>
+    <p id="confirm-text" class="text-sm" style="color:var(--ink-2);margin:0 0 10px;"></p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="confirm-cancel">取消</button>
+      <button class="btn btn-primary" id="confirm-ok">确认生成</button>
+    </div>
   </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- Hidden legacy elements (kept for backend wiring) -->
+<div id="jobs-list" class="hidden"></div>
+<div class="hidden" id="legacy-debug-cards">
+  <section id="card-chat">
+    <textarea id="chat-input" rows="3"></textarea>
+    <button id="chat-send">发送</button>
+    <div id="chat-out"></div>
+    <span class="route" data-cap="chat"></span>
+  </section>
+  <section id="card-image">
+    <textarea id="image-prompt" rows="2"></textarea>
+    <input type="file" id="image-ref" accept="image/*">
+    <button id="image-send">生成图像</button>
+    <div id="image-out"></div>
+    <span class="route" data-cap="image"></span>
+  </section>
+  <section id="card-music">
+    <input id="music-title" placeholder="歌名">
+    <input id="music-style" placeholder="曲风">
+    <textarea id="music-lyrics" rows="3"></textarea>
+    <button id="music-send">生成歌曲</button>
+    <div id="music-out"></div>
+    <span class="route" data-cap="music"></span>
+  </section>
+  <section id="card-video">
+    <input type="file" id="video-ref" accept="image/*">
+    <textarea id="video-prompt" rows="2"></textarea>
+    <select id="video-duration"><option value="5">5 秒</option><option value="10">10 秒</option></select>
+    <button id="video-send">生成视频</button>
+    <div id="video-out"></div>
+    <span class="route" data-cap="video"></span>
+  </section>
+  <section id="card-tts">
+    <textarea id="tts-text" rows="2"></textarea>
+    <input id="tts-voice" placeholder="音色">
+    <button id="tts-send">合成语音</button>
+    <div id="tts-out"></div>
+    <span class="route" data-cap="tts"></span>
+  </section>
+  <section id="card-asr">
+    <input type="file" id="asr-file" accept="audio/*">
+    <button id="asr-send">转写</button>
+    <div id="asr-out"></div>
+    <span class="route" data-cap="asr"></span>
+  </section>
 </div>
 
 <script src="/app.js"></script>
