@@ -10,7 +10,7 @@ const auth = (env) => ({ authorization: `Bearer ${env.DASHSCOPE_API_KEY}` });
 const adapter = {
   id: 'dashscope',
   label: '阿里云百炼',
-  capabilities: ['chat', 'content', 'world', 'plan', 'tts', 'asr'],
+  capabilities: ['chat', 'content', 'world', 'plan', 'tts', 'asr', 'image'],
   envKeys: ['DASHSCOPE_API_KEY'],
   isConfigured: (env) => Boolean(env.DASHSCOPE_API_KEY),
 
@@ -28,6 +28,7 @@ const adapter = {
     if (TEXT_CAPS.has(capability)) return invokeText(request, ctx);
     if (capability === 'tts') return invokeTts(request, ctx);
     if (capability === 'asr') return invokeAsr(request, ctx);
+    if (capability === 'image') return invokeImage(request, ctx);
     throw gatewayError('bad_request', `dashscope 暂未实现能力 ${capability}`, { providerId: 'dashscope' });
   },
 };
@@ -70,6 +71,45 @@ async function invokeAsr(request, ctx) {
   const text = Array.isArray(content) ? content.map((c) => c.text || '').join('') : (content || '');
   if (!text) throw gatewayError('provider_error', `DashScope ASR 返回空文本: ${JSON.stringify(data.output || {}).slice(0, 200)}`, { providerId: 'dashscope' });
   return { text, usage: { minutes: 1 } };
+}
+
+const T2I_SUBMIT = `${BASE}/api/v1/services/aigc/text2image/image-synthesis`;
+const TASKS = `${BASE}/api/v1/tasks`;
+const IMG_POLL_MS = 4000;
+const IMG_MAX_MS = 4 * 60 * 1000;
+const imgSleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const SIZE_BY_ASPECT = { '1:1': '1024*1024', '3:4': '768*1024', '9:16': '720*1280', '16:9': '1280*720' };
+
+async function invokeImage(request, ctx) {
+  const n = Math.min(4, Math.max(1, Number(request.count) || 1));
+  const size = SIZE_BY_ASPECT[request.aspect] || '1024*1024';
+  const submit = await ctx.fetchJson(T2I_SUBMIT, {
+    headers: { ...auth(ctx.env), 'X-DashScope-Async': 'enable' }, timeoutMs: 30000,
+    body: { model: request.model, input: { prompt: request.prompt }, parameters: { size, n } },
+  });
+  const taskId = submit.output?.task_id;
+  if (!taskId) throw gatewayError('provider_error', `万相未返回 task_id: ${JSON.stringify(submit).slice(0, 200)}`, { providerId: 'dashscope' });
+  const deadline = Date.now() + IMG_MAX_MS;
+  let pollErrors = 0;
+  while (Date.now() < deadline) {
+    await imgSleep(IMG_POLL_MS);
+    let st;
+    try { st = await ctx.fetchJson(`${TASKS}/${taskId}`, { method: 'GET', headers: auth(ctx.env), timeoutMs: 30000 }); pollErrors = 0; }
+    catch (err) { if (++pollErrors >= 3) throw err; continue; }
+    const status = st.output?.task_status;
+    if (status === 'SUCCEEDED') {
+      const urls = (st.output?.results || []).map((r) => r.url).filter(Boolean);
+      if (!urls.length) throw gatewayError('provider_error', '万相成功但无图像 URL', { providerId: 'dashscope' });
+      const files = [];
+      for (const url of urls) {
+        const buf = await ctx.fetchBuffer(url, { method: 'GET', headers: {}, timeoutMs: 120000 });
+        files.push(ctx.saveFile(buf, /\.jpe?g(\?|$)/i.test(url) ? 'jpg' : 'png'));
+      }
+      return { files, usage: { images: files.length } };
+    }
+    if (status === 'FAILED') throw gatewayError('provider_error', `万相生成失败: ${st.output?.message || st.output?.code || '无详情'}`, { providerId: 'dashscope' });
+  }
+  throw gatewayError('timeout', `万相轮询超时（${IMG_MAX_MS / 60000} 分钟）`, { providerId: 'dashscope' });
 }
 
 export default adapter;

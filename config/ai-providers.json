@@ -28,13 +28,11 @@
     "model": "qwen-flash"
   },
   "image": {
-    "provider": "gemini",
-    "model": "gemini-3-pro-image",
+    "provider": "dashscope",
+    "model": "wan2.2-t2i-flash",
     "fallback": [
-      {
-        "provider": "openrouter",
-        "model": "google/gemini-3-pro-image-preview"
-      }
+      { "provider": "gemini", "model": "gemini-3-pro-image" },
+      { "provider": "openrouter", "model": "google/gemini-3-pro-image-preview" }
     ]
   },
   "video": {
