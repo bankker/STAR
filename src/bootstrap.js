@@ -9,6 +9,7 @@ import { initJobs } from './gateway/jobs.js';
 import { execute } from './gateway/gateway.js';
 import { initArtists } from './studio/artists.js';
 import { initConversations } from './studio/conversations.js';
+import { initAssets } from './studio/assets.js';
 
 export function bootstrap() {
   try {
@@ -20,6 +21,7 @@ export function bootstrap() {
     initJobs({ file: path.join(DATA_DIR, 'jobs.json'), executeFn: execute });
     initArtists(path.join(DATA_DIR, 'artists.json'));
     initConversations(path.join(DATA_DIR, 'conversations'));
+    initAssets(path.join(DATA_DIR, 'assets'));
     startHealthLoop();
   } catch (e) {
     console.error('[bootstrap] 启动失败:', e.message);
