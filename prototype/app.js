@@ -58,5 +58,37 @@ function boot() {
   renderRoutes();
   initChat();
   $('#health-refresh').addEventListener('click', () => renderHealth(true));
+  renderJobs(); setInterval(renderJobs, 3000);
 }
 window.addEventListener('DOMContentLoaded', boot);
+
+const JOB_STATE = { queued: '排队', running: '生成中', done: '完成', failed: '失败', interrupted: '已中断' };
+
+function mediaHtml(f) {
+  const url = esc(f.url);
+  if (/\.(png|jpe?g|webp)$/i.test(f.url)) return `<img src="${url}" alt="">`;
+  if (/\.mp4$/i.test(f.url)) return `<video controls src="${url}"></video>`;
+  if (/\.(mp3|wav)$/i.test(f.url)) return `<audio controls src="${url}"></audio>`;
+  return `<a href="${url}" target="_blank">${url}</a>`;
+}
+
+async function renderJobs() {
+  const data = await api('/api/jobs');
+  if (data.error || !Array.isArray(data.jobs)) return;
+  $('#jobs-list').innerHTML = data.jobs.map((j) => `
+    <div class="job">
+      <div>${esc(j.capability)} · ${JOB_STATE[j.status] || esc(j.status)} · ${esc(j.stage || '')}
+        ${j.costEstimate ? `· 预估 $${esc(j.costEstimate.estimatedUsd)}` : ''}
+        ${j.costActual != null ? `· 实际 $${esc(j.costActual)}` : ''}</div>
+      <div class="bar"><i style="width:${Number(j.progress) || 0}%"></i></div>
+      ${j.status === 'done' && j.result ? j.result.files.map(mediaHtml).join('') : ''}
+      ${j.status === 'failed' && j.error ? `<div class="out">${esc(errText(j.error))}</div>` : ''}
+      ${(j.status === 'failed' || j.status === 'interrupted') ? `<button onclick="retryJobClick('${esc(j.id)}')">重试</button>` : ''}
+    </div>`).join('') || '<div class="out">暂无任务</div>';
+}
+
+window.retryJobClick = async (id) => {
+  const r = await api(`/api/jobs/${encodeURIComponent(id)}/retry`, {}, 'POST');
+  if (r.error) alert(errText(r.error));
+  renderJobs();
+};

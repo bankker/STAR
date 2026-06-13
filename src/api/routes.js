@@ -1,6 +1,7 @@
 import { execute } from '../gateway/gateway.js';
 import { GatewayError } from '../gateway/errors.js';
 import { refreshHealth, getHealthSnapshot } from '../gateway/health.js';
+import { listJobs, getJob, retryJob } from '../gateway/jobs.js';
 
 const MAX_BODY = 1 * 1024 * 1024;
 const MAX_MEDIA_BODY = 32 * 1024 * 1024;
@@ -59,4 +60,11 @@ export function registerRoutes(route) {
     if (url.searchParams.get('refresh') === '1') await refreshHealth();
     json(res, { providers: getHealthSnapshot() });
   });
+
+  route('GET /api/jobs', async (req, res) => json(res, { jobs: listJobs() }));
+  route('GET /api/jobs/:id', async (req, res, { params }) => {
+    const job = getJob(params.id);
+    job ? json(res, { job: listJobs(9999).find((j) => j.id === params.id) }) : jsonError(res, 'not_found', `无此任务 ${params.id}`);
+  });
+  route('POST /api/jobs/:id/retry', async (req, res, { params }) => json(res, retryJob(params.id)));
 }
