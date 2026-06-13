@@ -66,6 +66,7 @@ function boot() {
   renderJobs(); setInterval(renderJobs, 3000);
   renderUsage(); setInterval(renderUsage, 30000);
   initSettings();
+  initArtistStudio();
 }
 window.addEventListener('DOMContentLoaded', boot);
 
@@ -248,4 +249,122 @@ function initSettings() {
     $('#config-msg').textContent = r.error ? errText(r.error) : '已保存，路由即时生效';
     renderRoutes();
   });
+}
+
+let interviewHistory = [];
+
+function artistCardHtml(a) {
+  const cover = a.portraits?.[0]?.url;
+  return `<div class="artist-card" data-id="${esc(a.id)}">
+    ${cover ? `<img src="${esc(cover)}" alt="">` : '<img alt="">'}
+    <div class="nm">${esc(a.name)}</div><div class="ps">${esc(a.persona || '')} ${esc(a.positioning || '')}</div>
+  </div>`;
+}
+
+async function renderArtists() {
+  const data = await api('/api/artists');
+  if (data.error || !Array.isArray(data.artists)) return;
+  $('#artist-list').innerHTML = data.artists.map(artistCardHtml).join('') || '<div class="ps">还没有艺人，点右上角创设一个。</div>';
+  document.querySelectorAll('#artist-list .artist-card').forEach((el) =>
+    el.addEventListener('click', () => showArtistDetail(el.dataset.id)));
+}
+
+function renderInterview() {
+  $('#interview-log').innerHTML = interviewHistory.map((m) =>
+    `<div class="bubble ${m.role === 'user' ? 'me' : 'ai'}">${esc(m.content)}</div>`).join('');
+  $('#interview-log').scrollTop = $('#interview-log').scrollHeight;
+}
+
+async function sendInterview() {
+  const text = $('#interview-input').value.trim();
+  if (!text) return;
+  interviewHistory.push({ role: 'user', content: text });
+  $('#interview-input').value = ''; renderInterview();
+  const r = await api('/api/artist/interview', { messages: interviewHistory });
+  interviewHistory.push({ role: 'assistant', content: r.error ? errText(r.error) : r.reply });
+  renderInterview();
+}
+
+function fillDraft(d) {
+  const set = (f, v) => { const el = document.querySelector(`#draft-box [data-f="${f}"]`); if (el) el.value = v ?? ''; };
+  set('name', d.name); set('gender', d.gender); set('persona', d.persona); set('positioning', d.positioning);
+  set('coreAppeal', d.coreAppeal); set('speakingStyle', d.speakingStyle);
+  set('voiceDescription', d.voiceProfile?.description); set('musicStyle', d.musicStyle);
+  set('personality', Array.isArray(d.personality) ? d.personality.join('，') : '');
+  set('backstory', d.backstory); set('visualIdentity', d.visualIdentity);
+  $('#draft-box').classList.remove('hidden');
+}
+
+function readDraft() {
+  const g = (f) => document.querySelector(`#draft-box [data-f="${f}"]`).value.trim();
+  return {
+    name: g('name'), gender: g('gender'), persona: g('persona'), positioning: g('positioning'),
+    coreAppeal: g('coreAppeal'), speakingStyle: g('speakingStyle'),
+    voiceProfile: { description: g('voiceDescription') }, musicStyle: g('musicStyle'),
+    personality: g('personality') ? g('personality').split(/[，,]/).map((s) => s.trim()).filter(Boolean) : [],
+    backstory: g('backstory'), visualIdentity: g('visualIdentity'),
+  };
+}
+
+async function finalizeInterview() {
+  if (!interviewHistory.length) return;
+  $('#create-msg').textContent = '';
+  const btn = $('#interview-finalize'); btn.disabled = true; btn.textContent = '生成中…';
+  const r = await api('/api/artist/finalize', { transcript: interviewHistory });
+  btn.disabled = false; btn.textContent = '根据对话生成档案';
+  if (r.error) { $('#interview-log').insertAdjacentHTML('beforeend', `<div class="bubble ai">${esc(errText(r.error))}</div>`); return; }
+  fillDraft(r.draft);
+}
+
+async function saveArtist() {
+  const profile = readDraft();
+  if (!profile.name) { $('#create-msg').textContent = '艺名必填'; $('#create-msg').style.color = 'var(--err)'; return; }
+  const r = await api('/api/artist', { profile });
+  if (r.error) { $('#create-msg').textContent = errText(r.error); $('#create-msg').style.color = 'var(--err)'; return; }
+  $('#create-msg').style.color = 'var(--ok)'; $('#create-msg').textContent = `已创建 ${r.artist.name}`;
+  $('#artist-create').classList.add('hidden');
+  renderArtists();
+  showArtistDetail(r.id);
+}
+
+async function showArtistDetail(id) {
+  const r = await api(`/api/artist/${encodeURIComponent(id)}`);
+  if (r.error) return;
+  const a = r.artist;
+  $('#artist-detail').classList.remove('hidden');
+  $('#artist-detail').innerHTML = `
+    <h3>${esc(a.name)} <span class="ps">${esc(a.persona)} · ${esc(a.positioning)}</span></h3>
+    <div class="ps">${esc(a.backstory)}</div>
+    <div class="ps">声线：${esc(a.voiceProfile?.description || '')}　音乐：${esc(a.musicStyle || '')}</div>
+    <div class="ps">视觉：${esc(a.visualIdentity || '')}</div>
+    <div class="portraits">${(a.portraits || []).map((p) => `<img src="${esc(p.url)}" alt="">`).join('')}</div>
+    <button id="gen-portrait" data-id="${esc(a.id)}">出定妆照</button>
+    <button id="del-artist" data-id="${esc(a.id)}">删除艺人</button>
+    <span id="portrait-msg" class="ps"></span>`;
+  $('#gen-portrait').addEventListener('click', async (e) => {
+    const btn = e.target; btn.disabled = true; $('#portrait-msg').textContent = '生成中…（目标 ≤60s）';
+    const pr = await api(`/api/artist/${encodeURIComponent(btn.dataset.id)}/portrait`, {});
+    btn.disabled = false;
+    $('#portrait-msg').textContent = pr.error ? errText(pr.error) : '已生成';
+    if (!pr.error) { showArtistDetail(btn.dataset.id); renderArtists(); }
+  });
+  $('#del-artist').addEventListener('click', async (e) => {
+    if (!confirm('确认删除该艺人？')) return;
+    await api(`/api/artist/${encodeURIComponent(e.target.dataset.id)}`, undefined, 'DELETE');
+    $('#artist-detail').classList.add('hidden');
+    renderArtists();
+  });
+}
+
+function initArtistStudio() {
+  renderArtists();
+  $('#artist-new').addEventListener('click', () => {
+    interviewHistory = []; renderInterview();
+    $('#draft-box').classList.add('hidden'); $('#create-msg').textContent = '';
+    $('#artist-create').classList.remove('hidden'); $('#artist-detail').classList.add('hidden');
+  });
+  $('#interview-send').addEventListener('click', sendInterview);
+  $('#interview-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendInterview(); });
+  $('#interview-finalize').addEventListener('click', finalizeInterview);
+  $('#artist-save').addEventListener('click', saveArtist);
 }

@@ -8,7 +8,7 @@
 </head>
 <body>
 <header>
-  <h1>AI Star Studio v3 <span class="sub">M1 能力网关工作台</span></h1>
+  <h1>AI Star Studio v3 <span class="sub">虚拟艺人创作工作室</span></h1>
   <div id="usage-summary" class="usage">本周成本 —</div>
 </header>
 
@@ -17,6 +17,41 @@
   <div id="health-grid" class="health-grid"></div>
 </section>
 
+<section id="artist-studio" class="panel">
+  <div class="panel-head"><h2>艺人工作室</h2><button id="artist-new">+ 创设新艺人</button></div>
+  <div id="artist-list" class="artist-list"></div>
+
+  <div id="artist-create" class="create-flow hidden">
+    <h3>对话式访谈捣人</h3>
+    <div id="interview-log" class="interview-log"></div>
+    <div class="row">
+      <input id="interview-input" placeholder="回答企划的问题，或描述你想要的艺人…">
+      <button id="interview-send">发送</button>
+    </div>
+    <button id="interview-finalize">根据对话生成档案</button>
+
+    <div id="draft-box" class="draft-box hidden">
+      <h3>艺人档案草稿（可改）</h3>
+      <label>艺名 <input data-f="name"></label>
+      <label>性别 <input data-f="gender"></label>
+      <label>人设 <input data-f="persona"></label>
+      <label>定位 <input data-f="positioning"></label>
+      <label>核心吸引力 <input data-f="coreAppeal"></label>
+      <label>说话风格 <input data-f="speakingStyle"></label>
+      <label>声线描述 <input data-f="voiceDescription"></label>
+      <label>音乐风格 <input data-f="musicStyle"></label>
+      <label>性格（逗号分隔） <input data-f="personality"></label>
+      <label>背景故事 <textarea data-f="backstory" rows="3"></textarea></label>
+      <label>视觉档案（图像提示词） <textarea data-f="visualIdentity" rows="2"></textarea></label>
+      <button id="artist-save">确认创建</button>
+      <span id="create-msg" class="msg"></span>
+    </div>
+  </div>
+
+  <div id="artist-detail" class="detail hidden"></div>
+</section>
+
+<details class="debug"><summary>能力调试台（M1）</summary>
 <main class="cards">
   <section class="card" id="card-chat">
     <h2>聊天 <span class="route" data-cap="chat"></span></h2>
@@ -66,6 +101,7 @@
     <div id="asr-out" class="out"></div>
   </section>
 </main>
+</details>
 
 <section id="jobs" class="panel">
   <div class="panel-head"><h2>生成任务</h2></div>
