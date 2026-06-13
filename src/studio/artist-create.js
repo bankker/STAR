@@ -56,3 +56,12 @@ export function buildPortraitPrompt(artist, stylePrompt) {
   const style = (stylePrompt || '').trim();
   return [base, style, '高质量定妆照，人像特写，虚拟人物，SFW'].filter(Boolean).join('，');
 }
+
+const SHOT_WORD = { 近景: '近景特写', 中景: '半身中景', 全景: '全身全景' };
+
+export function buildPhotoPrompt(artist, opts = {}) {
+  const base = (artist?.visualIdentity || '').trim() || `${artist?.persona || ''} ${artist?.positioning || ''} 虚拟艺人`.trim();
+  const shot = SHOT_WORD[opts.shot] || opts.shot || '';
+  const style = (opts.stylePrompt || '').trim();
+  return [base, shot, style, '高质量写真，虚拟人物，SFW'].filter(Boolean).join('，');
+}
