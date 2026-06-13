@@ -16,6 +16,7 @@ export function initJobs({ file, executeFn, concurrency }) {
   executor = executeFn;
   maxConcurrency = concurrency || Number(process.env.JOBS_CONCURRENCY || 2);
   jobs.clear(); queue.length = 0; running = 0;
+  if (persistTimer) { clearTimeout(persistTimer); persistTimer = null; }
   fs.mkdirSync(path.dirname(file), { recursive: true });
   if (fs.existsSync(file)) {
     try {
@@ -73,7 +74,10 @@ async function runJob(job) {
   touch(job);
   try {
     const result = await executor(job.capability, job.request, {
-      onProgress: (stage, progress) => { job.stage = stage; if (progress != null) job.progress = progress; touch(job); },
+      onProgress: (stage, progress) => {
+        if (job.status !== 'running') return; // 终态后迟到的进度回调不再生效
+        job.stage = stage; if (progress != null) job.progress = progress; touch(job);
+      },
     });
     job.status = 'done'; job.progress = 100;
     job.result = { files: result.files || [], provider: result.provider, model: result.model, durationSec: result.durationSec };
@@ -94,7 +98,7 @@ function touch(job, immediate = false) {
   persistSoon(immediate);
 }
 
-function sanitize(job) {
+export function sanitize(job) {
   const { request, ...rest } = job;
   return { ...rest, request: JSON.parse(JSON.stringify(request || {}, (k, v) =>
     typeof v === 'string' && v.length > 2000 ? `${v.slice(0, 100)}…(${v.length} chars)` : v)) };
