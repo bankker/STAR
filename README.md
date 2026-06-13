@@ -18,6 +18,8 @@ M1 能力网关设计文档：[docs/superpowers/specs/2026-06-13-m1-capability-g
 
 ```bash
 # 1. 复制示例环境文件（也可跳过此步，先零 key 启动）
+#    Windows PowerShell: Copy-Item .env.example .env
+#    macOS/Linux:        cp .env.example .env
 cp .env.example .env
 
 # 2. 启动服务器（Windows 双击 start_all.bat 效果相同）
