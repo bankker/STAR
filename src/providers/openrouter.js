@@ -65,4 +65,21 @@ async function invokeImage(request, ctx) {
   return { files: [ctx.saveFile(buf, mime === 'image/jpeg' ? 'jpg' : 'png')], usage: { images: 1 } };
 }
 
+adapter.invokeStream = async (capability, request, ctx, onToken) => {
+  if (!TEXT_CAPS.has(capability)) throw gatewayError('bad_request', `openrouter 流式不支持能力 ${capability}`, { providerId: 'openrouter' });
+  const messages = request.system ? [{ role: 'system', content: request.system }, ...request.messages] : request.messages;
+  let full = '';
+  await ctx.fetchStream(`${API}/chat/completions`, {
+    headers: { ...auth(ctx.env), accept: 'text/event-stream' },
+    body: { model: request.model, messages, max_tokens: request.maxTokens || 2048, stream: true },
+  }, (data) => {
+    if (data === '[DONE]') return;
+    let j; try { j = JSON.parse(data); } catch { return; }
+    const tok = j.choices?.[0]?.delta?.content || '';
+    if (tok) { full += tok; onToken(tok); }
+  });
+  if (!full) throw gatewayError('provider_error', 'OpenRouter 流式返回空内容', { providerId: 'openrouter' });
+  return { text: full, usage: { outputTokens: 0 } };
+};
+
 export default adapter;

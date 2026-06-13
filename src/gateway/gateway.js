@@ -2,7 +2,7 @@ import { loadConfig, getProvider } from './registry.js';
 import { gatewayError, GatewayError } from './errors.js';
 import { recordUsage } from './ledger.js';
 import { costOfUsage } from './costs.js';
-import { fetchJson, fetchBuffer } from '../lib/http-fetch.js';
+import { fetchJson, fetchBuffer, fetchStream } from '../lib/http-fetch.js';
 import { saveBufferToGenerated } from '../lib/files.js';
 import { GENERATED_DIR } from '../lib/paths.js';
 
@@ -23,6 +23,7 @@ export function makeCtx(providerId, onProgress) {
     env: process.env,
     fetchJson: (url, opts = {}) => fetchJson(url, { ...base, ...opts }),
     fetchBuffer: (url, opts = {}) => fetchBuffer(url, { ...base, ...opts }),
+    fetchStream: (url, opts = {}, onChunk) => fetchStream(url, { ...base, ...opts }, onChunk),
     saveFile: (buf, ext) => saveBufferToGenerated(GENERATED_DIR, buf, ext),
     onProgress: onProgress || (() => {}),
   };
@@ -62,6 +63,44 @@ export async function execute(capability, request, { onProgress } = {}) {
       attempts.push({ provider: providerId, code: ge.code, message: ge.message, hint: ge.hint });
       console.error(`[gateway] ${capability}/${providerId} 失败(${ge.code}): ${ge.message}`);
       if (!ge.retriable) throw aggregate(capability, attempts, ge);
+    }
+  }
+  throw aggregate(capability, attempts);
+}
+
+export async function executeStream(capability, request, { onToken } = {}) {
+  const { configured } = resolveRoute(capability);
+  if (!configured.length) {
+    throw gatewayError('unconfigured', `能力 ${capability} 没有已接入的 Provider`, { hint: '在工作台设置页录入对应平台的 API key' });
+  }
+  const attempts = [];
+  for (const entry of configured) {
+    const providerId = entry.provider.id;
+    const started = Date.now();
+    let emitted = false;
+    const emit = (t) => { emitted = true; onToken?.(t); };
+    const req = { ...request, model: entry.model, params: entry.params };
+    try {
+      const ctx = makeCtx(providerId);
+      let result;
+      if (typeof entry.provider.invokeStream === 'function') {
+        result = await entry.provider.invokeStream(capability, req, ctx, emit);
+      } else {
+        result = await entry.provider.invoke(capability, req, ctx);
+        if (result.text) emit(result.text);
+      }
+      recordUsage({
+        capability, provider: providerId, model: entry.model,
+        durationMs: Date.now() - started, usage: result.usage || {},
+        estUsd: costOfUsage(providerId, entry.model, result.usage || {}), ok: true,
+      });
+      return { ...result, provider: providerId, model: entry.model };
+    } catch (err) {
+      const ge = err instanceof GatewayError ? err : gatewayError('provider_error', err.message, { providerId, cause: err });
+      recordUsage({ capability, provider: providerId, model: entry.model, durationMs: Date.now() - started, estUsd: 0, ok: false, errorCode: ge.code });
+      attempts.push({ provider: providerId, code: ge.code, message: ge.message, hint: ge.hint });
+      console.error(`[gateway] ${capability}/${providerId} 流式失败(${ge.code}): ${ge.message}`);
+      if (emitted || !ge.retriable) throw aggregate(capability, attempts, ge);
     }
   }
   throw aggregate(capability, attempts);

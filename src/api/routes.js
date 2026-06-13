@@ -1,4 +1,4 @@
-import { execute, resolveRoute } from '../gateway/gateway.js';
+import { execute, resolveRoute, executeStream } from '../gateway/gateway.js';
 import { GatewayError, gatewayError } from '../gateway/errors.js';
 import { refreshHealth, getHealthSnapshot } from '../gateway/health.js';
 import { listJobs, getJob, retryJob, sanitize, submitJob } from '../gateway/jobs.js';
@@ -10,6 +10,8 @@ import { ENV_FILE } from '../lib/paths.js';
 import {
   createArtist, listArtists, getArtist, updateArtist, deleteArtist, addPortrait,
 } from '../studio/artists.js';
+import { getConversation, appendTurn, setMemory, trimToRecent, resetConversation } from '../studio/conversations.js';
+import { buildChatMessages, shouldSummarize, buildSummarizeMessages, updateEmotion, RECENT_KEEP } from '../studio/companion.js';
 import {
   buildInterviewMessages, buildFinalizeMessages, extractProfileJson, buildPortraitPrompt,
 } from '../studio/artist-create.js';
@@ -73,6 +75,19 @@ export async function handleMediaSubmit(capability, res, body, buildRequest) {
     const job = submitJob(capability, request, { estimate });
     json(res, { jobId: job.id, estimate });
   } catch (e) { sendGatewayError(res, e); }
+}
+
+async function maybeSummarize(artistId, artist) {
+  const conv = getConversation(artistId);
+  if (!shouldSummarize(conv)) return;
+  const old = conv.messages.slice(0, -RECENT_KEEP);
+  if (!old.length) return;
+  try {
+    const { system, messages } = buildSummarizeMessages(old, conv.memory);
+    const r = await execute('content', { system, messages, maxTokens: 300 });
+    setMemory(artistId, r.text.trim());
+    trimToRecent(artistId, RECENT_KEEP);
+  } catch (e) { console.error('[chat] 记忆摘要失败（忽略）', e.message); }
 }
 
 export function registerRoutes(route) {
@@ -240,7 +255,9 @@ export function registerRoutes(route) {
   });
 
   route('DELETE /api/artist/:id', async (req, res, { params }) => {
-    json(res, { ok: deleteArtist(params.id) });
+    const ok = deleteArtist(params.id);
+    if (ok) resetConversation(params.id);
+    json(res, { ok });
   });
 
   route('POST /api/artist/:id/portrait', async (req, res, { params, readJsonBody }) => {
@@ -255,5 +272,48 @@ export function registerRoutes(route) {
       const updated = addPortrait(params.id, { url, prompt });
       json(res, { portrait: updated.portraits[updated.portraits.length - 1], artist: updated });
     } catch (e) { sendGatewayError(res, e); }
+  });
+
+  route('GET /api/artist/:id/chat', async (req, res, { params }) => {
+    if (!getArtist(params.id)) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    const c = getConversation(params.id);
+    json(res, { messages: c.messages, state: c.state });
+  });
+
+  route('POST /api/artist/:id/chat', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    if (!artist) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    if (!body.message) return jsonError(res, 'bad_request', 'message 必填');
+    try {
+      const conv = getConversation(params.id);
+      const { system, messages } = buildChatMessages(artist, conv, body.message);
+      const r = await execute('chat', { system, messages, maxTokens: 600 });
+      const state = updateEmotion(conv.state, body.message);
+      appendTurn(params.id, body.message, r.text, state);
+      await maybeSummarize(params.id, artist);
+      json(res, { reply: r.text, state, provider: r.provider, model: r.model });
+    } catch (e) { sendGatewayError(res, e); }
+  });
+
+  route('POST /api/artist/:id/chat/stream', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    if (!artist) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    if (!body.message) return jsonError(res, 'bad_request', 'message 必填');
+    res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+    const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    try {
+      const conv = getConversation(params.id);
+      const { system, messages } = buildChatMessages(artist, conv, body.message);
+      const r = await executeStream('chat', { system, messages, maxTokens: 600 }, { onToken: (t) => send('token', { t }) });
+      const state = updateEmotion(conv.state, body.message);
+      appendTurn(params.id, body.message, r.text, state);
+      await maybeSummarize(params.id, artist);
+      send('done', { reply: r.text, state, provider: r.provider, model: r.model });
+    } catch (e) {
+      send('error', e instanceof GatewayError ? e.toJSON() : { code: 'internal', message: e.message });
+    }
+    res.end();
   });
 }

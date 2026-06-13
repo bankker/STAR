@@ -67,6 +67,7 @@ function boot() {
   renderUsage(); setInterval(renderUsage, 30000);
   initSettings();
   initArtistStudio();
+  initChatView();
 }
 window.addEventListener('DOMContentLoaded', boot);
 
@@ -345,7 +346,7 @@ async function showArtistDetail(id) {
     <div class="ps">视觉：${esc(a.visualIdentity || '')}</div>
     <div class="portraits">${(a.portraits || []).map((p) => `<img src="${esc(p.url)}" alt="">`).join('')}</div>
     <button id="gen-portrait" data-id="${esc(a.id)}">出定妆照</button>
-    <button id="del-artist" data-id="${esc(a.id)}">删除艺人</button>
+    <button id="open-chat" data-id="${esc(a.id)}">💬 聊天</button> <button id="del-artist" data-id="${esc(a.id)}">删除艺人</button>
     <span id="portrait-msg" class="ps"></span>`;
   $('#gen-portrait').addEventListener('click', async (e) => {
     const btn = e.target; btn.disabled = true; $('#portrait-msg').textContent = '生成中…（目标 ≤60s）';
@@ -360,6 +361,7 @@ async function showArtistDetail(id) {
     $('#artist-detail').classList.add('hidden');
     renderArtists();
   });
+  $('#open-chat').addEventListener('click', (e) => openChat(e.target.dataset.id, a.name));
 }
 
 function initArtistStudio() {
@@ -373,4 +375,70 @@ function initArtistStudio() {
   $('#interview-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendInterview(); });
   $('#interview-finalize').addEventListener('click', finalizeInterview);
   $('#artist-save').addEventListener('click', saveArtist);
+}
+
+let chatArtistId = null;
+
+function chatBubble(role, content) {
+  return `<div class="bubble ${role === 'user' ? 'me' : 'ai'}">${esc(content)}</div>`;
+}
+
+async function openChat(id, name) {
+  chatArtistId = id;
+  $('#chat-view').classList.remove('hidden');
+  $('#chat-title').textContent = `与 ${name} 聊天`;
+  const data = await api(`/api/artist/${encodeURIComponent(id)}/chat`);
+  if (!data.error) {
+    $('#chat-log').innerHTML = (data.messages || []).map((m) => chatBubble(m.role, m.content)).join('');
+    renderChatState(data.state);
+  }
+  $('#chat-log').scrollTop = $('#chat-log').scrollHeight;
+}
+
+function renderChatState(s) {
+  if (s) $('#chat-state').textContent = `心情：${esc(s.mood)} · 亲密度 ${esc(s.affinity)}/100`;
+}
+
+async function sendChat() {
+  const text = $('#chat-msg').value.trim();
+  if (!text || !chatArtistId) return;
+  $('#chat-msg').value = '';
+  $('#chat-log').insertAdjacentHTML('beforeend', chatBubble('user', text));
+  const aiBubbleId = `b${Date.now()}`;
+  $('#chat-log').insertAdjacentHTML('beforeend', `<div class="bubble ai" id="${aiBubbleId}"></div>`);
+  const aiEl = document.getElementById(aiBubbleId);
+  $('#chat-log').scrollTop = $('#chat-log').scrollHeight;
+  try {
+    const res = await fetch(`/api/artist/${encodeURIComponent(chatArtistId)}/chat/stream`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text }),
+    });
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let carry = '', acc = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      carry += dec.decode(value, { stream: true });
+      let i;
+      while ((i = carry.indexOf('\n\n')) >= 0) {
+        const block = carry.slice(0, i); carry = carry.slice(i + 2);
+        const ev = (block.match(/^event: (.*)$/m) || [])[1];
+        const dataLine = (block.match(/^data: (.*)$/m) || [])[1];
+        if (!dataLine) continue;
+        const payload = JSON.parse(dataLine);
+        if (ev === 'token') { acc += payload.t; aiEl.textContent = acc; $('#chat-log').scrollTop = $('#chat-log').scrollHeight; }
+        else if (ev === 'done') { aiEl.textContent = payload.reply || acc; renderChatState(payload.state); }
+        else if (ev === 'error') { aiEl.textContent = errText(payload); }
+      }
+    }
+    if (!acc && !aiEl.textContent) aiEl.textContent = '（无回复）';
+  } catch (e) {
+    aiEl.textContent = `连接失败：${e.message}`;
+  }
+}
+
+function initChatView() {
+  $('#chat-send2').addEventListener('click', sendChat);
+  $('#chat-msg').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+  $('#chat-close').addEventListener('click', () => { $('#chat-view').classList.add('hidden'); chatArtistId = null; });
 }

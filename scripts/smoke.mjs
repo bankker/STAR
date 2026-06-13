@@ -99,6 +99,16 @@ try {
   const updated = await call(`/api/artist/${created.data.id}`, { profile: { name: 'SMOKE艺人改名' } }, 'PUT');
   ok('artist 更新', updated.status === 200 && updated.data.artist?.name === 'SMOKE艺人改名', updated.data.artist?.name);
 
+  const chatList0 = await call(`/api/artist/${created.data.id}/chat`);
+  ok('chat 历史初始为空', chatList0.status === 200 && Array.isArray(chatList0.data.messages) && chatList0.data.messages.length === 0);
+
+  const chat = await call(`/api/artist/${created.data.id}/chat`, { message: '你好呀' });
+  ok('chat 路由可用', chat.status === 200 && (Boolean(chat.data.reply) || Boolean(chat.data.error)), chat.data.error?.code || (chat.data.reply || '').slice(0, 20));
+  if (chat.data.reply) ok('chat 亲密度上升', chat.data.state?.affinity === 52, String(chat.data.state?.affinity));
+
+  const badChat = await call(`/api/artist/${created.data.id}/chat`, {});
+  ok('chat 缺 message → bad_request', badChat.status === 200 && badChat.data.error?.code === 'bad_request', badChat.data.error?.code);
+
   const badCreate = await call('/api/artist', { profile: { name: '' } });
   ok('空艺名被拒', badCreate.status === 200 && badCreate.data.error?.code === 'bad_request', badCreate.data.error?.code);
 
