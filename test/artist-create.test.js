@@ -45,3 +45,12 @@ test('buildPortraitPrompt 以视觉档案为主，追加风格与安全词', () 
   const p2 = buildPortraitPrompt({ persona: '元气', positioning: '综艺偶像' }, '');
   assert.match(p2, /元气|综艺偶像/);
 });
+
+test('extractProfileJson 尾部含 } 的 prose 抛友好错误', () => {
+  assert.throws(() => extractProfileJson('{"name":"X"} 注：见 {schema} 说明'), /JSON 解析失败/);
+});
+
+test('buildFinalizeMessages 容忍缺 content 的轮次', () => {
+  const r = buildFinalizeMessages([{ role: 'user' }, { role: 'assistant', content: '好的' }]);
+  assert.ok(!/undefined/.test(r.messages[0].content));
+});

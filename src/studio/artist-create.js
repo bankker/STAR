@@ -32,7 +32,7 @@ export function buildFinalizeMessages(transcript) {
   const text = typeof transcript === 'string'
     ? transcript
     : (Array.isArray(transcript)
-        ? transcript.map((m) => `${m.role === 'assistant' ? '企划' : '玩家'}：${m.content}`).join('\n')
+        ? transcript.map((m) => `${m.role === 'assistant' ? '企划' : '玩家'}：${m.content ?? ''}`).join('\n')
         : '');
   return {
     system: FINALIZE_SYSTEM,
@@ -46,7 +46,8 @@ export function extractProfileJson(text) {
   const a = s.indexOf('{');
   const b = s.lastIndexOf('}');
   if (a === -1 || b === -1 || b < a) throw new Error('未在响应中找到 JSON');
-  return JSON.parse(s.slice(a, b + 1));
+  try { return JSON.parse(s.slice(a, b + 1)); }
+  catch { throw new Error('响应中 JSON 解析失败'); }
 }
 
 export function buildPortraitPrompt(artist, stylePrompt) {
