@@ -56,11 +56,22 @@ async function invokeVideo(request, ctx) {
   if (!taskId) throw gatewayError('provider_error', `Kling 未返回 task_id: ${JSON.stringify(submit).slice(0, 200)}`, { providerId: 'kling' });
 
   const deadline = Date.now() + MAX_POLL_MS;
+  let lastPct = 5;
+  let pollErrors = 0;
   while (Date.now() < deadline) {
     await sleep(POLL_INTERVAL_MS);
-    const st = await ctx.fetchJson(`${BASE(ctx.env)}${submitPath}/${taskId}`, { method: 'GET', headers: authHeaders(ctx.env), timeoutMs: 30000 });
+    let st;
+    try {
+      st = await ctx.fetchJson(`${BASE(ctx.env)}${submitPath}/${taskId}`, { method: 'GET', headers: authHeaders(ctx.env), timeoutMs: 30000 });
+      pollErrors = 0;
+    } catch (err) {
+      if (++pollErrors >= 3) throw err; // 连续 3 次轮询失败才放弃；瞬时网络抖动不应葬送长任务
+      ctx.onProgress('Kling: 轮询重试中', lastPct);
+      continue;
+    }
     const status = st.data?.task_status;
-    ctx.onProgress(`Kling: ${status || '排队中'}`, status === 'processing' ? 50 : 20);
+    lastPct = Math.max(lastPct, status === 'processing' ? 50 : 20); // 进度只升不降
+    ctx.onProgress(`Kling: ${status || '排队中'}`, lastPct);
     if (status === 'succeed') {
       const url = st.data?.task_result?.videos?.[0]?.url;
       if (!url) throw gatewayError('provider_error', 'Kling 成功但无视频 URL', { providerId: 'kling' });
