@@ -130,4 +130,23 @@ export function registerRoutes(route) {
       return { title: b.title, style: b.style, lyrics: b.lyrics, prompt: b.prompt, instrumental: Boolean(b.instrumental) };
     });
   });
+
+  route('POST /api/ai/tts', async (req, res, { readJsonBody }) => {
+    const body = await readJsonBody();
+    if (!body.text) return jsonError(res, 'bad_request', 'text 必填');
+    if (String(body.text).length > 1000) return jsonError(res, 'bad_request', 'M1 的 TTS 限 1000 字以内');
+    try {
+      const r = await execute('tts', { text: body.text, voice: body.voice });
+      json(res, { files: r.files, provider: r.provider, model: r.model });
+    } catch (e) { sendGatewayError(res, e); }
+  });
+
+  route('POST /api/ai/asr', async (req, res, { readJsonBody }) => {
+    const body = await readJsonBody();
+    if (!body.audio) return jsonError(res, 'bad_request', 'audio（dataUrl）必填');
+    try {
+      const r = await execute('asr', { audio: body.audio });
+      json(res, { text: r.text, provider: r.provider, model: r.model });
+    } catch (e) { sendGatewayError(res, e); }
+  });
 }

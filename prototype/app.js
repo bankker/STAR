@@ -60,6 +60,8 @@ function boot() {
   initImage();
   initMusic();
   initVideo();
+  initTts();
+  initAsr();
   $('#health-refresh').addEventListener('click', () => renderHealth(true));
   renderJobs(); setInterval(renderJobs, 3000);
   renderUsage(); setInterval(renderUsage, 30000);
@@ -187,5 +189,31 @@ function initImage() {
     $('#image-out').innerHTML = r.error
       ? esc(errText(r.error)).replace(/\n/g, '<br>')
       : r.files.map(mediaHtml).join('') + `<div>—— ${esc(r.provider)}/${esc(r.model)}</div>`;
+  });
+}
+
+function initTts() {
+  $('#tts-send').addEventListener('click', async () => {
+    const text = $('#tts-text').value.trim();
+    if (!text) return;
+    const btn = $('#tts-send'); btn.disabled = true;
+    $('#tts-out').textContent = '合成中…';
+    const r = await api('/api/ai/tts', { text, voice: $('#tts-voice').value.trim() || undefined });
+    btn.disabled = false;
+    $('#tts-out').innerHTML = r.error
+      ? esc(errText(r.error)).replace(/\n/g, '<br>')
+      : r.files.map(mediaHtml).join('') + `<div>—— ${esc(r.provider)}/${esc(r.model)}</div>`;
+  });
+}
+
+function initAsr() {
+  $('#asr-send').addEventListener('click', async () => {
+    const audio = await fileToDataUrl($('#asr-file'));
+    if (!audio) { $('#asr-out').textContent = '请先选择音频文件'; return; }
+    const btn = $('#asr-send'); btn.disabled = true;
+    $('#asr-out').textContent = '转写中…';
+    const r = await api('/api/ai/asr', { audio });
+    btn.disabled = false;
+    $('#asr-out').textContent = r.error ? errText(r.error) : `${r.text}\n—— ${r.provider}/${r.model}`;
   });
 }
