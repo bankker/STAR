@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Star Studio v3 — M1 工作台</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header>
+  <h1>AI Star Studio v3 <span class="sub">M1 能力网关工作台</span></h1>
+  <div id="usage-summary" class="usage">本周成本 —</div>
+</header>
+
+<section id="health" class="panel">
+  <div class="panel-head"><h2>Provider 健康</h2><button id="health-refresh">重新探测</button></div>
+  <div id="health-grid" class="health-grid"></div>
+</section>
+
+<main class="cards">
+  <section class="card" id="card-chat">
+    <h2>聊天 <span class="route" data-cap="chat"></span></h2>
+    <textarea id="chat-input" rows="3" placeholder="对艺人说点什么…"></textarea>
+    <button id="chat-send">发送</button>
+    <div id="chat-out" class="out"></div>
+  </section>
+
+  <section class="card" id="card-image">
+    <h2>图像 <span class="route" data-cap="image"></span></h2>
+    <textarea id="image-prompt" rows="2" placeholder="写真描述…"></textarea>
+    <input type="file" id="image-ref" accept="image/*">
+    <button id="image-send">生成图像</button>
+    <div id="image-out" class="out"></div>
+  </section>
+
+  <section class="card" id="card-music">
+    <h2>音乐 <span class="route" data-cap="music"></span></h2>
+    <input id="music-title" placeholder="歌名">
+    <input id="music-style" placeholder="曲风，如：国风流行，女声，105BPM">
+    <textarea id="music-lyrics" rows="3" placeholder="歌词（可空，交给平台作词）"></textarea>
+    <button id="music-send">生成歌曲</button>
+    <div id="music-out" class="out"></div>
+  </section>
+
+  <section class="card" id="card-video">
+    <h2>视频 <span class="route" data-cap="video"></span></h2>
+    <input type="file" id="video-ref" accept="image/*">
+    <textarea id="video-prompt" rows="2" placeholder="运镜与动作描述…"></textarea>
+    <select id="video-duration"><option value="5">5 秒</option><option value="10">10 秒</option></select>
+    <button id="video-send">生成视频（竖屏）</button>
+    <div id="video-out" class="out"></div>
+  </section>
+
+  <section class="card" id="card-tts">
+    <h2>配音 TTS <span class="route" data-cap="tts"></span></h2>
+    <textarea id="tts-text" rows="2" maxlength="1000" placeholder="台词（≤1000 字）"></textarea>
+    <input id="tts-voice" placeholder="音色（按平台文档，可空）">
+    <button id="tts-send">合成语音</button>
+    <div id="tts-out" class="out"></div>
+  </section>
+
+  <section class="card" id="card-asr">
+    <h2>转写 ASR <span class="route" data-cap="asr"></span></h2>
+    <input type="file" id="asr-file" accept="audio/*">
+    <button id="asr-send">转写</button>
+    <div id="asr-out" class="out"></div>
+  </section>
+</main>
+
+<section id="jobs" class="panel">
+  <div class="panel-head"><h2>生成任务</h2></div>
+  <div id="jobs-list"></div>
+</section>
+
+<section id="settings" class="panel">
+  <div class="panel-head"><h2>设置</h2></div>
+  <h3>能力路由（JSON，保存即热生效）</h3>
+  <textarea id="config-editor" rows="14" spellcheck="false"></textarea>
+  <button id="config-save">保存路由</button>
+  <div id="config-msg" class="out"></div>
+  <h3>API Key（仅写入服务端 .env，不回显）</h3>
+  <div id="keys-list"></div>
+</section>
+
+<div id="confirm-modal" class="modal hidden">
+  <div class="modal-box">
+    <h3>生成成本确认</h3>
+    <p id="confirm-text"></p>
+    <button id="confirm-ok">确认生成</button>
+    <button id="confirm-cancel">取消</button>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
