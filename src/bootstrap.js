@@ -4,6 +4,7 @@ import { initLedger } from './gateway/ledger.js';
 import { setPriceOverrides } from './gateway/costs.js';
 import { registerAll } from './providers/index.js';
 import { CONFIG_FILE, LOGS_DIR } from './lib/paths.js';
+import { startHealthLoop } from './gateway/health.js';
 
 export function bootstrap() {
   try {
@@ -12,6 +13,7 @@ export function bootstrap() {
     initLedger(path.join(LOGS_DIR, 'ai-usage.jsonl'));
     const cfg = loadConfig();
     if (cfg.costs) setPriceOverrides(cfg.costs);
+    startHealthLoop();
   } catch (e) {
     console.error('[bootstrap] 启动失败:', e.message);
     console.error('请检查 config/ai-providers.json 是否存在、为合法 JSON，且路由引用的 provider 均已注册。');

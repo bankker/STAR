@@ -1,0 +1,29 @@
+:root { --bg:#101418; --panel:#1a2027; --line:#2c3640; --text:#e8edf2; --dim:#8a98a6; --ok:#3ecf8e; --err:#ff6b6b; --warn:#f7c948; }
+* { box-sizing: border-box; }
+body { margin:0; font:14px/1.6 system-ui, "Microsoft YaHei", sans-serif; background:var(--bg); color:var(--text); padding:16px; }
+header { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; }
+h1 { font-size:20px; } h1 .sub { font-size:13px; color:var(--dim); margin-left:8px; }
+h2 { font-size:15px; margin:0 0 8px; } h3 { font-size:13px; color:var(--dim); }
+.usage { color:var(--warn); }
+.panel, .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; margin-top:14px; }
+.panel-head { display:flex; justify-content:space-between; align-items:center; }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:14px; }
+.health-grid { display:flex; flex-wrap:wrap; gap:10px; }
+.badge { padding:6px 10px; border-radius:8px; border:1px solid var(--line); font-size:13px; }
+.badge .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+.badge.online .dot { background:var(--ok); } .badge.error .dot { background:var(--err); }
+.badge.unconfigured .dot, .badge.unknown .dot { background:var(--dim); }
+.route { font-size:12px; color:var(--dim); font-weight:normal; }
+textarea, input, select { width:100%; margin:4px 0; background:#0d1115; color:var(--text); border:1px solid var(--line); border-radius:6px; padding:8px; font:inherit; }
+button { background:#2563eb; color:#fff; border:0; border-radius:6px; padding:8px 14px; margin-top:6px; cursor:pointer; }
+button:disabled { opacity:.5; cursor:not-allowed; }
+.out { margin-top:8px; white-space:pre-wrap; color:var(--dim); word-break:break-all; }
+.out img, .out video { max-width:100%; border-radius:8px; margin-top:6px; }
+.job { border-top:1px solid var(--line); padding:8px 0; }
+.job .bar { height:6px; background:#0d1115; border-radius:3px; overflow:hidden; }
+.job .bar i { display:block; height:100%; background:#2563eb; }
+.modal { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; }
+.modal.hidden { display:none; }
+.modal-box { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:20px; max-width:420px; }
+.key-row { display:flex; gap:8px; align-items:center; margin:4px 0; }
+.key-row label { flex:0 0 220px; color:var(--dim); font-size:13px; }

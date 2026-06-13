@@ -1,5 +1,6 @@
 import { execute } from '../gateway/gateway.js';
 import { GatewayError } from '../gateway/errors.js';
+import { refreshHealth, getHealthSnapshot } from '../gateway/health.js';
 
 const MAX_BODY = 1 * 1024 * 1024;
 const MAX_MEDIA_BODY = 32 * 1024 * 1024;
@@ -53,4 +54,9 @@ export function registerRoutes(route) {
       } catch (e) { sendGatewayError(res, e); }
     });
   }
+
+  route('GET /api/health', async (req, res, { url }) => {
+    if (url.searchParams.get('refresh') === '1') await refreshHealth();
+    json(res, { providers: getHealthSnapshot() });
+  });
 }
