@@ -10,7 +10,7 @@ import { ENV_FILE } from '../lib/paths.js';
 import {
   createArtist, listArtists, getArtist, updateArtist, deleteArtist, addPortrait,
 } from '../studio/artists.js';
-import { getConversation, appendTurn, setMemory, trimToRecent } from '../studio/conversations.js';
+import { getConversation, appendTurn, setMemory, trimToRecent, resetConversation } from '../studio/conversations.js';
 import { buildChatMessages, shouldSummarize, buildSummarizeMessages, updateEmotion, RECENT_KEEP } from '../studio/companion.js';
 import {
   buildInterviewMessages, buildFinalizeMessages, extractProfileJson, buildPortraitPrompt,
@@ -255,7 +255,9 @@ export function registerRoutes(route) {
   });
 
   route('DELETE /api/artist/:id', async (req, res, { params }) => {
-    json(res, { ok: deleteArtist(params.id) });
+    const ok = deleteArtist(params.id);
+    if (ok) resetConversation(params.id);
+    json(res, { ok });
   });
 
   route('POST /api/artist/:id/portrait', async (req, res, { params, readJsonBody }) => {
