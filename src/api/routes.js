@@ -13,8 +13,9 @@ import {
 import { getConversation, appendTurn, setMemory, trimToRecent, resetConversation } from '../studio/conversations.js';
 import { buildChatMessages, shouldSummarize, buildSummarizeMessages, updateEmotion, RECENT_KEEP } from '../studio/companion.js';
 import {
-  buildInterviewMessages, buildFinalizeMessages, extractProfileJson, buildPortraitPrompt,
+  buildInterviewMessages, buildFinalizeMessages, extractProfileJson, buildPortraitPrompt, buildPhotoPrompt,
 } from '../studio/artist-create.js';
+import { getGallery, addAssets, toggleFavorite, removeAsset } from '../studio/assets.js';
 
 const MAX_BODY = 1 * 1024 * 1024;
 const MAX_MEDIA_BODY = 32 * 1024 * 1024;
@@ -315,5 +316,33 @@ export function registerRoutes(route) {
       send('error', e instanceof GatewayError ? e.toJSON() : { code: 'internal', message: e.message });
     }
     res.end();
+  });
+
+  route('GET /api/artist/:id/gallery', async (req, res, { params }) => {
+    if (!getArtist(params.id)) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    json(res, { assets: getGallery(params.id).assets });
+  });
+
+  route('POST /api/artist/:id/photo', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    if (!artist) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    try {
+      const prompt = buildPhotoPrompt(artist, { shot: body.shot, stylePrompt: body.stylePrompt });
+      const r = await execute('image', { prompt, aspect: body.aspect || '3:4', count: Number(body.count) || 1 });
+      const items = (r.files || []).map((f) => ({ type: 'photo', url: f.url, prompt, shot: body.shot || '', aspect: body.aspect || '3:4' }));
+      const g = addAssets(params.id, items);
+      json(res, { assets: g.assets.slice(0, items.length), provider: r.provider, model: r.model });
+    } catch (e) { sendGatewayError(res, e); }
+  });
+
+  route('POST /api/artist/:id/gallery/:assetId/favorite', async (req, res, { params }) => {
+    const g = toggleFavorite(params.id, params.assetId);
+    g ? json(res, { ok: true }) : jsonError(res, 'not_found', '无此资产');
+  });
+
+  route('DELETE /api/artist/:id/gallery/:assetId', async (req, res, { params }) => {
+    removeAsset(params.id, params.assetId);
+    json(res, { ok: true });
   });
 }

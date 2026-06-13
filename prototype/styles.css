@@ -1062,6 +1062,202 @@ select option { background: var(--panel-2); color: var(--ink); }
 .msg-ok { font-size: 13px; color: var(--ok); }
 .msg-err { font-size: 13px; color: var(--err); }
 
+/* ========================================================
+   §3 Photo Studio (S3) — 写真工作室
+   ======================================================== */
+
+/* Two-column layout: control panel (left) + gallery (right) */
+.photo-studio-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .photo-studio-layout { grid-template-columns: 1fr; }
+}
+
+/* Left control panel */
+.photo-control-panel {
+  position: sticky;
+  top: 0;
+}
+
+/* Artist mini-card (lock-face indicator) */
+.photo-artist-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--panel-2);
+  border: 1px solid rgba(38,214,196,.25);
+  border-radius: var(--r-sm);
+}
+.photo-lock-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Segmented control */
+.seg-ctrl {
+  display: flex;
+  gap: 4px;
+  background: var(--panel-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  padding: 3px;
+}
+.seg-btn {
+  flex: 1;
+  padding: 5px 8px;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.seg-btn:hover:not(.active) {
+  color: var(--ink-2);
+  background: rgba(255,255,255,.04);
+}
+.seg-btn.active {
+  background: rgba(124,92,255,.22);
+  color: var(--brand-2);
+}
+
+/* Gallery filter row */
+.photo-filter-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+/* Media grid */
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
+}
+
+/* MediaTile */
+.media-tile {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  overflow: hidden;
+  transition: border-color .15s, transform .15s;
+}
+.media-tile:hover {
+  border-color: var(--brand);
+  transform: translateY(-2px);
+}
+
+.media-tile-img-wrap {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  background: var(--panel-2);
+}
+.media-tile-img-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Lock badge on tile */
+.media-tile-lock {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  font-size: 10px;
+  padding: 2px 7px;
+}
+
+/* Hover action bar */
+.media-tile-actions {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 6px 8px;
+  background: rgba(12,13,18,.82);
+  backdrop-filter: blur(4px);
+  border-top: 1px solid var(--line);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity .15s, transform .15s;
+  z-index: 3;
+}
+.media-tile:hover .media-tile-actions {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.tile-btn {
+  background: none;
+  border: none;
+  color: var(--ink-2);
+  font-size: 15px;
+  cursor: pointer;
+  padding: 3px 6px;
+  border-radius: 5px;
+  transition: color .12s, background .12s;
+  font-family: var(--font);
+}
+.tile-btn:hover { color: var(--ink); background: rgba(255,255,255,.08); }
+.tile-btn.tile-fav { color: var(--ink-3); }
+.tile-btn.tile-fav.faved { color: var(--gold); }
+.tile-btn.tile-fav:hover { color: var(--gold); }
+.tile-btn.tile-del:hover { color: var(--err); }
+.tile-btn.tile-redo:hover { color: var(--accent); }
+
+/* Tile metadata bar */
+.media-tile-meta {
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--ink-3);
+  border-top: 1px solid var(--line);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Spinner placeholder tile */
+.media-tile-placeholder {
+  border-color: var(--line);
+  opacity: .6;
+}
+.tile-spinner-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+}
+.tile-spinner-label {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.mb-12 { margin-bottom: 12px; }
+
 /* scrollbar global */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
