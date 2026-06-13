@@ -99,9 +99,16 @@ function touch(job, immediate = false) {
 }
 
 export function sanitize(job) {
-  const { request, ...rest } = job;
-  return { ...rest, request: JSON.parse(JSON.stringify(request || {}, (k, v) =>
-    typeof v === 'string' && v.length > 2000 ? `${v.slice(0, 100)}…(${v.length} chars)` : v)) };
+  const { request, result, ...rest } = job;
+  const safeResult = result
+    ? { ...result, files: (result.files || []).map((f) => ({ url: f.url })) }
+    : result;
+  return {
+    ...rest,
+    result: safeResult,
+    request: JSON.parse(JSON.stringify(request || {}, (k, v) =>
+      typeof v === 'string' && v.length > 2000 ? `${v.slice(0, 100)}…(${v.length} chars)` : v)),
+  };
 }
 
 function persistSoon(immediate = false) {

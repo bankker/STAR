@@ -56,7 +56,7 @@ async function invokeTts(request, ctx) {
   if (audioUrl) buf = await ctx.fetchBuffer(audioUrl, { method: 'GET', headers: {}, timeoutMs: 60000 });
   else if (audioB64) buf = Buffer.from(audioB64, 'base64');
   else throw gatewayError('provider_error', `DashScope TTS 无音频输出: ${JSON.stringify(data.output || {}).slice(0, 200)}`, { providerId: 'dashscope' });
-  const ext = audioUrl ? (audioUrl.split('?')[0].split('.').pop().toLowerCase() || 'wav') : 'wav';
+  const ext = (audioUrl ? (audioUrl.split('?')[0].match(/\.(\w+)$/) || [])[1] : null)?.toLowerCase() || 'wav';
   return { files: [ctx.saveFile(buf, ext)], usage: { chars: String(request.text || '').length } };
 }
 
