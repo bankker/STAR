@@ -58,6 +58,7 @@ function boot() {
   renderRoutes();
   initChat();
   initImage();
+  initMusic();
   initVideo();
   $('#health-refresh').addEventListener('click', () => renderHealth(true));
   renderJobs(); setInterval(renderJobs, 3000);
@@ -158,6 +159,18 @@ function initVideo() {
     if (!prompt && !imageRef) return;
     const btn = $('#video-send'); btn.disabled = true;
     await submitWithConfirm('/api/ai/video', { prompt, imageRef, durationSec: Number($('#video-duration').value) }, $('#video-out'));
+    btn.disabled = false;
+  });
+}
+
+function initMusic() {
+  $('#music-send').addEventListener('click', async () => {
+    const title = $('#music-title').value.trim();
+    const style = $('#music-style').value.trim();
+    const lyrics = $('#music-lyrics').value.trim();
+    if (!title && !style && !lyrics) return;
+    const btn = $('#music-send'); btn.disabled = true;
+    await submitWithConfirm('/api/ai/music', { title, style, lyrics }, $('#music-out'));
     btn.disabled = false;
   });
 }

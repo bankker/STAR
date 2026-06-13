@@ -7,7 +7,7 @@ const BASE_PRICES = {
   'dashscope:qwen3-asr-flash': { perMinute: 0.01 },
   'gemini:gemini-3-pro-image': { perImage: 0.12 },
   'kling:kling-v2-6': { perSecond: 0.07 },
-  'suno:v5': { perSong: 0.4 },
+  'suno:V5': { perSong: 0.4 },
   'openrouter:*': { inputPerMTok: 5, outputPerMTok: 15, perImage: 0.15, perSecond: 0.1 },
 };
 

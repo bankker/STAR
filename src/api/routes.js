@@ -8,7 +8,7 @@ import { summarize } from '../gateway/ledger.js';
 const MAX_BODY = 1 * 1024 * 1024;
 const MAX_MEDIA_BODY = 32 * 1024 * 1024;
 // NOTE: 精确匹配——若未来新增子路径端点（如 /api/ai/image/variations）需扩展此集合
-const MEDIA_BODY_PATHS = new Set(['/api/ai/asr', '/api/ai/image', '/api/ai/video']);
+const MEDIA_BODY_PATHS = new Set(['/api/ai/asr', '/api/ai/image', '/api/ai/video', '/api/ai/music']);
 
 export function json(res, data, status = 200) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -120,6 +120,14 @@ export function registerRoutes(route) {
     await handleMediaSubmit('video', res, body, (b) => {
       if (!b.prompt && !b.imageRef) throw new Error('prompt 与参考图至少填一项');
       return { prompt: b.prompt || '', imageRef: b.imageRef || null, durationSec: Number(b.durationSec) || 5, aspect: '9:16' };
+    });
+  });
+
+  route('POST /api/ai/music', async (req, res, { readJsonBody }) => {
+    const body = await readJsonBody();
+    await handleMediaSubmit('music', res, body, (b) => {
+      if (!b.title && !b.style && !b.prompt && !b.lyrics) throw new Error('歌名/曲风/描述至少填一项');
+      return { title: b.title, style: b.style, lyrics: b.lyrics, prompt: b.prompt, instrumental: Boolean(b.instrumental) };
     });
   });
 }
