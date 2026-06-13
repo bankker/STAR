@@ -40,13 +40,13 @@ async function invokeMusic(request, ctx) {
     model: request.model || 'V5',
     callBackUrl: 'https://example.com/none', // 占位：本适配器走轮询，不依赖回调
     ...(customMode
-      ? { title: (request.title || '未命名').slice(0, 80), style: (request.style || 'pop').slice(0, 200), prompt: request.lyrics || '' }
+      ? { title: (request.title || '未命名').slice(0, 80), style: (request.style || 'pop').slice(0, 200), prompt: request.lyrics || request.prompt || '' }
       : { prompt: request.prompt || request.style || 'a cheerful pop song' }),
   };
   ctx.onProgress('提交 Suno 任务', 5);
   const submit = await ctx.fetchJson(`${BASE(ctx.env)}/api/v1/generate`, { headers: auth(ctx.env), body, timeoutMs: 60000 });
   const taskId = submit.data?.taskId || submit.data?.task_id;
-  if (taskId == null) throw gatewayError('provider_error', `Suno 未返回 taskId: ${JSON.stringify(submit).slice(0, 200)}`, { providerId: 'suno' });
+  if (!taskId) throw gatewayError('provider_error', `Suno 未返回 taskId: ${JSON.stringify(submit).slice(0, 200)}`, { providerId: 'suno' });
 
   const deadline = Date.now() + MAX_POLL_MS;
   let lastPct = 5;
@@ -63,9 +63,9 @@ async function invokeMusic(request, ctx) {
       continue;
     }
     const status = info.data?.status || '';
-    lastPct = Math.max(lastPct, /SUCCESS|complete/i.test(status) ? 90 : 40);
+    lastPct = Math.max(lastPct, /SUCCESS|\bcomplete\b/i.test(status) ? 90 : 40);
     ctx.onProgress(`Suno: ${status || '生成中'}`, lastPct);
-    if (/SUCCESS|complete/i.test(status)) {
+    if (/SUCCESS|\bcomplete\b/i.test(status)) {
       const track = info.data?.response?.sunoData?.[0] || info.data?.response?.data?.[0];
       const url = track?.audioUrl || track?.audio_url;
       if (!url) throw gatewayError('provider_error', 'Suno 成功但无音频 URL', { providerId: 'suno' });
