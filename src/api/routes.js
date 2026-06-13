@@ -4,6 +4,9 @@ import { refreshHealth, getHealthSnapshot } from '../gateway/health.js';
 import { listJobs, getJob, retryJob, sanitize, submitJob } from '../gateway/jobs.js';
 import { estimateRequest } from '../gateway/costs.js';
 import { summarize } from '../gateway/ledger.js';
+import { loadConfig, updateConfig, listProviders } from '../gateway/registry.js';
+import { setEnvKey } from '../lib/env.js';
+import { ENV_FILE } from '../lib/paths.js';
 
 const MAX_BODY = 1 * 1024 * 1024;
 const MAX_MEDIA_BODY = 32 * 1024 * 1024;
@@ -148,5 +151,36 @@ export function registerRoutes(route) {
       const r = await execute('asr', { audio: body.audio });
       json(res, { text: r.text, provider: r.provider, model: r.model });
     } catch (e) { sendGatewayError(res, e); }
+  });
+
+  route('GET /api/config', async (req, res) => json(res, loadConfig()));
+
+  route('PUT /api/config', async (req, res, { readJsonBody }) => {
+    const next = await readJsonBody();
+    try { updateConfig(next); json(res, { ok: true }); }
+    catch (e) { jsonError(res, 'bad_request', `配置校验失败: ${e.message}`); }
+  });
+
+  route('GET /api/config/keys', async (req, res) => {
+    const keys = [];
+    for (const p of listProviders()) {
+      for (const k of p.envKeys) {
+        const v = process.env[k] || '';
+        keys.push({ provider: p.label, key: k, configured: Boolean(v), tail: v ? v.slice(-4) : '' });
+      }
+    }
+    json(res, { keys });
+  });
+
+  route('POST /api/config/keys', async (req, res, { readJsonBody }) => {
+    const { key, value } = await readJsonBody();
+    const known = new Set(listProviders().flatMap((p) => p.envKeys));
+    if (!known.has(key)) return jsonError(res, 'bad_request', `未知的 key 名: ${key}`);
+    if (typeof value !== 'string' || !value.trim()) return jsonError(res, 'bad_request', 'value 必填');
+    try {
+      setEnvKey(ENV_FILE, key, value.trim());
+      await refreshHealth();
+      json(res, { ok: true, tail: value.trim().slice(-4) });
+    } catch (e) { jsonError(res, 'bad_request', e.message); }
   });
 }

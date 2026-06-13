@@ -65,6 +65,7 @@ function boot() {
   $('#health-refresh').addEventListener('click', () => renderHealth(true));
   renderJobs(); setInterval(renderJobs, 3000);
   renderUsage(); setInterval(renderUsage, 30000);
+  initSettings();
 }
 window.addEventListener('DOMContentLoaded', boot);
 
@@ -215,5 +216,36 @@ function initAsr() {
     const r = await api('/api/ai/asr', { audio });
     btn.disabled = false;
     $('#asr-out').textContent = r.error ? errText(r.error) : `${r.text}\n—— ${r.provider}/${r.model}`;
+  });
+}
+
+async function renderKeys() {
+  const data = await api('/api/config/keys');
+  if (data.error || !Array.isArray(data.keys)) return;
+  $('#keys-list').innerHTML = data.keys.map((k) => `
+    <div class="key-row">
+      <label>${esc(k.provider)} · ${esc(k.key)} ${k.configured ? `（已配 ****${esc(k.tail)}）` : '（未配）'}</label>
+      <input type="password" data-key="${esc(k.key)}" placeholder="粘贴新 key 后回车提交">
+    </div>`).join('');
+  document.querySelectorAll('#keys-list input').forEach((input) => {
+    input.addEventListener('keydown', async (e) => {
+      if (e.key !== 'Enter' || !input.value.trim()) return;
+      const r = await api('/api/config/keys', { key: input.dataset.key, value: input.value.trim() });
+      if (r.error) { alert(errText(r.error)); return; }
+      input.value = '';
+      renderKeys(); renderHealth(true); renderRoutes();
+    });
+  });
+}
+
+function initSettings() {
+  renderKeys();
+  $('#config-save').addEventListener('click', async () => {
+    let next;
+    try { next = JSON.parse($('#config-editor').value); }
+    catch { $('#config-msg').textContent = 'JSON 格式错误'; return; }
+    const r = await api('/api/config', next, 'PUT');
+    $('#config-msg').textContent = r.error ? errText(r.error) : '已保存，路由即时生效';
+    renderRoutes();
   });
 }
