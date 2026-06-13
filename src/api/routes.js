@@ -7,6 +7,12 @@ import { summarize } from '../gateway/ledger.js';
 import { loadConfig, updateConfig, listProviders } from '../gateway/registry.js';
 import { setEnvKey } from '../lib/env.js';
 import { ENV_FILE } from '../lib/paths.js';
+import {
+  createArtist, listArtists, getArtist, updateArtist, deleteArtist, addPortrait,
+} from '../studio/artists.js';
+import {
+  buildInterviewMessages, buildFinalizeMessages, extractProfileJson, buildPortraitPrompt,
+} from '../studio/artist-create.js';
 
 const MAX_BODY = 1 * 1024 * 1024;
 const MAX_MEDIA_BODY = 32 * 1024 * 1024;
@@ -182,5 +188,70 @@ export function registerRoutes(route) {
       await refreshHealth();
       json(res, { ok: true, tail: value.trim().slice(-4) });
     } catch (e) { jsonError(res, 'bad_request', e.message); }
+  });
+
+  // —— 艺人创设 ——
+  route('POST /api/artist/interview', async (req, res, { readJsonBody }) => {
+    const body = await readJsonBody();
+    if (!Array.isArray(body.messages)) return jsonError(res, 'bad_request', 'messages 必填且为数组');
+    try {
+      const { system, messages } = buildInterviewMessages(body.messages);
+      const r = await execute('content', { system, messages, maxTokens: 400 });
+      json(res, { reply: r.text, provider: r.provider, model: r.model });
+    } catch (e) { sendGatewayError(res, e); }
+  });
+
+  route('POST /api/artist/finalize', async (req, res, { readJsonBody }) => {
+    const body = await readJsonBody();
+    if (!body.transcript) return jsonError(res, 'bad_request', 'transcript 必填');
+    try {
+      const { system, messages } = buildFinalizeMessages(body.transcript);
+      const r = await execute('content', { system, messages, maxTokens: 1200 });
+      let draft;
+      try { draft = extractProfileJson(r.text); }
+      catch (e) { return jsonError(res, 'provider_error', `档案解析失败：${e.message}`); }
+      json(res, { draft, provider: r.provider, model: r.model });
+    } catch (e) { sendGatewayError(res, e); }
+  });
+
+  route('GET /api/artists', async (req, res) => json(res, { artists: listArtists() }));
+
+  route('POST /api/artist', async (req, res, { readJsonBody }) => {
+    const body = await readJsonBody();
+    try {
+      const artist = createArtist(body.profile || body);
+      json(res, { id: artist.id, artist });
+    } catch (e) { jsonError(res, 'bad_request', e.message); }
+  });
+
+  route('GET /api/artist/:id', async (req, res, { params }) => {
+    const a = getArtist(params.id);
+    a ? json(res, { artist: a }) : jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+  });
+
+  route('PUT /api/artist/:id', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    try {
+      const a = updateArtist(params.id, body.profile || body);
+      a ? json(res, { artist: a }) : jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    } catch (e) { jsonError(res, 'bad_request', e.message); }
+  });
+
+  route('DELETE /api/artist/:id', async (req, res, { params }) => {
+    json(res, { ok: deleteArtist(params.id) });
+  });
+
+  route('POST /api/artist/:id/portrait', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    if (!artist) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    try {
+      const prompt = buildPortraitPrompt(artist, body.stylePrompt);
+      const r = await execute('image', { prompt, refImages: [], aspect: '3:4' });
+      const url = r.files?.[0]?.url;
+      if (!url) return jsonError(res, 'provider_error', '图像生成未返回文件');
+      const updated = addPortrait(params.id, { url, prompt });
+      json(res, { portrait: updated.portraits[updated.portraits.length - 1], artist: updated });
+    } catch (e) { sendGatewayError(res, e); }
   });
 }
