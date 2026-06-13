@@ -58,6 +58,7 @@ function boot() {
   renderRoutes();
   initChat();
   initImage();
+  initVideo();
   $('#health-refresh').addEventListener('click', () => renderHealth(true));
   renderJobs(); setInterval(renderJobs, 3000);
   renderUsage(); setInterval(renderUsage, 30000);
@@ -102,13 +103,18 @@ async function renderUsage() {
     `本周 AI 成本 $${u.totalUsd}（文本 $${u.textUsd} / 红线 $${u.textBudgetUsd}）${u.textWarn ? ' ⚠️ 接近红线' : ''}`;
 }
 
+let confirmOpen = false;
+
 function confirmCost(estimate) {
+  if (confirmOpen) return Promise.resolve(false);
+  confirmOpen = true;
   return new Promise((resolve) => {
     $('#confirm-text').textContent =
       `将由 ${estimate.provider}/${estimate.model} 生成 ${estimate.capability}，预估成本 $${estimate.estimatedUsd}。继续？`;
     $('#confirm-modal').classList.remove('hidden');
     const ok = $('#confirm-ok'); const cancel = $('#confirm-cancel');
     const done = (v) => {
+      confirmOpen = false;
       $('#confirm-modal').classList.add('hidden');
       ok.removeEventListener('click', yes); cancel.removeEventListener('click', no);
       resolve(v);
@@ -142,6 +148,17 @@ function fileToDataUrl(input) {
     r.onload = () => resolve(r.result);
     r.onerror = () => resolve(null);
     r.readAsDataURL(f);
+  });
+}
+
+function initVideo() {
+  $('#video-send').addEventListener('click', async () => {
+    const prompt = $('#video-prompt').value.trim();
+    const imageRef = await fileToDataUrl($('#video-ref'));
+    if (!prompt && !imageRef) return;
+    const btn = $('#video-send'); btn.disabled = true;
+    await submitWithConfirm('/api/ai/video', { prompt, imageRef, durationSec: Number($('#video-duration').value) }, $('#video-out'));
+    btn.disabled = false;
   });
 }
 

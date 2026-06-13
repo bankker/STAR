@@ -6,5 +6,6 @@
   "plan":    { "provider": "dashscope",  "model": "qwen-flash" },
   "image":   { "provider": "gemini",     "model": "gemini-3-pro-image",
                "fallback": [{ "provider": "openrouter", "model": "google/gemini-3-pro-image" }] },
+  "video":   { "provider": "kling", "model": "kling-v2-6" },
   "providers": {}
 }

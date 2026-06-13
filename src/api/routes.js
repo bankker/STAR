@@ -114,4 +114,12 @@ export function registerRoutes(route) {
       json(res, { files: r.files, provider: r.provider, model: r.model });
     } catch (e) { sendGatewayError(res, e); }
   });
+
+  route('POST /api/ai/video', async (req, res, { readJsonBody }) => {
+    const body = await readJsonBody();
+    await handleMediaSubmit('video', res, body, (b) => {
+      if (!b.prompt && !b.imageRef) throw new Error('prompt 与参考图至少填一项');
+      return { prompt: b.prompt || '', imageRef: b.imageRef || null, durationSec: Number(b.durationSec) || 5, aspect: '9:16' };
+    });
+  });
 }
