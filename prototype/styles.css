@@ -42,3 +42,4 @@ button:disabled { opacity:.5; cursor:not-allowed; }
 .detail .portraits { display:flex; flex-wrap:wrap; gap:8px; } .detail .portraits img { width:140px; border-radius:8px; }
 .msg { color:var(--ok); margin-left:8px; }
 details.debug { margin-top:14px; } details.debug summary { cursor:pointer; color:var(--dim); padding:8px 0; }
+.hidden { display:none; }

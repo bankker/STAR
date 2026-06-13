@@ -281,7 +281,13 @@ async function sendInterview() {
   interviewHistory.push({ role: 'user', content: text });
   $('#interview-input').value = ''; renderInterview();
   const r = await api('/api/artist/interview', { messages: interviewHistory });
-  interviewHistory.push({ role: 'assistant', content: r.error ? errText(r.error) : r.reply });
+  if (r.error) {
+    renderInterview();
+    $('#interview-log').insertAdjacentHTML('beforeend', `<div class="bubble ai">${esc(errText(r.error))}</div>`);
+    $('#interview-log').scrollTop = $('#interview-log').scrollHeight;
+    return;
+  }
+  interviewHistory.push({ role: 'assistant', content: r.reply });
   renderInterview();
 }
 
