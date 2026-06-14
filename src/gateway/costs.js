@@ -7,6 +7,7 @@ const BASE_PRICES = {
   'dashscope:qwen3-asr-flash': { perMinute: 0.01 },
   'dashscope:wan2.2-t2i-flash': { perImage: 0.03 },
   'dashscope:wan2.2-i2v-flash': { perSecond: 0.1 },
+  'dashscope:liveportrait': { perSecond: 0.15 },
   'gemini:gemini-3-pro-image': { perImage: 0.12 },
   'kling:kling-v2-6': { perSecond: 0.07 },
   'dashscope:fun-music-v1': { perSong: 0.3 },
@@ -38,6 +39,7 @@ export function estimateRequest(capability, providerId, model, request = {}) {
   if (capability === 'music') return round(p.perSong ?? 0.5);
   if (capability === 'tts') return round((p.perKChar ?? 0.05) * (String(request.text || '').length / 1000));
   if (capability === 'asr') return round((p.perMinute ?? 0.02) * ((request.durationSec || 60) / 60));
+  if (capability === 'lipsync') return round((p.perSecond ?? 0.15) * (request.durationSec || 5));
   return 0;
 }
 

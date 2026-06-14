@@ -10,7 +10,7 @@ const auth = (env) => ({ authorization: `Bearer ${env.DASHSCOPE_API_KEY}` });
 const adapter = {
   id: 'dashscope',
   label: '阿里云百炼',
-  capabilities: ['chat', 'content', 'world', 'plan', 'tts', 'asr', 'image', 'video', 'music'],
+  capabilities: ['chat', 'content', 'world', 'plan', 'tts', 'asr', 'image', 'video', 'music', 'lipsync'],
   envKeys: ['DASHSCOPE_API_KEY'],
   isConfigured: (env) => Boolean(env.DASHSCOPE_API_KEY),
 
@@ -30,6 +30,7 @@ const adapter = {
     if (capability === 'asr') return invokeAsr(request, ctx);
     if (capability === 'image') return invokeImage(request, ctx);
     if (capability === 'video') return invokeVideo(request, ctx);
+    if (capability === 'lipsync') return invokeLipsync(request, ctx);
     if (capability === 'music') return invokeMusic(request, ctx);
     throw gatewayError('bad_request', `dashscope 暂未实现能力 ${capability}`, { providerId: 'dashscope' });
   },
@@ -176,6 +177,41 @@ async function invokeVideo(request, ctx) {
     if (status === 'FAILED') throw gatewayError('provider_error', `万相视频失败: ${st.output?.message || st.output?.code || '无详情'}`, { providerId: 'dashscope' });
   }
   throw gatewayError('timeout', `万相视频轮询超时（${VID_MAX_MS / 60000} 分钟）`, { providerId: 'dashscope' });
+}
+
+const LIPSYNC_SUBMIT = `${BASE}/api/v1/services/aigc/image2video/video-synthesis`;
+
+// 对口型说话头（liveportrait）：照片 image_url + 音频 audio_url（均 base64 dataUrl）→ 唇形同步视频。探针已验证。
+async function invokeLipsync(request, ctx) {
+  const img = request.imageRef;
+  const aud = request.audioRef;
+  if (!img || !aud) throw gatewayError('bad_request', '对口型需要照片与音频', { providerId: 'dashscope' });
+  const submit = await ctx.fetchJson(LIPSYNC_SUBMIT, {
+    headers: { ...auth(ctx.env), 'X-DashScope-Async': 'enable' }, timeoutMs: 30000,
+    body: { model: request.model, input: { image_url: img, audio_url: aud }, parameters: {} },
+  });
+  const taskId = submit.output?.task_id;
+  if (!taskId) throw gatewayError('provider_error', `liveportrait 未返回 task_id: ${JSON.stringify(submit).slice(0, 200)}`, { providerId: 'dashscope' });
+  const deadline = Date.now() + VID_MAX_MS;
+  let lastPct = 5, pollErrors = 0;
+  while (Date.now() < deadline) {
+    await vidSleep(VID_POLL_MS);
+    let st;
+    try { st = await ctx.fetchJson(`${BASE}/api/v1/tasks/${taskId}`, { method: 'GET', headers: auth(ctx.env), timeoutMs: 30000 }); pollErrors = 0; }
+    catch (err) { if (++pollErrors >= 3) throw err; ctx.onProgress('对口型: 轮询重试', lastPct); continue; }
+    const status = st.output?.task_status;
+    lastPct = Math.max(lastPct, status === 'RUNNING' ? 50 : 20);
+    ctx.onProgress(`对口型: ${status || '排队'}`, lastPct);
+    if (status === 'SUCCEEDED') {
+      const url = st.output?.video_url || st.output?.results?.[0]?.url;
+      if (!url) throw gatewayError('provider_error', 'liveportrait 成功但无 URL', { providerId: 'dashscope' });
+      ctx.onProgress('下载对口型', 90);
+      const buf = await ctx.fetchBuffer(url, { method: 'GET', headers: {}, timeoutMs: 300000 });
+      return { files: [ctx.saveFile(buf, 'mp4')], durationSec: request.durationSec || 0, usage: { seconds: request.durationSec || 0 } };
+    }
+    if (status === 'FAILED') throw gatewayError('provider_error', `liveportrait 失败: ${st.output?.message || st.output?.code || '无详情'}`, { providerId: 'dashscope' });
+  }
+  throw gatewayError('timeout', `liveportrait 轮询超时（${VID_MAX_MS / 60000} 分钟）`, { providerId: 'dashscope' });
 }
 
 const MUSIC_GEN = `${BASE}/api/v1/services/audio/music/generation`;

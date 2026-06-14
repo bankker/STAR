@@ -2,7 +2,7 @@ import fs from 'node:fs';
 
 export const CAPABILITIES = [
   'chat', 'content', 'world', 'plan', 'image', 'video', 'music', 'tts', 'asr',
-  'drama-script', 'storyboard',
+  'lipsync', 'drama-script', 'storyboard',
 ];
 
 const providers = new Map();
