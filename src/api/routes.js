@@ -22,8 +22,8 @@ import {
 } from '../studio/artist-create.js';
 import { getGallery, addAssets, toggleFavorite, removeAsset } from '../studio/assets.js';
 import { buildBlueprintMessages, extractBlueprint, blueprintToRenderReq } from '../studio/music.js';
-import { buildScriptMessages as buildDramaScriptMessages, extractScript, assignVoices, buildCastPortraitPrompt } from '../studio/drama.js';
-import { createDrama, getDrama, listDramas, updateDrama, addPortraitVersion } from '../studio/drama-store.js';
+import { buildScriptMessages as buildDramaScriptMessages, extractScript, assignVoices, buildCastPortraitPrompt, buildScenePrompt } from '../studio/drama.js';
+import { createDrama, getDrama, listDramas, updateDrama, addPortraitVersion, addFrameVersion, setFrameCurrent } from '../studio/drama-store.js';
 import os from 'node:os';
 
 const MAX_BODY = 1 * 1024 * 1024;
@@ -100,6 +100,23 @@ async function maybeSummarize(artistId, artist) {
     setMemory(artistId, r.text.trim());
     trimToRecent(artistId, RECENT_KEEP);
   } catch (e) { console.error('[chat] 记忆摘要失败（忽略）', e.message); }
+}
+
+// 取场景出镜角色的定妆照（主演优先）转 base64 dataUrl，供万相图像参考锁脸；description 模式返回空数组。
+function sceneRefImages(drama, scene) {
+  if (drama.consistencyMode !== 'image_ref') return [];
+  const names = scene.characters || [];
+  const ordered = [...names].sort((a, b) => (a === drama.cast[0]?.name ? -1 : 0) - (b === drama.cast[0]?.name ? -1 : 0));
+  const urls = [];
+  for (const n of ordered) {
+    const c = drama.cast.find((x) => x.name === n);
+    const v = c?.portrait?.versions?.[c.portrait.current];
+    if (v?.url) {
+      const dataUrl = generatedUrlToDataUrl(GENERATED_DIR, v.url);
+      if (dataUrl) urls.push(dataUrl);
+    }
+  }
+  return urls;
 }
 
 export function registerRoutes(route) {
@@ -537,6 +554,64 @@ export function registerRoutes(route) {
       if (e instanceof GatewayError) send('error', e.toJSON());
       else { console.error('[drama] 选角失败', e.message); send('error', { code: 'internal', message: '选角出图失败，请重试' }); }
     } finally { res.end(); }
+  });
+
+  route('POST /api/artist/:id/drama/:did/episode/:eid/storyboard', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    const d = getDrama(params.did);
+    if (!artist || !d || d.artistId !== params.id) return jsonError(res, 'not_found', '无此短剧');
+    const ep = d.episodes.find((e) => e.id === params.eid);
+    if (!ep) return jsonError(res, 'not_found', '无此分集');
+    const todo = ep.scenes.filter((s) => s.frame.current < 0);
+    if (!todo.length) return json(res, { drama: d });
+    let estimate;
+    try { estimate = { capability: 'image', count: todo.length, estimatedUsd: estimateFor('image', { count: todo.length }).estimatedUsd }; }
+    catch (e) { return sendGatewayError(res, e); }
+    if (body.confirm !== true) return json(res, { error: { code: 'confirm_required', message: '需确认分镜出图成本', estimate } });
+
+    res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+    const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    try {
+      for (let i = 0; i < todo.length; i++) {
+        const sc = todo[i];
+        send('stage', { progress: Math.round(i / todo.length * 100), msg: `分镜出图 ${i + 1}/${todo.length}` });
+        const prompt = buildScenePrompt(artist, sc, d.cast, d.consistencyMode);
+        const refImages = sceneRefImages(d, sc);
+        const r = await execute('image', { prompt, aspect: '9:16', refImages });
+        const url = r.files?.[0]?.url;
+        if (!url) throw new Error('未返回分镜图');
+        addFrameVersion(params.did, params.eid, sc.id, { url, prompt });
+      }
+      send('done', { drama: getDrama(params.did) });
+    } catch (e) {
+      if (e instanceof GatewayError) send('error', e.toJSON());
+      else { console.error('[drama] 分镜失败', e.message); send('error', { code: 'internal', message: '分镜出图失败，请重试' }); }
+    } finally { res.end(); }
+  });
+
+  route('POST /api/artist/:id/drama/:did/episode/:eid/scene/:sid/reframe', async (req, res, { params }) => {
+    const artist = getArtist(params.id);
+    const d = getDrama(params.did);
+    if (!artist || !d || d.artistId !== params.id) return jsonError(res, 'not_found', '无此短剧');
+    const ep = d.episodes.find((e) => e.id === params.eid);
+    const sc = ep?.scenes.find((s) => s.id === params.sid);
+    if (!sc) return jsonError(res, 'not_found', '无此场景');
+    try {
+      const prompt = buildScenePrompt(artist, sc, d.cast, d.consistencyMode);
+      const r = await execute('image', { prompt, aspect: '9:16', refImages: sceneRefImages(d, sc) });
+      const url = r.files?.[0]?.url;
+      if (!url) return jsonError(res, 'provider_error', '未返回分镜图');
+      json(res, { drama: addFrameVersion(params.did, params.eid, params.sid, { url, prompt }) });
+    } catch (e) { sendGatewayError(res, e); }
+  });
+
+  route('POST /api/artist/:id/drama/:did/episode/:eid/scene/:sid/frame', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const d = getDrama(params.did);
+    if (!d || d.artistId !== params.id) return jsonError(res, 'not_found', '无此短剧');
+    const drama = setFrameCurrent(params.did, params.eid, params.sid, Number(body.index));
+    drama ? json(res, { drama }) : jsonError(res, 'not_found', '无此场景');
   });
 
   route('POST /api/artist/:id/gallery/:assetId/favorite', async (req, res, { params }) => {
