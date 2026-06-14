@@ -2889,15 +2889,25 @@ async function startRec() {
 function stopRec() {
   return new Promise((resolve) => {
     if (!_rec) return resolve(null);
-    _rec.onstop = () => {
-      _recStream.getTracks().forEach((t) => t.stop());
-      const blob = new Blob(_recChunks, { type: _rec.mimeType || 'audio/webm' });
+    const rec = _rec, stream = _recStream;
+    rec.onstop = () => {
+      stream.getTracks().forEach((t) => t.stop());
+      const blob = new Blob(_recChunks, { type: rec.mimeType || 'audio/webm' });
       const fr = new FileReader();
       fr.onload = () => resolve(fr.result);   // data:audio/...;base64,...
       fr.readAsDataURL(blob);
     };
-    _rec.stop();
+    _rec = null; _recStream = null;   // 立即清引用，避免二次 stop 抛 wrong-state
+    rec.stop();
   });
+}
+
+// 取消并释放麦克风（离开/重入访谈时清理），不产出音频。
+function cleanupRec() {
+  try { if (_recStream) _recStream.getTracks().forEach((t) => t.stop()); } catch {}
+  try { if (_rec && _rec.state !== 'inactive') { _rec.onstop = null; _rec.stop(); } } catch {}
+  _rec = null; _recStream = null; _recChunks = [];
+  deepState.recording = false;
 }
 
 /* ── 访谈状态 ── */
@@ -2917,6 +2927,7 @@ function guestPortraitUrl(g) {
 
 /* ── 进入设置面板（嘉宾名录） ── */
 function enterDeepivSetup() {
+  cleanupRec();   // 释放可能仍在录的麦克风 + 复位录音态
   deepState.session = null;
   const setup = $('#deepiv-setup-pane');
   const room = $('#deepiv-room-pane');
@@ -3167,7 +3178,7 @@ async function askNext() {
   setRoomBusy(true);
   const msg = $('#deepiv-room-msg');
   if (msg) { msg.textContent = '主持人思考中…'; msg.style.color = ''; }
-  const r = await api(`${base}/ask`);
+  const r = await api(`${base}/ask`, {});   // 传体强制 POST
   setRoomBusy(false);
   if (r.error) {
     if (msg) { msg.textContent = errText(r.error); msg.style.color = 'var(--err)'; }
@@ -3240,7 +3251,7 @@ async function endInterview() {
   if (deepState.busy) return;
   const base = `/api/artist/${encodeURIComponent(deepState.artistId)}/interview2/${encodeURIComponent(session.id)}`;
   setRoomBusy(true);
-  const r = await api(`${base}/end`);
+  const r = await api(`${base}/end`, {});   // 传体强制 POST
   setRoomBusy(false);
   if (r.error) { toast(errText(r.error), 'err'); return; }
   deepState.session = r.session;
