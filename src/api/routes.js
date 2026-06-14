@@ -23,7 +23,7 @@ import {
 import { getGallery, addAssets, toggleFavorite, removeAsset } from '../studio/assets.js';
 import { buildBlueprintMessages, extractBlueprint, blueprintToRenderReq } from '../studio/music.js';
 import { buildScriptMessages as buildDramaScriptMessages, extractScript, assignVoices, buildCastPortraitPrompt, buildScenePrompt, buildI2vPrompt, estimateEpisodeCost } from '../studio/drama.js';
-import { createDrama, getDrama, listDramas, updateDrama, addPortraitVersion, addFrameVersion, setFrameCurrent, curFrameUrl } from '../studio/drama-store.js';
+import { createDrama, getDrama, listDramas, updateDrama, addPortraitVersion, addFrameVersion, setFrameCurrent, curFrameUrl, setEpisodeTheme } from '../studio/drama-store.js';
 import os from 'node:os';
 
 const MAX_BODY = 1 * 1024 * 1024;
@@ -758,6 +758,33 @@ export function registerRoutes(route) {
       console.error('[drama] 连播失败', e.message);
       json(res, { error: { code: 'internal', message: '连播合集生成失败' } }, 500);
     } finally { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} }
+  });
+
+  route('POST /api/artist/:id/drama/:did/episode/:eid/theme', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    const d = getDrama(params.did);
+    if (!artist || !d || d.artistId !== params.id) return jsonError(res, 'not_found', '无此短剧');
+    if (!d.episodes.find((e) => e.id === params.eid)) return jsonError(res, 'not_found', '无此分集');
+    const songUrl = body.songUrl || null;
+    if (songUrl) {
+      const ok = getGallery(params.id).assets.some((a) => a.type === 'song' && a.url === songUrl);
+      if (!ok) return jsonError(res, 'bad_request', '主题曲必须来自该艺人作品库');
+    }
+    json(res, { drama: setEpisodeTheme(params.did, params.eid, songUrl) });
+  });
+
+  route('POST /api/artist/:id/drama/:did/cast/:cid/portrait', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    const d = getDrama(params.did);
+    if (!artist || !d || d.artistId !== params.id) return jsonError(res, 'not_found', '无此短剧');
+    if (!d.cast.find((c) => c.id === params.cid)) return jsonError(res, 'not_found', '无此角色');
+    const url = body.url;
+    if (!url || !getGallery(params.id).assets.some((a) => a.type === 'photo' && a.url === url)) {
+      return jsonError(res, 'bad_request', '定妆照必须来自该艺人写真库');
+    }
+    json(res, { drama: addPortraitVersion(params.did, params.cid, { url, prompt: '写真库复用' }) });
   });
 
   route('POST /api/artist/:id/gallery/:assetId/favorite', async (req, res, { params }) => {
