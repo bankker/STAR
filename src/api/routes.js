@@ -25,7 +25,7 @@ import { buildBlueprintMessages, extractBlueprint, blueprintToRenderReq } from '
 import { buildScriptMessages as buildDramaScriptMessages, extractScript, assignVoices, buildCastPortraitPrompt, buildScenePrompt, buildI2vPrompt, estimateEpisodeCost } from '../studio/drama.js';
 import { createDrama, getDrama, listDramas, updateDrama, addPortraitVersion, addFrameVersion, setFrameCurrent, curFrameUrl, setEpisodeTheme } from '../studio/drama-store.js';
 import { createGuest, getGuest, listGuests, updateGuest, addGuestPortrait, deleteGuest, curGuestPortrait } from '../studio/guests.js';
-import { createSession, getSession, listSessions, appendTurn as appendInterviewTurn, updateSession } from '../studio/session-store.js';
+import { createSession, getSession, listSessions, appendTurn as appendInterviewTurn, updateSession, setTurnMedia } from '../studio/session-store.js';
 import { buildOutlineMessages, extractOutline, buildNextQuestionMessages, hostVoice, MAX_TURNS } from '../studio/interview2.js';
 import os from 'node:os';
 
@@ -920,6 +920,42 @@ export function registerRoutes(route) {
     const s = getSession(params.sid);
     if (!getArtist(params.id) || !s || s.artistId !== params.id) return jsonError(res, 'not_found', '无此会话');
     json(res, { session: updateSession(params.sid, { status: 'done' }) });
+  });
+
+  route('POST /api/artist/:id/interview2/:sid/record', async (req, res, { params }) => {
+    const artist = getArtist(params.id);
+    const s = getSession(params.sid);
+    if (!artist || !s || s.artistId !== params.id) return jsonError(res, 'not_found', '无此会话');
+    if (!s.turns.length) return jsonError(res, 'bad_request', '尚无对话可生成记录');
+    if (!ffmpegAvailable()) return jsonError(res, 'bad_request', '未检测到 ffmpeg');
+    const guest = getGuest(s.guestId);
+    res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+    const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rec_'));
+    try {
+      const parts = [];
+      for (let i = 0; i < s.turns.length; i++) {
+        const t = s.turns[i];
+        send('stage', { progress: Math.round(i / s.turns.length * 85), msg: `配音 ${i + 1}/${s.turns.length}` });
+        const voice = t.speaker === 'host' ? hostVoice(artist) : (guest?.voice || 'Ethan');
+        const r = await execute('tts', { text: t.text, voice });
+        const u = r.files?.[0]?.url; if (!u) throw new Error('TTS 未返回音频');
+        parts.push(path.join(GENERATED_DIR, u.replace('/generated/', '')));
+        setTurnMedia(params.sid, t.id, { audioUrl: u });
+      }
+      send('stage', { progress: 90, msg: '拼接录音' });
+      const listFile = path.join(tmp, 'a.txt');
+      fs.writeFileSync(listFile, parts.map((p) => `file '${p.replace(/\\/g, '/')}'`).join('\n'));
+      const name = `itv_rec_${Date.now()}.mp3`;
+      const outAbs = path.join(GENERATED_DIR, name);
+      runFfmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', listFile, '-c:a', 'libmp3lame', '-ar', '44100', outAbs]);
+      updateSession(params.sid, { recordUrl: `/generated/${name}` });
+      addAssets(params.id, [{ type: 'interview', url: `/generated/${name}`, title: `访谈记录·${guest?.name || ''}` }]);
+      send('done', { url: `/generated/${name}` });
+    } catch (e) {
+      if (e instanceof GatewayError) send('error', e.toJSON());
+      else { console.error('[interview2] 录音失败', e.message); send('error', { code: 'internal', message: '语音记录生成失败' }); }
+    } finally { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} res.end(); }
   });
 
   route('POST /api/artist/:id/gallery/:assetId/favorite', async (req, res, { params }) => {
