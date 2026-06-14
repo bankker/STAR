@@ -3,7 +3,7 @@ import { registerProvider, initConfig, loadConfig } from './gateway/registry.js'
 import { initLedger } from './gateway/ledger.js';
 import { setPriceOverrides } from './gateway/costs.js';
 import { registerAll } from './providers/index.js';
-import { CONFIG_FILE, LOGS_DIR, DATA_DIR, DRAMA_DIR } from './lib/paths.js';
+import { CONFIG_FILE, LOGS_DIR, DATA_DIR, DRAMA_DIR, GUESTS_DIR, INTERVIEWS_DIR } from './lib/paths.js';
 import { startHealthLoop } from './gateway/health.js';
 import { initJobs } from './gateway/jobs.js';
 import { execute } from './gateway/gateway.js';
@@ -11,6 +11,8 @@ import { initArtists } from './studio/artists.js';
 import { initConversations } from './studio/conversations.js';
 import { initAssets, addAssets } from './studio/assets.js';
 import { initDrama } from './studio/drama-store.js';
+import { initGuests } from './studio/guests.js';
+import { initSessions } from './studio/session-store.js';
 
 export function bootstrap() {
   try {
@@ -39,6 +41,8 @@ export function bootstrap() {
     initConversations(path.join(DATA_DIR, 'conversations'));
     initAssets(path.join(DATA_DIR, 'assets'));
     initDrama(DRAMA_DIR);
+    initGuests(GUESTS_DIR);
+    initSessions(INTERVIEWS_DIR);
     startHealthLoop();
   } catch (e) {
     console.error('[bootstrap] 启动失败:', e.message);
