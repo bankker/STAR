@@ -25,6 +25,8 @@ import { buildBlueprintMessages, extractBlueprint, blueprintToRenderReq } from '
 import { buildScriptMessages as buildDramaScriptMessages, extractScript, assignVoices, buildCastPortraitPrompt, buildScenePrompt, buildI2vPrompt, estimateEpisodeCost } from '../studio/drama.js';
 import { createDrama, getDrama, listDramas, updateDrama, addPortraitVersion, addFrameVersion, setFrameCurrent, curFrameUrl, setEpisodeTheme } from '../studio/drama-store.js';
 import { createGuest, getGuest, listGuests, updateGuest, addGuestPortrait, deleteGuest, curGuestPortrait } from '../studio/guests.js';
+import { createSession, getSession, listSessions, appendTurn as appendInterviewTurn, updateSession } from '../studio/session-store.js';
+import { buildOutlineMessages, extractOutline, buildNextQuestionMessages, hostVoice, MAX_TURNS } from '../studio/interview2.js';
 import os from 'node:os';
 
 const MAX_BODY = 1 * 1024 * 1024;
@@ -849,6 +851,75 @@ export function registerRoutes(route) {
       addAssets(params.id, [{ type: 'photo', url, prompt: `嘉宾：${g.name}`, title: g.name }]);
       json(res, { guest: getGuest(params.gid) });
     } catch (e) { sendGatewayError(res, e); }
+  });
+
+  route('POST /api/artist/:id/interview2', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    const guest = getGuest(body.guestId);
+    if (!artist || !guest || guest.artistId !== params.id) return jsonError(res, 'not_found', '无此艺人或嘉宾');
+    try {
+      const { system, messages } = buildOutlineMessages(artist, guest);
+      const r = await execute('content', { system, messages, maxTokens: 1500 });
+      let outline; try { outline = extractOutline(r.text); } catch (e) { return jsonError(res, 'provider_error', `提纲解析失败：${e.message}`); }
+      json(res, { session: createSession(params.id, guest.id, outline) });
+    } catch (e) { sendGatewayError(res, e); }
+  });
+  route('GET /api/artist/:id/interviews', async (req, res, { params }) => {
+    if (!getArtist(params.id)) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    json(res, { sessions: listSessions(params.id) });
+  });
+  route('GET /api/artist/:id/interview2/:sid', async (req, res, { params }) => {
+    const s = getSession(params.sid);
+    s && s.artistId === params.id ? json(res, { session: s }) : jsonError(res, 'not_found', '无此会话');
+  });
+  route('POST /api/artist/:id/interview2/:sid/ask', async (req, res, { params }) => {
+    const artist = getArtist(params.id);
+    const s = getSession(params.sid);
+    if (!artist || !s || s.artistId !== params.id) return jsonError(res, 'not_found', '无此会话');
+    if (s.turns.length >= MAX_TURNS) return jsonError(res, 'bad_request', '访谈轮次已达上限');
+    const guest = getGuest(s.guestId);
+    try {
+      let text;
+      if (s.turns.length === 0) { text = s.outline.opening || `欢迎来到节目，今天的嘉宾是${guest?.name || ''}。`; }
+      else {
+        const { system, messages } = buildNextQuestionMessages(artist, guest, s.outline, s.turns, s.cursor);
+        const r = await execute('content', { system, messages, maxTokens: 200 });
+        text = r.text.trim().replace(/^["「]|["」]$/g, '');
+        if (s.cursor < (s.outline.questions || []).length) updateSession(params.sid, { cursor: s.cursor + 1 });
+      }
+      const tts = await execute('tts', { text, voice: hostVoice(artist) });
+      const audioUrl = tts.files?.[0]?.url || null;
+      const session = appendInterviewTurn(params.sid, { speaker: 'host', text, audioUrl });
+      json(res, { turn: session.turns[session.turns.length - 1] });
+    } catch (e) { sendGatewayError(res, e); }
+  });
+  route('POST /api/artist/:id/interview2/:sid/answer', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    const s = getSession(params.sid);
+    if (!artist || !s || s.artistId !== params.id) return jsonError(res, 'not_found', '无此会话');
+    if (s.turns.length >= MAX_TURNS) return jsonError(res, 'bad_request', '访谈轮次已达上限');
+    if (!body.audio) return jsonError(res, 'bad_request', '缺少录音');
+    if (!ffmpegAvailable()) return jsonError(res, 'bad_request', '未检测到 ffmpeg');
+    try {
+      const srcUrl = saveDataUrl(GENERATED_DIR, body.audio);
+      const srcAbs = path.join(GENERATED_DIR, srcUrl.replace('/generated/', ''));
+      const wavName = `${Date.now()}_ans.wav`;
+      const wavAbs = path.join(GENERATED_DIR, wavName);
+      transcodeToWav(srcAbs, wavAbs);
+      const wavB64 = `data:audio/wav;base64,${fs.readFileSync(wavAbs).toString('base64')}`;
+      const r = await execute('asr', { audio: wavB64 });
+      const text = (r.text || '').trim();
+      if (!text) return jsonError(res, 'provider_error', '未能识别语音，请重试');
+      const session = appendInterviewTurn(params.sid, { speaker: 'guest', text, audioUrl: `/generated/${wavName}` });
+      json(res, { turn: session.turns[session.turns.length - 1] });
+    } catch (e) { sendGatewayError(res, e); }
+  });
+  route('POST /api/artist/:id/interview2/:sid/end', async (req, res, { params }) => {
+    const s = getSession(params.sid);
+    if (!s || s.artistId !== params.id) return jsonError(res, 'not_found', '无此会话');
+    json(res, { session: updateSession(params.sid, { status: 'done' }) });
   });
 
   route('POST /api/artist/:id/gallery/:assetId/favorite', async (req, res, { params }) => {
