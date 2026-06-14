@@ -6,10 +6,10 @@ import { estimateRequest } from '../gateway/costs.js';
 import { summarize } from '../gateway/ledger.js';
 import { loadConfig, updateConfig, listProviders } from '../gateway/registry.js';
 import { setEnvKey } from '../lib/env.js';
-import { generatedUrlToDataUrl } from '../lib/files.js';
+import { generatedUrlToDataUrl, saveDataUrl } from '../lib/files.js';
 import { ENV_FILE, GENERATED_DIR } from '../lib/paths.js';
 import { buildPlanMessages, buildScriptMessages, extractDialogue } from '../studio/interview.js';
-import { ffmpegAvailable, runFfmpeg, probeDurationSec, buildSrt } from '../lib/ffmpeg.js';
+import { ffmpegAvailable, runFfmpeg, probeDurationSec, buildSrt, transcodeToWav } from '../lib/ffmpeg.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
@@ -24,6 +24,9 @@ import { getGallery, addAssets, toggleFavorite, removeAsset } from '../studio/as
 import { buildBlueprintMessages, extractBlueprint, blueprintToRenderReq } from '../studio/music.js';
 import { buildScriptMessages as buildDramaScriptMessages, extractScript, assignVoices, buildCastPortraitPrompt, buildScenePrompt, buildI2vPrompt, estimateEpisodeCost } from '../studio/drama.js';
 import { createDrama, getDrama, listDramas, updateDrama, addPortraitVersion, addFrameVersion, setFrameCurrent, curFrameUrl, setEpisodeTheme } from '../studio/drama-store.js';
+import { createGuest, getGuest, listGuests, updateGuest, addGuestPortrait, deleteGuest, curGuestPortrait } from '../studio/guests.js';
+import { createSession, getSession, listSessions, appendTurn as appendInterviewTurn, updateSession, setTurnMedia } from '../studio/session-store.js';
+import { buildOutlineMessages, extractOutline, buildNextQuestionMessages, hostVoice, MAX_TURNS } from '../studio/interview2.js';
 import os from 'node:os';
 
 const MAX_BODY = 1 * 1024 * 1024;
@@ -32,6 +35,9 @@ const MAX_MEDIA_BODY = 32 * 1024 * 1024;
 function stripFence(t) { return String(t).trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, ''); }
 // NOTE: 精确匹配——若未来新增子路径端点（如 /api/ai/image/variations）需扩展此集合
 const MEDIA_BODY_PATHS = new Set(['/api/ai/asr', '/api/ai/image', '/api/ai/video', '/api/ai/music']);
+function isMediaPath(pathname) {
+  return MEDIA_BODY_PATHS.has(pathname) || /\/(guest\/[^/]+\/portrait|interview2\/[^/]+\/answer)$/.test(pathname);
+}
 
 export function json(res, data, status = 200) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -47,7 +53,7 @@ export function sendGatewayError(res, e) {
 }
 
 export function readJsonBody(req, pathname) {
-  const limit = MEDIA_BODY_PATHS.has(pathname) ? MAX_MEDIA_BODY : MAX_BODY;
+  const limit = isMediaPath(pathname) ? MAX_MEDIA_BODY : MAX_BODY;
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks = [];
@@ -800,6 +806,211 @@ export function registerRoutes(route) {
       return jsonError(res, 'bad_request', '定妆照必须来自该艺人写真库');
     }
     json(res, { drama: addPortraitVersion(params.did, params.cid, { url, prompt: '写真库复用' }) });
+  });
+
+  route('POST /api/artist/:id/guests', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    if (!getArtist(params.id)) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    if (!String(body.name || '').trim()) return jsonError(res, 'bad_request', '嘉宾姓名必填');
+    json(res, { guest: createGuest(params.id, body) });
+  });
+  route('GET /api/artist/:id/guests', async (req, res, { params }) => {
+    if (!getArtist(params.id)) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    json(res, { guests: listGuests(params.id) });
+  });
+  route('GET /api/artist/:id/guest/:gid', async (req, res, { params }) => {
+    const g = getGuest(params.gid);
+    g && g.artistId === params.id ? json(res, { guest: g }) : jsonError(res, 'not_found', '无此嘉宾');
+  });
+  route('PUT /api/artist/:id/guest/:gid', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const g = getGuest(params.gid);
+    if (!g || g.artistId !== params.id) return jsonError(res, 'not_found', '无此嘉宾');
+    json(res, { guest: updateGuest(params.gid, body) });
+  });
+  route('DELETE /api/artist/:id/guest/:gid', async (req, res, { params }) => {
+    const g = getGuest(params.gid);
+    if (!g || g.artistId !== params.id) return jsonError(res, 'not_found', '无此嘉宾');
+    json(res, { ok: deleteGuest(params.gid) });
+  });
+  route('POST /api/artist/:id/guest/:gid/portrait', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id); const g = getGuest(params.gid);
+    if (!artist || !g || g.artistId !== params.id) return jsonError(res, 'not_found', '无此嘉宾');
+    try {
+      let url;
+      if (body.mode === 'upload') {
+        if (!body.dataUrl) return jsonError(res, 'bad_request', '缺少图片');
+        url = saveDataUrl(GENERATED_DIR, body.dataUrl);
+      } else {
+        const prompt = body.prompt || `商业人物肖像，${g.title || ''} ${g.company || ''}，${g.persona || ''}，正脸半身，专业布光，干净背景，SFW`;
+        const r = await execute('image', { prompt, aspect: '9:16' });
+        url = r.files?.[0]?.url; if (!url) return jsonError(res, 'provider_error', '出图失败');
+      }
+      addGuestPortrait(params.gid, { url, prompt: body.prompt || '嘉宾形象' });
+      addAssets(params.id, [{ type: 'photo', url, prompt: `嘉宾：${g.name}`, title: g.name }]);
+      json(res, { guest: getGuest(params.gid) });
+    } catch (e) { sendGatewayError(res, e); }
+  });
+
+  route('POST /api/artist/:id/interview2', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    const guest = getGuest(body.guestId);
+    if (!artist || !guest || guest.artistId !== params.id) return jsonError(res, 'not_found', '无此艺人或嘉宾');
+    try {
+      const { system, messages } = buildOutlineMessages(artist, guest);
+      const r = await execute('content', { system, messages, maxTokens: 1500 });
+      let outline; try { outline = extractOutline(r.text); } catch (e) { return jsonError(res, 'provider_error', `提纲解析失败：${e.message}`); }
+      json(res, { session: createSession(params.id, guest.id, outline) });
+    } catch (e) { sendGatewayError(res, e); }
+  });
+  route('GET /api/artist/:id/interviews', async (req, res, { params }) => {
+    if (!getArtist(params.id)) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    json(res, { sessions: listSessions(params.id) });
+  });
+  route('GET /api/artist/:id/interview2/:sid', async (req, res, { params }) => {
+    const s = getSession(params.sid);
+    s && s.artistId === params.id ? json(res, { session: s }) : jsonError(res, 'not_found', '无此会话');
+  });
+  route('POST /api/artist/:id/interview2/:sid/ask', async (req, res, { params }) => {
+    const artist = getArtist(params.id);
+    const s = getSession(params.sid);
+    if (!artist || !s || s.artistId !== params.id) return jsonError(res, 'not_found', '无此会话');
+    if (s.turns.length >= MAX_TURNS) return jsonError(res, 'bad_request', '访谈轮次已达上限');
+    const guest = getGuest(s.guestId);
+    try {
+      let text;
+      if (s.turns.length === 0) { text = s.outline.opening || `欢迎来到节目，今天的嘉宾是${guest?.name || ''}。`; }
+      else {
+        const { system, messages } = buildNextQuestionMessages(artist, guest, s.outline, s.turns, s.cursor);
+        const r = await execute('content', { system, messages, maxTokens: 200 });
+        text = r.text.trim().replace(/^["「]|["」]$/g, '');
+        if (s.cursor < (s.outline.questions || []).length) updateSession(params.sid, { cursor: s.cursor + 1 });
+      }
+      const tts = await execute('tts', { text, voice: hostVoice(artist) });
+      const audioUrl = tts.files?.[0]?.url || null;
+      const session = appendInterviewTurn(params.sid, { speaker: 'host', text, audioUrl });
+      json(res, { turn: session.turns[session.turns.length - 1] });
+    } catch (e) { sendGatewayError(res, e); }
+  });
+  route('POST /api/artist/:id/interview2/:sid/answer', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    const s = getSession(params.sid);
+    if (!artist || !s || s.artistId !== params.id) return jsonError(res, 'not_found', '无此会话');
+    if (s.turns.length >= MAX_TURNS) return jsonError(res, 'bad_request', '访谈轮次已达上限');
+    if (!body.audio) return jsonError(res, 'bad_request', '缺少录音');
+    if (!ffmpegAvailable()) return jsonError(res, 'bad_request', '未检测到 ffmpeg');
+    try {
+      const srcUrl = saveDataUrl(GENERATED_DIR, body.audio);
+      const srcAbs = path.join(GENERATED_DIR, srcUrl.replace('/generated/', ''));
+      const wavName = `${Date.now()}_ans.wav`;
+      const wavAbs = path.join(GENERATED_DIR, wavName);
+      transcodeToWav(srcAbs, wavAbs);
+      const wavB64 = `data:audio/wav;base64,${fs.readFileSync(wavAbs).toString('base64')}`;
+      const r = await execute('asr', { audio: wavB64 });
+      const text = (r.text || '').trim();
+      if (!text) return jsonError(res, 'provider_error', '未能识别语音，请重试');
+      const session = appendInterviewTurn(params.sid, { speaker: 'guest', text, audioUrl: `/generated/${wavName}` });
+      json(res, { turn: session.turns[session.turns.length - 1] });
+    } catch (e) { sendGatewayError(res, e); }
+  });
+  route('POST /api/artist/:id/interview2/:sid/end', async (req, res, { params }) => {
+    const s = getSession(params.sid);
+    if (!getArtist(params.id) || !s || s.artistId !== params.id) return jsonError(res, 'not_found', '无此会话');
+    json(res, { session: updateSession(params.sid, { status: 'done' }) });
+  });
+
+  route('POST /api/artist/:id/interview2/:sid/record', async (req, res, { params }) => {
+    const artist = getArtist(params.id);
+    const s = getSession(params.sid);
+    if (!artist || !s || s.artistId !== params.id) return jsonError(res, 'not_found', '无此会话');
+    if (!s.turns.length) return jsonError(res, 'bad_request', '尚无对话可生成记录');
+    if (!ffmpegAvailable()) return jsonError(res, 'bad_request', '未检测到 ffmpeg');
+    const guest = getGuest(s.guestId);
+    res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+    const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rec_'));
+    try {
+      const parts = [];
+      for (let i = 0; i < s.turns.length; i++) {
+        const t = s.turns[i];
+        send('stage', { progress: Math.round(i / s.turns.length * 85), msg: `配音 ${i + 1}/${s.turns.length}` });
+        const voice = t.speaker === 'host' ? hostVoice(artist) : (guest?.voice || 'Ethan');
+        const r = await execute('tts', { text: t.text, voice });
+        const u = r.files?.[0]?.url; if (!u) throw new Error('TTS 未返回音频');
+        parts.push(path.join(GENERATED_DIR, u.replace('/generated/', '')));
+        setTurnMedia(params.sid, t.id, { audioUrl: u });
+      }
+      send('stage', { progress: 90, msg: '拼接录音' });
+      const listFile = path.join(tmp, 'a.txt');
+      fs.writeFileSync(listFile, parts.map((p) => `file '${p.replace(/\\/g, '/')}'`).join('\n'));
+      const name = `itv_rec_${Date.now()}.mp3`;
+      const outAbs = path.join(GENERATED_DIR, name);
+      runFfmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', listFile, '-c:a', 'libmp3lame', '-ar', '44100', outAbs]);
+      updateSession(params.sid, { recordUrl: `/generated/${name}` });
+      addAssets(params.id, [{ type: 'interview', url: `/generated/${name}`, title: `访谈记录·${guest?.name || ''}` }]);
+      send('done', { url: `/generated/${name}` });
+    } catch (e) {
+      if (e instanceof GatewayError) send('error', e.toJSON());
+      else { console.error('[interview2] 录音失败', e.message); send('error', { code: 'internal', message: '语音记录生成失败' }); }
+    } finally { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} res.end(); }
+  });
+
+  route('POST /api/artist/:id/interview2/:sid/video', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    const s = getSession(params.sid);
+    if (!artist || !s || s.artistId !== params.id) return jsonError(res, 'not_found', '无此会话');
+    if (!ffmpegAvailable()) return jsonError(res, 'bad_request', '未检测到 ffmpeg');
+    // 必须先生成语音对谈记录：record 会把每轮 audioUrl 覆盖为干净 TTS 音频；否则会拿录音原始 wav 去对口型（音质差、mime 误标）
+    if (!s.recordUrl) return jsonError(res, 'bad_request', '请先生成语音对谈记录');
+    const withAudio = s.turns.filter((t) => t.audioUrl);
+    if (!withAudio.length) return jsonError(res, 'bad_request', '请先生成语音对谈记录');
+    const guest = getGuest(s.guestId);
+    const hostFace = artist.portraits?.[0]?.url;
+    const guestFace = curGuestPortrait(guest);
+    if (!hostFace || !guestFace) return jsonError(res, 'bad_request', '主持人与嘉宾都需有形象照');
+    if (body.confirm !== true) {
+      return json(res, { error: { code: 'confirm_required', message: '需确认对口型出片成本',
+        estimate: { capability: 'lipsync', count: withAudio.length, estimatedUsd: estimateFor('lipsync', { durationSec: 5 }).estimatedUsd * withAudio.length } } });
+    }
+    res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+    const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'itv_'));
+    try {
+      const clips = [];
+      for (let i = 0; i < withAudio.length; i++) {
+        const t = withAudio[i];
+        send('stage', { progress: Math.round(i / withAudio.length * 85), msg: `对口型 ${i + 1}/${withAudio.length}` });
+        const faceUrl = t.speaker === 'host' ? hostFace : guestFace;
+        const imageRef = generatedUrlToDataUrl(GENERATED_DIR, faceUrl);
+        if (!imageRef) throw new Error('形象照读取失败');
+        const audioAbs = path.join(GENERATED_DIR, t.audioUrl.replace('/generated/', ''));
+        const audioRef = `data:audio/mpeg;base64,${fs.readFileSync(audioAbs).toString('base64')}`;
+        const durationSec = probeDurationSec(audioAbs);
+        const job = submitJob('lipsync', { imageRef, audioRef, durationSec });
+        const vurl = await waitJob(job.id);
+        const vAbs = path.join(GENERATED_DIR, vurl.replace('/generated/', ''));
+        const clip = path.join(tmp, `c_${i}.mp4`);
+        runFfmpeg(['-y', '-i', vAbs, '-vf', 'scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', clip], 300000);
+        clips.push(clip);
+        setTurnMedia(params.sid, t.id, { lipsyncUrl: vurl });
+      }
+      send('stage', { progress: 90, msg: '拼接成片' });
+      const listFile = path.join(tmp, 'c.txt');
+      fs.writeFileSync(listFile, clips.map((c) => `file '${c.replace(/\\/g, '/')}'`).join('\n'));
+      const name = `itv_vid_${Date.now()}.mp4`;
+      const outAbs = path.join(GENERATED_DIR, name);
+      runFfmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', listFile, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', outAbs], 300000);
+      updateSession(params.sid, { videoUrl: `/generated/${name}` });
+      addAssets(params.id, [{ type: 'interview', url: `/generated/${name}`, title: `对口型访谈·${guest?.name || ''}` }]);
+      send('done', { url: `/generated/${name}` });
+    } catch (e) {
+      if (e instanceof GatewayError) send('error', e.toJSON());
+      else { console.error('[interview2] 影像失败', e.message); send('error', { code: 'internal', message: '访谈影像生成失败' }); }
+    } finally { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} res.end(); }
   });
 
   route('POST /api/artist/:id/gallery/:assetId/favorite', async (req, res, { params }) => {

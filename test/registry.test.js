@@ -52,7 +52,7 @@ test('updateConfig 写盘并热生效', () => {
 });
 
 test('CAPABILITIES 含 M2 预留', () => {
-  for (const c of ['chat', 'content', 'world', 'plan', 'image', 'video', 'music', 'tts', 'asr', 'drama-script', 'storyboard']) {
+  for (const c of ['chat', 'content', 'world', 'plan', 'image', 'video', 'music', 'tts', 'asr', 'lipsync', 'drama-script', 'storyboard']) {
     assert.ok(CAPABILITIES.includes(c), c);
   }
 });

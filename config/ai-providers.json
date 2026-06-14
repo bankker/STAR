@@ -50,5 +50,6 @@
     "provider": "dashscope",
     "model": "qwen3-asr-flash"
   },
+  "lipsync": { "provider": "dashscope", "model": "liveportrait" },
   "providers": {}
 }

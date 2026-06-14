@@ -16,3 +16,8 @@ test('buildSrt 逐段累加时间轴', () => {
   assert.match(srt, /1\n00:00:00,000 --> 00:00:01,000\n你好/);
   assert.match(srt, /2\n00:00:01,000 --> 00:00:03,000\n欢迎/);
 });
+
+test('transcodeToWav 导出存在', async () => {
+  const m = await import('../src/lib/ffmpeg.js');
+  assert.equal(typeof m.transcodeToWav, 'function');
+});
