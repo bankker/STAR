@@ -31,7 +31,7 @@ function write(d) {
 }
 
 export function listDramas(artistId) {
-  if (!dramaDir) return [];
+  if (!dramaDir || !SAFE_ID.test(artistId)) return [];
   const out = [];
   for (const f of fs.readdirSync(dramaDir)) {
     if (!f.endsWith('.json')) continue;
@@ -47,7 +47,8 @@ export function createDrama(artistId, artist, brief, parsed, { voiceMap, consist
     id: 'c_lead', name: artist?.name || '主演', role: '主演', isLead: true,
     appearance: artist?.visualIdentity || '', gender: artist?.gender || '',
     voice: voiceMap?.c_lead || 'Cherry',
-    portrait: { current: 0, versions: artist?.portraits?.[0]?.url
+    // 主演定妆照取一致性参考包首图；无图时 current=-1 与空 versions 保持一致（避免悬空指针）。
+    portrait: { current: artist?.portraits?.[0]?.url ? 0 : -1, versions: artist?.portraits?.[0]?.url
       ? [{ url: artist.portraits[0].url, prompt: '一致性参考包', createdAt: now }] : [] },
   };
   const cast = [lead, ...(parsed.cast || []).map((c, i) => ({

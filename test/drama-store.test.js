@@ -2,7 +2,7 @@ import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import {
-  initDrama, createDrama, getDrama, listDramas, updateScene, addFrameVersion, setFrameCurrent,
+  initDrama, createDrama, getDrama, listDramas, updateScene, addFrameVersion, setFrameCurrent, addPortraitVersion,
 } from '../src/studio/drama-store.js';
 
 before(() => initDrama(fs.mkdtempSync(path.join(os.tmpdir(), 'drtest_'))));
@@ -37,4 +37,18 @@ test('版本：addFrameVersion 追加并可切换 current', () => {
   assert.equal(sc.frame.current, 1);
   setFrameCurrent(d.id, eid, sid, 0);
   assert.equal(getDrama(d.id).episodes[0].scenes[0].frame.current, 0);
+});
+
+test('主演无定妆照时 portrait.current 为 -1', () => {
+  const d = createDrama('art_4', { name: '无图主演' }, {}, parsed, { voiceMap: {}, consistencyMode: 'description' });
+  assert.equal(d.cast[0].portrait.current, -1);
+  assert.equal(d.cast[0].portrait.versions.length, 0);
+});
+
+test('addPortraitVersion 追加配角定妆照并指向最新', () => {
+  const d = createDrama('art_5', { name: 'x' }, {}, parsed, { voiceMap: {}, consistencyMode: 'description' });
+  addPortraitVersion(d.id, 'c_1', { url: '/generated/cast1.png', prompt: 'cp' });
+  const c = getDrama(d.id).cast.find((x) => x.id === 'c_1');
+  assert.equal(c.portrait.versions[0].url, '/generated/cast1.png');
+  assert.equal(c.portrait.current, 0);
 });
