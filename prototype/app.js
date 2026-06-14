@@ -3343,9 +3343,12 @@ async function generateDeepVideo() {
   const { artistId, session } = deepState;
   if (!artistId || !session) return;
   const path = `/api/artist/${encodeURIComponent(artistId)}/interview2/${encodeURIComponent(session.id)}/video`;
+  const gbtn = $('#deepiv-video-gen-btn');
 
-  // First call: no confirm → check if cost gate fires
+  // First call: no confirm → check if cost gate fires（探针期间禁用按钮，防重复点）
+  if (gbtn) gbtn.disabled = true;
   const est = await api(path, {});
+  if (gbtn) gbtn.disabled = false;
   if (est.error && est.error.code === 'confirm_required') {
     showCostConfirm('deepiv-video', est.error.estimate, '生成对口型影像', async () => {
       await runDeepVideoSSE(path);
