@@ -22,8 +22,8 @@ import {
 } from '../studio/artist-create.js';
 import { getGallery, addAssets, toggleFavorite, removeAsset } from '../studio/assets.js';
 import { buildBlueprintMessages, extractBlueprint, blueprintToRenderReq } from '../studio/music.js';
-import { buildScriptMessages as buildDramaScriptMessages, extractScript, assignVoices } from '../studio/drama.js';
-import { createDrama, getDrama, listDramas, updateDrama } from '../studio/drama-store.js';
+import { buildScriptMessages as buildDramaScriptMessages, extractScript, assignVoices, buildCastPortraitPrompt } from '../studio/drama.js';
+import { createDrama, getDrama, listDramas, updateDrama, addPortraitVersion } from '../studio/drama-store.js';
 import os from 'node:os';
 
 const MAX_BODY = 1 * 1024 * 1024;
@@ -503,6 +503,35 @@ export function registerRoutes(route) {
     const patch = {};
     for (const k of ['title', 'theme', 'logline', 'cast', 'episodes']) if (k in body) patch[k] = body[k];
     json(res, { drama: updateDrama(params.did, patch) });
+  });
+
+  route('POST /api/artist/:id/drama/:did/cast', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    const d = getDrama(params.did);
+    if (!artist || !d || d.artistId !== params.id) return jsonError(res, 'not_found', '无此短剧');
+    const todo = d.cast.filter((c) => !c.isLead && c.portrait.current < 0);   // 主演与已出图者跳过
+    const estimate = { capability: 'image', count: todo.length, estimatedUsd: estimateFor('image', { count: todo.length }).estimatedUsd };
+    if (body.confirm !== true) return json(res, { error: { code: 'confirm_required', message: '需确认选角出图成本', estimate } });
+
+    res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+    const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    try {
+      for (let i = 0; i < todo.length; i++) {
+        const c = todo[i];
+        send('stage', { progress: Math.round(i / todo.length * 100), msg: `选角出图 ${i + 1}/${todo.length}：${c.name}` });
+        const r = await execute('image', { prompt: buildCastPortraitPrompt(c), aspect: '9:16' });
+        const url = r.files?.[0]?.url;
+        if (!url) throw new Error('未返回定妆照');
+        addPortraitVersion(params.did, c.id, { url, prompt: buildCastPortraitPrompt(c) });
+        addAssets(params.id, [{ type: 'photo', url, prompt: `选角：${c.name}`, title: c.name }]);
+      }
+      updateDrama(params.did, { status: 'cast_ready' });
+      send('done', { drama: getDrama(params.did) });
+    } catch (e) {
+      if (e instanceof GatewayError) send('error', e.toJSON());
+      else { console.error('[drama] 选角失败', e.message); send('error', { code: 'internal', message: '选角出图失败，请重试' }); }
+    } finally { res.end(); }
   });
 
   route('POST /api/artist/:id/gallery/:assetId/favorite', async (req, res, { params }) => {
