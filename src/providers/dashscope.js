@@ -203,7 +203,7 @@ async function invokeLipsync(request, ctx) {
     lastPct = Math.max(lastPct, status === 'RUNNING' ? 50 : 20);
     ctx.onProgress(`对口型: ${status || '排队'}`, lastPct);
     if (status === 'SUCCEEDED') {
-      const url = st.output?.video_url || st.output?.results?.[0]?.url;
+      const url = st.output?.video_url || st.output?.results?.video_url || st.output?.results?.[0]?.url;
       if (!url) throw gatewayError('provider_error', 'liveportrait 成功但无 URL', { providerId: 'dashscope' });
       ctx.onProgress('下载对口型', 90);
       const buf = await ctx.fetchBuffer(url, { method: 'GET', headers: {}, timeoutMs: 300000 });

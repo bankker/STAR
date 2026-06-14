@@ -958,6 +958,59 @@ export function registerRoutes(route) {
     } finally { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} res.end(); }
   });
 
+  route('POST /api/artist/:id/interview2/:sid/video', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    const s = getSession(params.sid);
+    if (!artist || !s || s.artistId !== params.id) return jsonError(res, 'not_found', '无此会话');
+    if (!ffmpegAvailable()) return jsonError(res, 'bad_request', '未检测到 ffmpeg');
+    const withAudio = s.turns.filter((t) => t.audioUrl);
+    if (!withAudio.length) return jsonError(res, 'bad_request', '请先生成语音对谈记录');
+    const guest = getGuest(s.guestId);
+    const hostFace = artist.portraits?.[0]?.url;
+    const guestFace = curGuestPortrait(guest);
+    if (!hostFace || !guestFace) return jsonError(res, 'bad_request', '主持人与嘉宾都需有形象照');
+    if (body.confirm !== true) {
+      return json(res, { error: { code: 'confirm_required', message: '需确认对口型出片成本',
+        estimate: { capability: 'lipsync', count: withAudio.length, estimatedUsd: estimateFor('lipsync', { durationSec: 5 }).estimatedUsd * withAudio.length } } });
+    }
+    res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+    const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'itv_'));
+    try {
+      const clips = [];
+      for (let i = 0; i < withAudio.length; i++) {
+        const t = withAudio[i];
+        send('stage', { progress: Math.round(i / withAudio.length * 85), msg: `对口型 ${i + 1}/${withAudio.length}` });
+        const faceUrl = t.speaker === 'host' ? hostFace : guestFace;
+        const imageRef = generatedUrlToDataUrl(GENERATED_DIR, faceUrl);
+        if (!imageRef) throw new Error('形象照读取失败');
+        const audioAbs = path.join(GENERATED_DIR, t.audioUrl.replace('/generated/', ''));
+        const audioRef = `data:audio/mpeg;base64,${fs.readFileSync(audioAbs).toString('base64')}`;
+        const durationSec = probeDurationSec(audioAbs);
+        const job = submitJob('lipsync', { imageRef, audioRef, durationSec });
+        const vurl = await waitJob(job.id);
+        const vAbs = path.join(GENERATED_DIR, vurl.replace('/generated/', ''));
+        const clip = path.join(tmp, `c_${i}.mp4`);
+        runFfmpeg(['-y', '-i', vAbs, '-vf', 'scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', clip], 300000);
+        clips.push(clip);
+        setTurnMedia(params.sid, t.id, { lipsyncUrl: vurl });
+      }
+      send('stage', { progress: 90, msg: '拼接成片' });
+      const listFile = path.join(tmp, 'c.txt');
+      fs.writeFileSync(listFile, clips.map((c) => `file '${c.replace(/\\/g, '/')}'`).join('\n'));
+      const name = `itv_vid_${Date.now()}.mp4`;
+      const outAbs = path.join(GENERATED_DIR, name);
+      runFfmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', listFile, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', outAbs], 300000);
+      updateSession(params.sid, { videoUrl: `/generated/${name}` });
+      addAssets(params.id, [{ type: 'interview', url: `/generated/${name}`, title: `对口型访谈·${guest?.name || ''}` }]);
+      send('done', { url: `/generated/${name}` });
+    } catch (e) {
+      if (e instanceof GatewayError) send('error', e.toJSON());
+      else { console.error('[interview2] 影像失败', e.message); send('error', { code: 'internal', message: '访谈影像生成失败' }); }
+    } finally { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} res.end(); }
+  });
+
   route('POST /api/artist/:id/gallery/:assetId/favorite', async (req, res, { params }) => {
     const g = toggleFavorite(params.id, params.assetId);
     g ? json(res, { ok: true }) : jsonError(res, 'not_found', '无此资产');
