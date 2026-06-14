@@ -130,6 +130,12 @@ try {
   const songEmpty = await call(`/api/artist/${created.data.id}/song`, {});
   ok('渲染无蓝图→bad_request', songEmpty.status === 200 && songEmpty.data.error?.code === 'bad_request', songEmpty.data.error?.code);
 
+  const planMiss = await call('/api/artist/nope_x/interview/plan', { topic: 'x' });
+  ok('企划未知艺人→not_found', planMiss.status === 200 && planMiss.data.error?.code === 'not_found', planMiss.data.error?.code);
+
+  const composeEmpty = await call(`/api/artist/${created.data.id}/interview/compose`, {});
+  ok('合成无对话→bad_request', composeEmpty.status === 200 && composeEmpty.data.error?.code === 'bad_request', composeEmpty.data.error?.code);
+
   const del = await call(`/api/artist/${created.data.id}`, undefined, 'DELETE');
   ok('artist 删除', del.status === 200 && del.data.ok === true);
 } catch (e) {
