@@ -76,21 +76,19 @@ async function invokeAsr(request, ctx) {
 }
 
 const T2I_SUBMIT = `${BASE}/api/v1/services/aigc/text2image/image-synthesis`;
+// 探针结论(2026-06-14)：万相图像参考在该区可用 —— wanx2.1-imageedit / image2image/image-synthesis
+// 的 function:description_edit 接受 base_image_url（base64 dataUrl）并保人物外观换景，轮询 SUCCEEDED 返图。
+// 据此：invokeImage 带 refImages 时切到图像参考保人物（一致性锁脸 image_ref），无 refImages 维持纯 t2i（向后兼容 S3 写真）。
+const IMGEDIT_SUBMIT = `${BASE}/api/v1/services/aigc/image2image/image-synthesis`;
+const IMGEDIT_MODEL = 'wanx2.1-imageedit';
 const TASKS = `${BASE}/api/v1/tasks`;
 const IMG_POLL_MS = 4000;
 const IMG_MAX_MS = 4 * 60 * 1000;
 const imgSleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const SIZE_BY_ASPECT = { '1:1': '1024*1024', '3:4': '768*1024', '9:16': '720*1280', '16:9': '1280*720' };
 
-async function invokeImage(request, ctx) {
-  const n = Math.min(4, Math.max(1, Number(request.count) || 1));
-  const size = SIZE_BY_ASPECT[request.aspect] || '1024*1024';
-  const submit = await ctx.fetchJson(T2I_SUBMIT, {
-    headers: { ...auth(ctx.env), 'X-DashScope-Async': 'enable' }, timeoutMs: 30000,
-    body: { model: request.model, input: { prompt: request.prompt }, parameters: { size, n } },
-  });
-  const taskId = submit.output?.task_id;
-  if (!taskId) throw gatewayError('provider_error', `万相未返回 task_id: ${JSON.stringify(submit).slice(0, 200)}`, { providerId: 'dashscope' });
+// 轮询万相图像 TASKS/{id}，成功后下载所有结果图落盘。submit 已发起、taskId 必有。
+async function pollImageTask(taskId, ctx, failLabel) {
   const deadline = Date.now() + IMG_MAX_MS;
   let pollErrors = 0;
   while (Date.now() < deadline) {
@@ -101,7 +99,7 @@ async function invokeImage(request, ctx) {
     const status = st.output?.task_status;
     if (status === 'SUCCEEDED') {
       const urls = (st.output?.results || []).map((r) => r.url).filter(Boolean);
-      if (!urls.length) throw gatewayError('provider_error', '万相成功但无图像 URL', { providerId: 'dashscope' });
+      if (!urls.length) throw gatewayError('provider_error', `${failLabel}成功但无图像 URL`, { providerId: 'dashscope' });
       const files = [];
       for (const url of urls) {
         const buf = await ctx.fetchBuffer(url, { method: 'GET', headers: {}, timeoutMs: 120000 });
@@ -109,9 +107,38 @@ async function invokeImage(request, ctx) {
       }
       return { files, usage: { images: files.length } };
     }
-    if (status === 'FAILED') throw gatewayError('provider_error', `万相生成失败: ${st.output?.message || st.output?.code || '无详情'}`, { providerId: 'dashscope' });
+    if (status === 'FAILED') throw gatewayError('provider_error', `${failLabel}失败: ${st.output?.message || st.output?.code || '无详情'}`, { providerId: 'dashscope' });
   }
-  throw gatewayError('timeout', `万相轮询超时（${IMG_MAX_MS / 60000} 分钟）`, { providerId: 'dashscope' });
+  throw gatewayError('timeout', `${failLabel}轮询超时（${IMG_MAX_MS / 60000} 分钟）`, { providerId: 'dashscope' });
+}
+
+async function invokeImage(request, ctx) {
+  const refs = Array.isArray(request.refImages) ? request.refImages.filter(Boolean) : [];
+  if (refs.length) return invokeImageRef(request, ctx, refs);
+  const n = Math.min(4, Math.max(1, Number(request.count) || 1));
+  const size = SIZE_BY_ASPECT[request.aspect] || '1024*1024';
+  const submit = await ctx.fetchJson(T2I_SUBMIT, {
+    headers: { ...auth(ctx.env), 'X-DashScope-Async': 'enable' }, timeoutMs: 30000,
+    body: { model: request.model, input: { prompt: request.prompt }, parameters: { size, n } },
+  });
+  const taskId = submit.output?.task_id;
+  if (!taskId) throw gatewayError('provider_error', `万相未返回 task_id: ${JSON.stringify(submit).slice(0, 200)}`, { providerId: 'dashscope' });
+  return pollImageTask(taskId, ctx, '万相生成');
+}
+
+// 图像参考保人物（image_ref 锁脸）：refs[0] 作为基图，description_edit 保外观换景/重构图。单主体编辑。
+async function invokeImageRef(request, ctx, refs) {
+  const submit = await ctx.fetchJson(IMGEDIT_SUBMIT, {
+    headers: { ...auth(ctx.env), 'X-DashScope-Async': 'enable' }, timeoutMs: 30000,
+    body: {
+      model: IMGEDIT_MODEL,
+      input: { function: 'description_edit', prompt: request.prompt || '同一个人物，保持长相不变', base_image_url: refs[0] },
+      parameters: { n: 1 },
+    },
+  });
+  const taskId = submit.output?.task_id;
+  if (!taskId) throw gatewayError('provider_error', `万相图像参考未返回 task_id: ${JSON.stringify(submit).slice(0, 200)}`, { providerId: 'dashscope' });
+  return pollImageTask(taskId, ctx, '万相图像参考');
 }
 
 const I2V_SUBMIT = `${BASE}/api/v1/services/aigc/video-generation/video-synthesis`;

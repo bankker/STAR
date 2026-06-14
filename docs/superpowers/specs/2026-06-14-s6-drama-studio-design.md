@@ -83,6 +83,8 @@
 - 探针失败（在区不可用 / 权限不足）→ `consistencyMode='description'`，沿用描述注入，UI 明示「当前为描述级一致性」。
 - 无论哪种：**高质量 i2v 片段内一致性已由首帧保证**（P2b 验证过）；探针只影响跨镜分镜图的锁脸强度。
 
+探针结论（2026-06-14）：image_ref，工作模型=wanx2.1-imageedit（function:description_edit），端点=/api/v1/services/aigc/image2image/image-synthesis（异步提交→轮询 TASKS/{id}→SUCCEEDED 返图，base_image_url 接受 base64 dataUrl）。`invokeImage` 带 refImages 时切此模型保人物锁脸，consistencyMode='image_ref'。
+
 ## 4. 模块与端点
 
 ### 4.1 纯函数 `src/studio/drama.js`
