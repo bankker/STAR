@@ -9,6 +9,7 @@ const BASE_PRICES = {
   'dashscope:wan2.2-i2v-flash': { perSecond: 0.1 },
   'gemini:gemini-3-pro-image': { perImage: 0.12 },
   'kling:kling-v2-6': { perSecond: 0.07 },
+  'dashscope:fun-music-v1': { perSong: 0.3 },
   'suno:V5': { perSong: 0.4 },
   'openrouter:*': { inputPerMTok: 5, outputPerMTok: 15, perImage: 0.15, perSecond: 0.1 },
 };
