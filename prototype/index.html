@@ -486,17 +486,87 @@
         </div>
       </div>
 
-      <!-- ══ VIEW: 音乐工坊 (P3 placeholder) ══ -->
+      <!-- ══ VIEW: 音乐工坊 (S4) ══ -->
       <div id="view-music" class="view hidden">
-        <div class="view-h1">音乐工坊 <span class="pill dim">P3</span></div>
-        <div class="panel mt-16">
-          <div class="coming-soon">
-            <div class="cs-icon">🎵</div>
-            <div class="cs-title">即将到来（P3）</div>
-            <div class="cs-desc">
-              可编辑作曲蓝图确认后渲染，作品库可播放、带入短剧生产线。
+        <div class="view-h1">音乐工坊 <span class="pill s2">S4</span></div>
+        <p class="text-sm text-ink-3 mt-8 mb-16">可编辑作曲蓝图确认后渲染，声线匹配艺人性别，作品库可播放。</p>
+
+        <!-- No artist notice -->
+        <div id="music-no-artist" class="panel hidden">
+          <div class="empty-state">
+            <div class="icon">🎵</div>
+            <div class="title">请先选择艺人</div>
+            <div class="desc">从顶部艺人选择器选择或新建一名艺人，再创作音乐。</div>
+          </div>
+        </div>
+
+        <div id="music-studio-area">
+          <!-- Stage 1: 创作诉求 -->
+          <div class="panel music-stage-panel mb-16">
+            <div class="flex items-center gap-8 mb-12">
+              <h2 style="margin:0">创作诉求</h2>
+              <span class="pill dim">第一步</span>
             </div>
-            <span class="pill dim cs-pill">开发中</span>
+            <div class="field mb-12">
+              <div class="label-upper">描述你想要的歌</div>
+              <textarea id="music-brief" rows="3" placeholder="描述你想要的歌，例如：深夜城市，孤独又温柔的电子国风"></textarea>
+            </div>
+            <button class="btn btn-primary" id="music-blueprint-btn" style="width:100%;justify-content:center;">
+              ✦ 生成作曲蓝图
+            </button>
+            <div id="music-blueprint-msg" class="out"></div>
+          </div>
+
+          <!-- Stage 2: 作曲蓝图卡 (hidden until blueprint generated) -->
+          <div class="panel music-blueprint-card mb-16 hidden" id="music-blueprint-card">
+            <div class="flex items-center gap-8 mb-12">
+              <h2 style="margin:0">作曲蓝图</h2>
+              <span class="pill warn" id="music-blueprint-pill">待确认</span>
+              <span class="text-sm text-ink-3" style="margin-left:auto;">声线将匹配艺人性别</span>
+            </div>
+
+            <div class="g2 mb-12">
+              <div class="field">
+                <div class="label-upper">歌名</div>
+                <input id="music-bp-title" placeholder="歌名">
+              </div>
+              <div class="field">
+                <div class="label-upper">曲风</div>
+                <input id="music-bp-style" placeholder="曲风">
+              </div>
+            </div>
+
+            <div class="field mb-12">
+              <div class="label-upper">分段结构</div>
+              <input id="music-bp-structure" placeholder="例如：前奏-主歌A-副歌-主歌B-副歌-尾奏">
+            </div>
+
+            <div class="field mb-12">
+              <div class="label-upper">歌词</div>
+              <textarea id="music-bp-lyrics" rows="8" placeholder="歌词内容…"></textarea>
+            </div>
+
+            <div class="field mb-16">
+              <div class="label-upper">制作建议</div>
+              <textarea id="music-bp-production" rows="2" placeholder="制作建议、音色指引等…"></textarea>
+            </div>
+
+            <button class="btn btn-primary" id="music-render-btn" style="width:100%;justify-content:center;">
+              ✦ 确认渲染
+            </button>
+            <div id="music-render-msg" class="out"></div>
+
+            <!-- Inline JobCard for song polling -->
+            <div id="music-job-card-wrap" class="hidden" style="margin-top:12px;"></div>
+          </div>
+
+          <!-- 作品库 -->
+          <div class="panel">
+            <div class="flex items-center gap-8 mb-12">
+              <h2 style="margin:0">作品库</h2>
+              <button class="btn btn-secondary btn-sm" id="music-library-refresh">↻ 刷新</button>
+            </div>
+            <div id="music-library-grid" class="music-library-grid"></div>
           </div>
         </div>
       </div>

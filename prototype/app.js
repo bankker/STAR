@@ -89,6 +89,18 @@ function switchView(viewId) {
   if (viewId === 'companion') renderCompanionView();
   if (viewId === 'artist-creation') renderArtists();
   if (viewId === 'photo-video') { updatePhotoArtistCard(); loadGallery(); }
+  if (viewId === 'music') {
+    const noArtist = $('#music-no-artist');
+    const studioArea = $('#music-studio-area');
+    if (state.currentArtistId) {
+      if (noArtist) noArtist.classList.add('hidden');
+      if (studioArea) studioArea.classList.remove('hidden');
+      loadMusicLibrary();
+    } else {
+      if (noArtist) noArtist.classList.remove('hidden');
+      if (studioArea) studioArea.classList.add('hidden');
+    }
+  }
 }
 
 function initRouter() {
@@ -392,6 +404,7 @@ function renderArtistPicker(artists) {
         renderArtistPicker(state.artists);
         if (state.currentView === 'companion') renderCompanionView();
         if (state.currentView === 'photo-video') { updatePhotoArtistCard(); loadGallery(); }
+        if (state.currentView === 'music') { switchView('music'); }
       });
     });
   }
@@ -1354,6 +1367,241 @@ function initVideoStudio() {
   });
 }
 
+/* ── Music Studio (S4) ── */
+const musicState = { blueprint: null };
+
+/**
+ * Render an inline JobCard for a song job.
+ */
+function renderSongJobCard(job, cardWrap) {
+  const isRunning = job.status === 'running' || job.status === 'queued';
+  const progress = Number(job.progress) || 0;
+  cardWrap.innerHTML = `<div class="job-card song-job-card">
+    <div style="display:flex;align-items:center;gap:10px;">
+      ${isRunning ? '<div class="job-spinner"></div>' : ''}
+      <div class="job-info">
+        <div class="job-cap">音乐渲染 · ${JOB_STATE[job.status] || esc(job.status)}</div>
+        ${job.stage ? `<div class="job-stage">${esc(job.stage)}</div>` : ''}
+      </div>
+      ${job.costEstimate ? `<div class="job-cost">预估 $${esc(String(job.costEstimate.estimatedUsd))}</div>` : ''}
+    </div>
+    <div class="job-progress">
+      <div class="progress-bar"><div class="fill" style="width:${progress}%"></div></div>
+    </div>
+    ${job.status === 'failed' && job.error ? `<div class="out" style="color:var(--err);">${esc(errText(job.error))}</div>` : ''}
+  </div>`;
+}
+
+/**
+ * Poll /api/jobs/:jobId every ~3s for a song job.
+ * On done: reload music library. On failed: show error in card.
+ */
+function pollSongJob(jobId, cardWrap) {
+  let pollErrs = 0;
+  const intervalId = setInterval(async () => {
+    const data = await api(`/api/jobs/${encodeURIComponent(jobId)}`);
+    if (data.error || !data.job) {
+      if (++pollErrs >= 5) { clearInterval(intervalId); }
+      return;
+    }
+    pollErrs = 0;
+    const job = data.job;
+    renderSongJobCard(job, cardWrap);
+    if (job.status === 'done') {
+      clearInterval(intervalId);
+      toast('歌曲已生成，加载作品库…', 'ok');
+      setTimeout(() => {
+        cardWrap.classList.add('hidden');
+        loadMusicLibrary();
+      }, 1200);
+    } else if (job.status === 'failed' || job.status === 'interrupted') {
+      clearInterval(intervalId);
+      toast('歌曲渲染失败', 'err');
+    }
+  }, 3000);
+}
+
+/**
+ * Load song tiles from artist gallery (type === 'song') into the music library grid.
+ */
+async function loadMusicLibrary() {
+  const grid = $('#music-library-grid');
+  if (!grid) return;
+  if (!state.currentArtistId) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">
+      <div class="icon">🎵</div>
+      <div class="title">请先选择艺人</div>
+      <div class="desc">从顶部艺人选择器选择或创设一名艺人。</div>
+    </div>`;
+    return;
+  }
+  const data = await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/gallery`);
+  if (data.error) return;
+  const songs = (data.assets || []).filter((a) => a.type === 'song');
+  if (!songs.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">
+      <div class="icon">🎵</div>
+      <div class="title">还没有歌曲</div>
+      <div class="desc">填写创作诉求，生成作曲蓝图，确认渲染后歌曲将在此显示。</div>
+    </div>`;
+    return;
+  }
+  grid.innerHTML = songs.map((s) => {
+    const id = esc(s.id);
+    const url = esc(s.url);
+    const title = esc(s.title || '未命名');
+    const style = esc(s.style || '');
+    const isFav = s.favorite;
+    return `<div class="song-tile" data-asset-id="${id}">
+      <div class="song-tile-header">
+        <div class="song-tile-title" title="${title}">${title}</div>
+        ${style ? `<span class="tag">${style}</span>` : ''}
+        <div class="song-tile-actions">
+          <button class="tile-btn tile-fav${isFav ? ' faved' : ''}" data-id="${id}" title="${isFav ? '取消收藏' : '收藏'}">★</button>
+          <button class="tile-btn tile-del" data-id="${id}" title="删除">🗑</button>
+        </div>
+      </div>
+      <audio controls src="${url}" preload="none"></audio>
+    </div>`;
+  }).join('');
+
+  // Bind tile actions
+  grid.querySelectorAll('.tile-fav').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!state.currentArtistId) return;
+      await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/gallery/${encodeURIComponent(btn.dataset.id)}/favorite`, {});
+      loadMusicLibrary();
+    });
+  });
+  grid.querySelectorAll('.tile-del').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!state.currentArtistId) return;
+      if (!confirm('确认删除这首歌曲？')) return;
+      await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/gallery/${encodeURIComponent(btn.dataset.id)}`, undefined, 'DELETE');
+      loadMusicLibrary();
+    });
+  });
+}
+
+/**
+ * Fill the blueprint card fields from an object.
+ */
+function fillBlueprint(bp) {
+  const set = (id, v) => { const el = $(id); if (el) el.value = v ?? ''; };
+  set('#music-bp-title', bp.title);
+  set('#music-bp-style', bp.style);
+  set('#music-bp-structure', bp.structure);
+  set('#music-bp-lyrics', bp.lyrics);
+  set('#music-bp-production', bp.productionNotes);
+}
+
+/**
+ * Read the blueprint card fields back into an object.
+ */
+function readBlueprint() {
+  const g = (id) => $(id)?.value?.trim() ?? '';
+  return {
+    title: g('#music-bp-title'),
+    style: g('#music-bp-style'),
+    structure: g('#music-bp-structure'),
+    lyrics: g('#music-bp-lyrics'),
+    productionNotes: g('#music-bp-production'),
+  };
+}
+
+function initMusicStudio() {
+  // ── Blueprint generation ──
+  const blueprintBtn = $('#music-blueprint-btn');
+  if (blueprintBtn) {
+    blueprintBtn.addEventListener('click', async () => {
+      if (!state.currentArtistId) {
+        toast('请先选择一名艺人', 'err');
+        return;
+      }
+      const brief = $('#music-brief') ? $('#music-brief').value.trim() : '';
+      const msgEl = $('#music-blueprint-msg');
+      blueprintBtn.disabled = true;
+      if (msgEl) { msgEl.textContent = '生成作曲蓝图中…'; msgEl.style.color = ''; }
+
+      const r = await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/song/blueprint`, { brief });
+      blueprintBtn.disabled = false;
+
+      if (r.error) {
+        if (msgEl) { msgEl.textContent = errText(r.error); msgEl.style.color = 'var(--err)'; }
+        toast(errText(r.error), 'err');
+        return;
+      }
+
+      if (msgEl) { msgEl.textContent = ''; }
+      musicState.blueprint = r.blueprint;
+      fillBlueprint(r.blueprint);
+
+      // Show Stage 2
+      const card = $('#music-blueprint-card');
+      if (card) card.classList.remove('hidden');
+      const pill = $('#music-blueprint-pill');
+      if (pill) { pill.className = 'pill warn'; pill.textContent = '待确认'; }
+
+      toast('作曲蓝图已生成，可编辑后确认渲染', 'ok');
+    });
+  }
+
+  // ── Render (cost gate) ──
+  const renderBtn = $('#music-render-btn');
+  if (renderBtn) {
+    renderBtn.addEventListener('click', async () => {
+      if (!state.currentArtistId) {
+        toast('请先选择一名艺人', 'err');
+        return;
+      }
+      const blueprint = readBlueprint();
+      const msgEl = $('#music-render-msg');
+      const cardWrap = $('#music-job-card-wrap');
+
+      renderBtn.disabled = true;
+      if (cardWrap) cardWrap.classList.add('hidden');
+
+      const result = await submitWithConfirm(
+        `/api/artist/${encodeURIComponent(state.currentArtistId)}/song`,
+        { blueprint },
+        msgEl
+      );
+
+      renderBtn.disabled = false;
+
+      if (!result || !result.jobId) return;
+
+      // Update pill
+      const pill = $('#music-blueprint-pill');
+      if (pill) { pill.className = 'pill s2'; pill.textContent = '渲染中'; }
+
+      // Show inline JobCard and start polling
+      if (cardWrap) {
+        cardWrap.classList.remove('hidden');
+        cardWrap.innerHTML = `<div class="job-card song-job-card">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div class="job-spinner"></div>
+            <div class="job-info">
+              <div class="job-cap">音乐渲染 · 排队</div>
+            </div>
+          </div>
+          <div class="job-progress">
+            <div class="progress-bar"><div class="fill" style="width:0%"></div></div>
+          </div>
+        </div>`;
+        pollSongJob(result.jobId, cardWrap);
+      }
+      renderCostJobs();
+    });
+  }
+
+  // ── Library refresh button ──
+  const refreshBtn = $('#music-library-refresh');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', () => loadMusicLibrary());
+  }
+}
+
 /* ── Boot ── */
 function boot() {
   initRouter();
@@ -1363,6 +1611,7 @@ function boot() {
   initSettings();
   initPhotoStudio();
   initVideoStudio();
+  initMusicStudio();
   initChat();
   initImage();
   initMusic();
