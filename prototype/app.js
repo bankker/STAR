@@ -2016,6 +2016,85 @@ function dramaBase() {
   return `/api/artist/${encodeURIComponent(state.currentArtistId)}/drama`;
 }
 
+/** Derive a friendly filename from a url (strip query + path). */
+function urlFilename(url) {
+  if (!url) return '';
+  try {
+    const clean = String(url).split('?')[0].split('#')[0];
+    const name = clean.substring(clean.lastIndexOf('/') + 1);
+    return decodeURIComponent(name) || clean;
+  } catch { return String(url); }
+}
+
+/**
+ * 打开画廊选择器浮层：kind='song'|'photo'；onPick(asset) 选中回调（自动关闭）。复用 /gallery + 既有瓦片样式。
+ * 点击背景或 ✕ 关闭（不选）；每次打开重建 grid + 用 cloneNode 清掉旧监听，避免泄漏。
+ */
+async function openGalleryPicker(kind, onPick) {
+  const overlay = $('#gallery-picker');
+  if (!overlay) return;
+  const titleEl = overlay.querySelector('.gp-title');
+  const grid = overlay.querySelector('.gp-grid');
+  const closeBtn = overlay.querySelector('.gp-close');
+  if (!grid || !state.currentArtistId) return;
+
+  const isSong = kind === 'song';
+  if (titleEl) titleEl.textContent = isSong ? '选择主题曲' : '选择写真';
+
+  const close = () => {
+    overlay.hidden = true;
+    overlay.classList.remove('open');
+    grid.innerHTML = '';
+  };
+
+  // Fresh backdrop / close listeners each open (no leak): clone-replace the close button.
+  const newClose = closeBtn ? closeBtn.cloneNode(true) : null;
+  if (closeBtn && newClose) closeBtn.replaceWith(newClose);
+  if (newClose) newClose.addEventListener('click', close);
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+  grid.innerHTML = '<div class="gp-empty">加载中…</div>';
+  overlay.hidden = false;
+  overlay.classList.add('open');
+
+  const data = await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/gallery`);
+  if (data.error) { grid.innerHTML = `<div class="gp-empty">${esc(errText(data.error))}</div>`; return; }
+  const items = (data.assets || []).filter((a) => a.type === kind);
+
+  if (!items.length) {
+    grid.innerHTML = `<div class="gp-empty">${isSong
+      ? '作品库还没有歌，先去音乐工坊创作'
+      : '写真库还没有图，先去写真工作室生成'}</div>`;
+    return;
+  }
+
+  grid.innerHTML = items.map((a, i) => {
+    const url = esc(a.url || '');
+    const name = esc(a.title || urlFilename(a.url) || (isSong ? '未命名' : '写真'));
+    if (isSong) {
+      return `<div class="gp-card gp-card-song" data-idx="${i}">
+        <div class="gp-card-title" title="${name}">${name}</div>
+        <audio controls preload="none" src="${url}"></audio>
+      </div>`;
+    }
+    return `<div class="gp-card gp-card-photo" data-idx="${i}">
+      <img src="${url}" alt="" loading="lazy">
+      <div class="gp-card-cap" title="${name}">${name}</div>
+    </div>`;
+  }).join('');
+
+  grid.querySelectorAll('.gp-card').forEach((card) => {
+    card.addEventListener('click', (e) => {
+      // 让 audio 控件本身可点击播放，不触发选中
+      if (e.target.closest('audio')) return;
+      const asset = items[Number(card.dataset.idx)];
+      if (!asset) return;
+      close();
+      if (onPick) onPick(asset);
+    });
+  });
+}
+
 /**
  * Generic SSE POST reader (mirrors interview compose).
  * Resolves when the stream ends. Calls onStage(payload)/onDone(payload)/onError(payload).
@@ -2287,8 +2366,30 @@ function renderDramaCast(drama) {
       </div>
       <div class="drama-cast-name">${esc(c.name)} ${lead ? '<span class="pill s2">主演</span>' : '<span class="pill dim">配角</span>'}</div>
       <div class="drama-cast-role">${esc(c.role || '')}</div>
+      <div class="drama-cast-actions">
+        <button class="tile-btn drama-cast-pick" data-cid="${esc(c.id)}" title="从写真库选定妆照">从写真库选</button>
+      </div>
     </div>`;
   }).join('');
+
+  // bind 「从写真库选」: 打开写真选择器 → 设为该角色定妆照
+  wrap.querySelectorAll('.drama-cast-pick').forEach((btn) => {
+    btn.addEventListener('click', () => pickCastPortrait(btn.dataset.cid));
+  });
+}
+
+/** Open the photo picker and set the chosen photo as a cast member's portrait. */
+function pickCastPortrait(cid) {
+  if (!cid) return;
+  openGalleryPicker('photo', async (asset) => {
+    const base = dramaBase();
+    const drama = dramaState.drama;
+    if (!base || !drama) return;
+    const r = await api(`${base}/${encodeURIComponent(drama.id)}/cast/${encodeURIComponent(cid)}/portrait`, { url: asset.url });
+    if (r.error) { toast(errText(r.error), 'err'); return; }
+    renderDrama(r.drama);
+    toast('已设为定妆照', 'ok');
+  });
 }
 
 /* ── 分镜 stage ── */
@@ -2414,15 +2515,34 @@ async function runStoryboardSSE(path, btn) {
 }
 
 /* ── 出片 + 成片 stage ── */
+// 缓存一次画廊歌曲列表，用于把 themeSongUrl 解析成友好曲名（出片阶段渲染时拉取）
+let dramaSongCache = [];
+
+/** Friendly theme-song name for a url: match cached gallery songs, else filename. */
+function themeSongName(url) {
+  if (!url) return '';
+  const hit = dramaSongCache.find((s) => s.url === url);
+  if (hit) return hit.title || urlFilename(url);
+  return urlFilename(url);
+}
+
 function renderDramaCompose(drama) {
   const wrap = $('#drama-compose-episodes');
   if (!wrap) return;
   wrap.innerHTML = (drama.episodes || []).map((ep) => {
     const tier = ep.tier || 'low';
+    const hasTheme = !!ep.themeSongUrl;
+    const themeLabel = hasTheme ? esc(themeSongName(ep.themeSongUrl)) : '<span class="text-ink-3">无</span>';
     return `<div class="drama-ep-block" data-eid="${esc(ep.id)}">
       <div class="drama-ep-head">
         第 ${esc(String(ep.index))} 集 · ${esc(ep.title || '')}
         ${ep.episodeUrl ? '<span class="pill ok">已出片</span>' : '<span class="pill dim">未出片</span>'}
+      </div>
+      <div class="drama-theme-row">
+        <span class="drama-theme-label">主题曲：</span>
+        <span class="drama-theme-name">${themeLabel}</span>
+        <button class="tile-btn drama-theme-pick" data-eid="${esc(ep.id)}">选主题曲</button>
+        ${hasTheme ? `<button class="tile-btn drama-theme-clear" data-eid="${esc(ep.id)}">清除</button>` : ''}
       </div>
       <div class="drama-compose-row">
         <div class="tier-toggle" data-eid="${esc(ep.id)}">
@@ -2451,6 +2571,52 @@ function renderDramaCompose(drama) {
   wrap.querySelectorAll('.drama-compose-btn').forEach((btn) => {
     btn.addEventListener('click', () => composeEpisode(btn.dataset.eid, btn));
   });
+  // theme-song pick / clear
+  wrap.querySelectorAll('.drama-theme-pick').forEach((btn) => {
+    btn.addEventListener('click', () => pickEpisodeTheme(btn.dataset.eid));
+  });
+  wrap.querySelectorAll('.drama-theme-clear').forEach((btn) => {
+    btn.addEventListener('click', () => setEpisodeTheme(btn.dataset.eid, null));
+  });
+
+  // refresh song cache once, then re-resolve names (only if it changed something)
+  refreshDramaSongCache();
+}
+
+/** Fetch gallery songs once and re-render theme labels if names resolve. */
+async function refreshDramaSongCache() {
+  if (!state.currentArtistId) return;
+  const data = await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/gallery`);
+  if (data.error) return;
+  const songs = (data.assets || []).filter((a) => a.type === 'song');
+  dramaSongCache = songs;
+  // update any rendered theme names in place (avoid full re-render churn)
+  const drama = dramaState.drama;
+  if (!drama) return;
+  const wrap = $('#drama-compose-episodes');
+  if (!wrap) return;
+  (drama.episodes || []).forEach((ep) => {
+    if (!ep.themeSongUrl) return;
+    const block = wrap.querySelector(`.drama-ep-block[data-eid="${cssEsc(ep.id)}"] .drama-theme-name`);
+    if (block) block.textContent = themeSongName(ep.themeSongUrl);
+  });
+}
+
+/** Open the song picker and set the chosen song as this episode's theme. */
+function pickEpisodeTheme(eid) {
+  if (!eid) return;
+  openGalleryPicker('song', (asset) => setEpisodeTheme(eid, asset.url));
+}
+
+/** Set (or clear, songUrl=null) an episode's theme song, then re-render. */
+async function setEpisodeTheme(eid, songUrl) {
+  const base = dramaBase();
+  const drama = dramaState.drama;
+  if (!base || !drama || !eid) return;
+  const r = await api(`${base}/${encodeURIComponent(drama.id)}/episode/${encodeURIComponent(eid)}/theme`, { songUrl });
+  if (r.error) { toast(errText(r.error), 'err'); return; }
+  renderDrama(r.drama);
+  toast(songUrl ? '已设为主题曲' : '已清除主题曲', 'ok');
 }
 
 function selectedTier(eid) {

@@ -145,6 +145,12 @@ try {
   const drGetMiss = await call(`/api/artist/${created.data.id}/drama/nope_x`);
   ok('短剧详情未知→not_found', drGetMiss.status === 200 && drGetMiss.data.error?.code === 'not_found', drGetMiss.data.error?.code);
 
+  const themeMiss = await call('/api/artist/nope_x/drama/nope/episode/ep_1/theme', { songUrl: null });
+  ok('主题曲未知艺人→not_found', themeMiss.status === 200 && themeMiss.data.error?.code === 'not_found', themeMiss.data.error?.code);
+
+  const portMiss = await call('/api/artist/nope_x/drama/nope/cast/c_lead/portrait', { url: '/generated/x.png' });
+  ok('定妆照复用未知艺人→not_found', portMiss.status === 200 && portMiss.data.error?.code === 'not_found', portMiss.data.error?.code);
+
   const del = await call(`/api/artist/${created.data.id}`, undefined, 'DELETE');
   ok('artist 删除', del.status === 200 && del.data.ok === true);
 } catch (e) {

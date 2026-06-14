@@ -1767,6 +1767,103 @@ select option { background: var(--panel-2); color: var(--ink); }
 }
 .cost-confirm-text { flex: 1; font-size: 13px; color: var(--warn); }
 
+/* ── cast 「从写真库选」 ── */
+.drama-cast-actions { display: flex; gap: 6px; margin-top: 8px; }
+.drama-cast-pick {
+  font-size: 11px;
+  padding: 4px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  color: var(--ink-2);
+}
+.drama-cast-pick:hover { color: var(--accent); border-color: var(--accent); }
+
+/* ── 出片 主题曲 row ── */
+.drama-theme-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 12px; color: var(--ink-2);
+  margin-bottom: 10px;
+}
+.drama-theme-label { color: var(--ink-3); }
+.drama-theme-name {
+  font-weight: 600; color: var(--accent);
+  max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.drama-theme-pick, .drama-theme-clear {
+  font-size: 11px;
+  padding: 3px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  color: var(--ink-2);
+}
+.drama-theme-pick:hover { color: var(--brand-2); border-color: var(--brand); }
+.drama-theme-clear:hover { color: var(--err); border-color: var(--err); }
+
+/* ── gallery picker overlay ── */
+.gp-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.6);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1100;
+}
+.gp-overlay[hidden] { display: none; }
+.gp-modal {
+  background: var(--panel);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-float);
+  width: 90%; max-width: 640px;
+  max-height: 80vh;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.gp-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.gp-title { font-size: 15px; font-weight: 700; color: var(--ink); }
+.gp-close {
+  background: none; border: none; cursor: pointer;
+  color: var(--ink-3); font-size: 16px; line-height: 1;
+  padding: 4px 8px; border-radius: var(--r-sm);
+}
+.gp-close:hover { color: var(--ink); background: rgba(255,255,255,.08); }
+.gp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  padding: 16px 18px;
+  overflow-y: auto;
+}
+.gp-empty {
+  grid-column: 1/-1;
+  text-align: center; padding: 40px 12px;
+  font-size: 13px; color: var(--ink-3);
+}
+.gp-card {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color .15s, transform .15s;
+}
+.gp-card:hover { border-color: var(--brand); transform: translateY(-1px); }
+.gp-card-photo img {
+  width: 100%; aspect-ratio: 3 / 4;
+  object-fit: cover; display: block; background: var(--bg);
+}
+.gp-card-cap, .gp-card-title {
+  font-size: 11px; color: var(--ink-2);
+  padding: 6px 8px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gp-card-song { padding: 8px; cursor: pointer; }
+.gp-card-song .gp-card-title { padding: 0 0 6px; font-weight: 600; color: var(--ink); }
+.gp-card-song audio { width: 100%; height: 32px; }
+
 /* scrollbar global */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

@@ -2,7 +2,7 @@ import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import {
-  initDrama, createDrama, getDrama, listDramas, updateScene, addFrameVersion, setFrameCurrent, addPortraitVersion,
+  initDrama, createDrama, getDrama, listDramas, updateScene, addFrameVersion, setFrameCurrent, addPortraitVersion, setEpisodeTheme,
 } from '../src/studio/drama-store.js';
 
 before(() => initDrama(fs.mkdtempSync(path.join(os.tmpdir(), 'drtest_'))));
@@ -51,4 +51,23 @@ test('addPortraitVersion 追加配角定妆照并指向最新', () => {
   const c = getDrama(d.id).cast.find((x) => x.id === 'c_1');
   assert.equal(c.portrait.versions[0].url, '/generated/cast1.png');
   assert.equal(c.portrait.current, 0);
+});
+
+test('createDrama 每集 themeSongUrl 默认 null', () => {
+  const d = createDrama('art_t1', { name: 'x' }, {}, parsed, { voiceMap: {}, consistencyMode: 'description' });
+  assert.equal(d.episodes[0].themeSongUrl, null);
+});
+
+test('setEpisodeTheme 设置与清除主题曲', () => {
+  const d = createDrama('art_t2', { name: 'x' }, {}, parsed, { voiceMap: {}, consistencyMode: 'description' });
+  const eid = d.episodes[0].id;
+  setEpisodeTheme(d.id, eid, '/generated/song.mp3');
+  assert.equal(getDrama(d.id).episodes[0].themeSongUrl, '/generated/song.mp3');
+  setEpisodeTheme(d.id, eid, null);
+  assert.equal(getDrama(d.id).episodes[0].themeSongUrl, null);
+});
+
+test('setEpisodeTheme 未知 episode 返回 null', () => {
+  const d = createDrama('art_t3', { name: 'x' }, {}, parsed, { voiceMap: {}, consistencyMode: 'description' });
+  assert.equal(setEpisodeTheme(d.id, 'ep_99', '/generated/s.mp3'), null);
 });

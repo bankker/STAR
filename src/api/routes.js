@@ -23,7 +23,7 @@ import {
 import { getGallery, addAssets, toggleFavorite, removeAsset } from '../studio/assets.js';
 import { buildBlueprintMessages, extractBlueprint, blueprintToRenderReq } from '../studio/music.js';
 import { buildScriptMessages as buildDramaScriptMessages, extractScript, assignVoices, buildCastPortraitPrompt, buildScenePrompt, buildI2vPrompt, estimateEpisodeCost } from '../studio/drama.js';
-import { createDrama, getDrama, listDramas, updateDrama, addPortraitVersion, addFrameVersion, setFrameCurrent, curFrameUrl } from '../studio/drama-store.js';
+import { createDrama, getDrama, listDramas, updateDrama, addPortraitVersion, addFrameVersion, setFrameCurrent, curFrameUrl, setEpisodeTheme } from '../studio/drama-store.js';
 import os from 'node:os';
 
 const MAX_BODY = 1 * 1024 * 1024;
@@ -710,6 +710,21 @@ export function registerRoutes(route) {
       fs.writeFileSync(clipList, sceneClips.map((c) => `file '${c.replace(/\\/g, '/')}'`).join('\n'));
       const merged = path.join(tmp, 'merged.mp4');
       runFfmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', clipList, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', merged], 300000);
+      // 3.5) 主题曲背景混音（若该集挂了主题曲且文件可读）：BGM 压低 + 循环垫到对白长
+      let subInput = merged;
+      if (ep.themeSongUrl) {
+        try {
+          const bgmAbs = path.join(GENERATED_DIR, ep.themeSongUrl.replace('/generated/', ''));
+          if (fs.existsSync(bgmAbs)) {
+            send('stage', { stage: 'bgm', progress: 90, msg: '混入主题曲' });
+            const mixed = path.join(tmp, 'mixed.mp4');
+            runFfmpeg(['-y', '-i', merged, '-stream_loop', '-1', '-i', bgmAbs,
+              '-filter_complex', '[1:a]volume=0.18[bg];[0:a][bg]amix=inputs=2:duration=first:dropout_transition=2[a]',
+              '-map', '0:v', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', mixed], 300000);
+            subInput = mixed;
+          } else { console.warn('[drama] 主题曲文件不存在，跳过混音', ep.themeSongUrl); }
+        } catch (e) { console.error('[drama] 主题曲混音失败，跳过', e.message); subInput = merged; }
+      }
       // 4) 一次性烧字幕（整集累计时间）
       send('stage', { stage: 'subtitle', progress: 92, msg: '烧录字幕' });
       const srtFile = path.join(tmp, 'sub.srt');
@@ -717,7 +732,7 @@ export function registerRoutes(route) {
       const name = `dr_${Date.now()}.mp4`;
       const outAbs = path.join(GENERATED_DIR, name);
       const srtEsc = srtFile.replace(/\\/g, '/').replace(/:/g, '\\:');
-      runFfmpeg(['-y', '-i', merged, '-vf', `subtitles='${srtEsc}'`, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'copy', outAbs], 300000);
+      runFfmpeg(['-y', '-i', subInput, '-vf', `subtitles='${srtEsc}'`, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'copy', outAbs], 300000);
       const totalSec = srtSegs.reduce((a, s) => a + s.durationSec, 0);
       addAssets(params.id, [{ type: 'drama', url: `/generated/${name}`, durationSec: Math.round(totalSec), title: `${d.title} · ${ep.title}` }]);
       // 写回该集成片（整体重写 episodes 数组）
@@ -758,6 +773,33 @@ export function registerRoutes(route) {
       console.error('[drama] 连播失败', e.message);
       json(res, { error: { code: 'internal', message: '连播合集生成失败' } }, 500);
     } finally { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} }
+  });
+
+  route('POST /api/artist/:id/drama/:did/episode/:eid/theme', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    const d = getDrama(params.did);
+    if (!artist || !d || d.artistId !== params.id) return jsonError(res, 'not_found', '无此短剧');
+    if (!d.episodes.find((e) => e.id === params.eid)) return jsonError(res, 'not_found', '无此分集');
+    const songUrl = body.songUrl || null;
+    if (songUrl) {
+      const ok = getGallery(params.id).assets.some((a) => a.type === 'song' && a.url === songUrl);
+      if (!ok) return jsonError(res, 'bad_request', '主题曲必须来自该艺人作品库');
+    }
+    json(res, { drama: setEpisodeTheme(params.did, params.eid, songUrl) });
+  });
+
+  route('POST /api/artist/:id/drama/:did/cast/:cid/portrait', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    const d = getDrama(params.did);
+    if (!artist || !d || d.artistId !== params.id) return jsonError(res, 'not_found', '无此短剧');
+    if (!d.cast.find((c) => c.id === params.cid)) return jsonError(res, 'not_found', '无此角色');
+    const url = body.url;
+    if (!url || !getGallery(params.id).assets.some((a) => a.type === 'photo' && a.url === url)) {
+      return jsonError(res, 'bad_request', '定妆照必须来自该艺人写真库');
+    }
+    json(res, { drama: addPortraitVersion(params.did, params.cid, { url, prompt: '写真库复用' }) });
   });
 
   route('POST /api/artist/:id/gallery/:assetId/favorite', async (req, res, { params }) => {
