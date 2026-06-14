@@ -1768,8 +1768,12 @@ async function loadInterviewLibrary() {
     const id = esc(v.id);
     const dur = v.durationSec ? `${esc(String(v.durationSec))}s` : '';
     const title = esc(v.title || '访谈成片');
+    const isAudio = /\.mp3($|\?)/i.test(v.url || '');   // 语音对谈记录是 mp3，用 audio 播放器（否则黑屏）
+    const player = isAudio
+      ? `<audio src="${url}" controls preload="metadata" class="interview-tile-player" style="width:100%"></audio>`
+      : `<video src="${url}" controls preload="metadata" class="interview-tile-player"></video>`;
     return `<div class="interview-video-tile">
-      <video src="${url}" controls preload="metadata" class="interview-tile-player"></video>
+      ${player}
       <div class="interview-tile-meta">
         <span class="interview-tile-title">${title}</span>
         ${dur ? `<span class="text-ink-3">${dur}</span>` : ''}

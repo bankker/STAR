@@ -964,6 +964,8 @@ export function registerRoutes(route) {
     const s = getSession(params.sid);
     if (!artist || !s || s.artistId !== params.id) return jsonError(res, 'not_found', '无此会话');
     if (!ffmpegAvailable()) return jsonError(res, 'bad_request', '未检测到 ffmpeg');
+    // 必须先生成语音对谈记录：record 会把每轮 audioUrl 覆盖为干净 TTS 音频；否则会拿录音原始 wav 去对口型（音质差、mime 误标）
+    if (!s.recordUrl) return jsonError(res, 'bad_request', '请先生成语音对谈记录');
     const withAudio = s.turns.filter((t) => t.audioUrl);
     if (!withAudio.length) return jsonError(res, 'bad_request', '请先生成语音对谈记录');
     const guest = getGuest(s.guestId);
