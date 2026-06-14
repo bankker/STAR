@@ -36,8 +36,9 @@
     ]
   },
   "video": {
-    "provider": "kling",
-    "model": "kling-v2-6"
+    "provider": "dashscope",
+    "model": "wan2.2-i2v-flash",
+    "fallback": [{ "provider": "kling", "model": "kling-v2-6" }]
   },
   "music": {
     "provider": "suno",

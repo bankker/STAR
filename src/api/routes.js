@@ -6,7 +6,8 @@ import { estimateRequest } from '../gateway/costs.js';
 import { summarize } from '../gateway/ledger.js';
 import { loadConfig, updateConfig, listProviders } from '../gateway/registry.js';
 import { setEnvKey } from '../lib/env.js';
-import { ENV_FILE } from '../lib/paths.js';
+import { generatedUrlToDataUrl } from '../lib/files.js';
+import { ENV_FILE, GENERATED_DIR } from '../lib/paths.js';
 import {
   createArtist, listArtists, getArtist, updateArtist, deleteArtist, addPortrait,
 } from '../studio/artists.js';
@@ -334,6 +335,20 @@ export function registerRoutes(route) {
       const g = addAssets(params.id, items);
       json(res, { assets: g.assets.slice(0, items.length), provider: r.provider, model: r.model });
     } catch (e) { sendGatewayError(res, e); }
+  });
+
+  route('POST /api/artist/:id/video', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    if (!artist) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    await handleMediaSubmit('video', res, body, (b) => {
+      const photos = getGallery(params.id).assets.filter((a) => a.type === 'photo');
+      const frameUrl = b.frameUrl || photos[0]?.url || artist.portraits?.[0]?.url;
+      if (!frameUrl) throw new Error('请先为该艺人生成一张写真作为视频首帧');
+      const imageRef = generatedUrlToDataUrl(GENERATED_DIR, frameUrl);
+      if (!imageRef) throw new Error('首帧图读取失败');
+      return { artistId: params.id, imageRef, prompt: b.prompt || '', durationSec: Number(b.durationSec) || 5, aspect: '9:16' };
+    });
   });
 
   route('POST /api/artist/:id/gallery/:assetId/favorite', async (req, res, { params }) => {

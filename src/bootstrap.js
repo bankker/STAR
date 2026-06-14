@@ -9,7 +9,7 @@ import { initJobs } from './gateway/jobs.js';
 import { execute } from './gateway/gateway.js';
 import { initArtists } from './studio/artists.js';
 import { initConversations } from './studio/conversations.js';
-import { initAssets } from './studio/assets.js';
+import { initAssets, addAssets } from './studio/assets.js';
 
 export function bootstrap() {
   try {
@@ -18,7 +18,20 @@ export function bootstrap() {
     initLedger(path.join(LOGS_DIR, 'ai-usage.jsonl'));
     const cfg = loadConfig();
     if (cfg.costs) setPriceOverrides(cfg.costs);
-    initJobs({ file: path.join(DATA_DIR, 'jobs.json'), executeFn: execute });
+    const galleryExecutor = async (capability, request, opts) => {
+      const r = await execute(capability, request, opts);
+      if (request.artistId && Array.isArray(r.files) && r.files.length) {
+        try {
+          addAssets(request.artistId, r.files.map((f) => ({
+            type: capability === 'video' ? 'video' : 'photo',
+            url: f.url, prompt: request.prompt || '', aspect: request.aspect || '',
+            durationSec: r.durationSec || request.durationSec || null,
+          })));
+        } catch (e) { console.error('[jobs] 入画廊失败（忽略）', e.message); }
+      }
+      return r;
+    };
+    initJobs({ file: path.join(DATA_DIR, 'jobs.json'), executeFn: galleryExecutor });
     initArtists(path.join(DATA_DIR, 'artists.json'));
     initConversations(path.join(DATA_DIR, 'conversations'));
     initAssets(path.join(DATA_DIR, 'assets'));

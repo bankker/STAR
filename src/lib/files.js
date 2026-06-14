@@ -23,3 +23,13 @@ export function dataUrlToBuffer(dataUrl) {
   if (!m) throw new Error('无效的 dataUrl');
   return { mime: m[1], buf: Buffer.from(m[2], 'base64') };
 }
+
+export function generatedUrlToDataUrl(genDir, url) {
+  const m = /^\/generated\/([A-Za-z0-9_.-]+)$/.exec(url || '');
+  if (!m) return null;
+  const full = path.join(genDir, m[1]);
+  if (!fs.existsSync(full)) return null;
+  const ext = path.extname(full).slice(1).toLowerCase();
+  const mime = (ext === 'jpg' || ext === 'jpeg') ? 'image/jpeg' : (ext === 'mp4' ? 'video/mp4' : 'image/png');
+  return `data:${mime};base64,${fs.readFileSync(full).toString('base64')}`;
+}
