@@ -127,6 +127,7 @@ async function invokeImage(request, ctx) {
 }
 
 // 图像参考保人物（image_ref 锁脸）：refs[0] 作为基图，description_edit 保外观换景/重构图。单主体编辑。
+// 契约：仅 refs[0] 生效（多 ref 忽略）；n 固定 1；尺寸由基图决定（不接受 aspect/size，最终 9:16 由 compose 裁剪保证）。
 async function invokeImageRef(request, ctx, refs) {
   const submit = await ctx.fetchJson(IMGEDIT_SUBMIT, {
     headers: { ...auth(ctx.env), 'X-DashScope-Async': 'enable' }, timeoutMs: 30000,
