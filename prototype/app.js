@@ -1004,8 +1004,13 @@ const photoState = {
   shot: '近景',
   aspect: '3:4',
   count: 1,
-  filter: 'all',   // 'all' | 'favorite'
+  filter: 'all',   // 'all' | 'photo' | 'video' | 'favorite'
   generating: false,
+};
+
+/* ── Video Studio (P2b) ── */
+const videoState = {
+  durationSec: 5,
 };
 
 function initSegCtrl(id, onSelect) {
@@ -1033,6 +1038,7 @@ function updatePhotoArtistCard() {
 }
 
 function mediaTileHtml(asset) {
+  if (asset.type === 'video') return videoTileHtml(asset);
   const url = esc(asset.url);
   const id = esc(asset.id);
   const shot = esc(asset.shot || '');
@@ -1049,6 +1055,24 @@ function mediaTileHtml(asset) {
       </div>
     </div>
     <div class="media-tile-meta">${shot ? shot + (aspect ? ' · ' + aspect : '') : aspect}</div>
+  </div>`;
+}
+
+function videoTileHtml(asset) {
+  const url = esc(asset.url);
+  const id = esc(asset.id);
+  const dur = asset.durationSec ? `${esc(String(asset.durationSec))}s` : '';
+  const isFav = asset.favorite;
+  return `<div class="media-tile media-tile-video" data-asset-id="${id}">
+    <div class="media-tile-img-wrap media-tile-video-wrap">
+      <video src="${url}" controls preload="metadata" class="video-tile-player"></video>
+      <span class="media-tile-lock lock-badge lock-badge-video">⬡ 锁脸</span>
+      <div class="media-tile-actions">
+        <button class="tile-btn tile-fav${isFav ? ' faved' : ''}" data-id="${id}" title="${isFav ? '取消收藏' : '收藏'}">★</button>
+        <button class="tile-btn tile-del" data-id="${id}" title="删除">🗑</button>
+      </div>
+    </div>
+    <div class="media-tile-meta">🎬 视频${dur ? ' · ' + dur : ''}</div>
   </div>`;
 }
 
@@ -1085,12 +1109,17 @@ function renderGallery(assets) {
 
   let list = assets;
   if (photoState.filter === 'favorite') list = assets.filter((a) => a.favorite);
+  else if (photoState.filter === 'photo') list = assets.filter((a) => a.type !== 'video');
+  else if (photoState.filter === 'video') list = assets.filter((a) => a.type === 'video');
+
+  const emptyTitles = { favorite: '还没有收藏', photo: '还没有写真', video: '还没有视频' };
+  const emptyDescs = { favorite: '点击★收藏任意写真或视频。', photo: '左侧设置参数后点生成写真。', video: '左侧填写运镜后点生成视频。' };
 
   if (!list.length) {
     grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">
       <div class="icon">🖼️</div>
-      <div class="title">${photoState.filter === 'favorite' ? '还没有收藏' : '还没有写真'}</div>
-      <div class="desc">${photoState.filter === 'favorite' ? '点击★收藏任意写真。' : '左侧设置参数后点生成。'}</div>
+      <div class="title">${emptyTitles[photoState.filter] || '还没有内容'}</div>
+      <div class="desc">${emptyDescs[photoState.filter] || '左侧设置参数后点生成。'}</div>
     </div>`;
     return;
   }
@@ -1207,6 +1236,119 @@ function initPhotoStudio() {
   if (genBtn) genBtn.addEventListener('click', generatePhoto);
 }
 
+/* ── Video Studio (P2b) ── */
+
+/**
+ * Render an inline JobCard inside cardWrap for the given job data.
+ * Does not re-query the DOM for the wrap element — caller must pass it.
+ */
+function renderVideoJobCard(job, cardWrap) {
+  const isRunning = job.status === 'running' || job.status === 'queued';
+  const progress = Number(job.progress) || 0;
+  cardWrap.innerHTML = `<div class="job-card video-job-card">
+    <div style="display:flex;align-items:center;gap:10px;">
+      ${isRunning ? '<div class="job-spinner"></div>' : ''}
+      <div class="job-info">
+        <div class="job-cap">视频生成 · ${JOB_STATE[job.status] || esc(job.status)}</div>
+        ${job.stage ? `<div class="job-stage">${esc(job.stage)}</div>` : ''}
+      </div>
+      ${job.costEstimate ? `<div class="job-cost">预估 $${esc(String(job.costEstimate.estimatedUsd))}</div>` : ''}
+    </div>
+    <div class="job-progress">
+      <div class="progress-bar"><div class="fill" style="width:${progress}%"></div></div>
+    </div>
+    ${job.status === 'failed' && job.error ? `<div class="out" style="color:var(--err);">${esc(errText(job.error))}</div>` : ''}
+  </div>`;
+}
+
+/**
+ * Poll /api/jobs/:jobId every ~3s.
+ * On done: hide the card wrap, reload gallery.
+ * On failed: show error in card.
+ */
+function pollVideoJob(jobId, cardWrap) {
+  const intervalId = setInterval(async () => {
+    const data = await api(`/api/jobs/${encodeURIComponent(jobId)}`);
+    if (data.error || !data.job) return;
+    const job = data.job;
+    renderVideoJobCard(job, cardWrap);
+    if (job.status === 'done') {
+      clearInterval(intervalId);
+      toast('视频已生成，加载画廊…', 'ok');
+      setTimeout(() => {
+        cardWrap.classList.add('hidden');
+        loadGallery();
+      }, 1200);
+    } else if (job.status === 'failed' || job.status === 'interrupted') {
+      clearInterval(intervalId);
+      toast('视频生成失败', 'err');
+    }
+  }, 3000);
+}
+
+function initVideoStudio() {
+  // Duration segmented control
+  initSegCtrl('ctrl-video-duration', (v) => { videoState.durationSec = Number(v); });
+
+  const btn = $('#video-studio-btn');
+  if (!btn) return;
+
+  btn.addEventListener('click', async () => {
+    if (!state.currentArtistId) {
+      toast('请先选择一名艺人', 'err');
+      return;
+    }
+
+    // Require at least one photo in gallery
+    const galleryData = await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/gallery`);
+    const assets = (galleryData.error ? [] : galleryData.assets || []);
+    const hasPhoto = assets.some((a) => a.type !== 'video');
+    if (!hasPhoto) {
+      const msgEl = $('#video-gen-msg');
+      if (msgEl) { msgEl.textContent = '请先生成一张写真作为首帧'; msgEl.style.color = 'var(--warn)'; }
+      toast('请先生成一张写真作为首帧', 'err');
+      return;
+    }
+
+    const prompt = $('#video-motion-prompt') ? $('#video-motion-prompt').value.trim() : '';
+    const msgEl = $('#video-gen-msg');
+    const cardWrap = $('#video-job-card-wrap');
+
+    btn.disabled = true;
+    if (msgEl) { msgEl.textContent = ''; msgEl.style.color = ''; }
+    if (cardWrap) cardWrap.classList.add('hidden');
+
+    const result = await submitWithConfirm(
+      `/api/artist/${encodeURIComponent(state.currentArtistId)}/video`,
+      { prompt, durationSec: videoState.durationSec },
+      msgEl
+    );
+
+    btn.disabled = false;
+
+    if (!result || !result.jobId) return;
+
+    // Show inline JobCard and start polling
+    if (cardWrap) {
+      cardWrap.classList.remove('hidden');
+      // initial placeholder card
+      cardWrap.innerHTML = `<div class="job-card video-job-card">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="job-spinner"></div>
+          <div class="job-info">
+            <div class="job-cap">视频生成 · 排队</div>
+          </div>
+        </div>
+        <div class="job-progress">
+          <div class="progress-bar"><div class="fill" style="width:0%"></div></div>
+        </div>
+      </div>`;
+      pollVideoJob(result.jobId, cardWrap);
+    }
+    renderCostJobs();
+  });
+}
+
 /* ── Boot ── */
 function boot() {
   initRouter();
@@ -1215,6 +1357,7 @@ function boot() {
   initChatView();
   initSettings();
   initPhotoStudio();
+  initVideoStudio();
   initChat();
   initImage();
   initMusic();

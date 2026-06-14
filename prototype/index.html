@@ -378,7 +378,7 @@
           写真/视频
           <span class="pill s1">P2</span>
         </div>
-        <p class="text-sm text-ink-3 mt-8 mb-16">锁脸生成写真——通义万相，可收藏、单点重抽、画廊管理。</p>
+        <p class="text-sm text-ink-3 mt-8 mb-16">锁脸生成写真与视频——通义万相，可收藏、单点重抽、画廊管理。</p>
 
         <div class="photo-studio-layout">
           <!-- LEFT: Control panel -->
@@ -427,11 +427,47 @@
               <textarea id="photo-style-prompt" rows="3" placeholder="描述场景与情绪，例如：霓虹雨夜，赛博国风"></textarea>
             </div>
 
-            <!-- Generate button -->
+            <!-- Generate photo button -->
             <button class="btn btn-primary" id="photo-generate-btn" style="width:100%;justify-content:center;font-size:14px;padding:10px 16px;">
               ✦ 生成写真
             </button>
             <div id="photo-gen-msg" class="out"></div>
+
+            <!-- ─── Video sub-section ─── -->
+            <hr class="sep-line" style="margin:18px 0 14px;">
+
+            <div class="video-section-head">
+              <span class="label-upper">🎬 视频生成</span>
+            </div>
+
+            <!-- First-frame note -->
+            <div class="video-frame-note" id="video-frame-note">
+              以最新写真为首帧锁脸
+            </div>
+
+            <!-- 运镜 prompt -->
+            <div class="field mb-12" style="margin-top:10px;">
+              <div class="label-upper">运镜与动作</div>
+              <textarea id="video-motion-prompt" rows="3" placeholder="运镜与动作，例如：轻轻转头浅笑，镜头缓慢推进"></textarea>
+            </div>
+
+            <!-- 时长 segmented -->
+            <div class="field mb-16">
+              <div class="label-upper">时长</div>
+              <div class="seg-ctrl" id="ctrl-video-duration">
+                <button class="seg-btn active" data-val="5">5s</button>
+                <button class="seg-btn" data-val="10">10s</button>
+              </div>
+            </div>
+
+            <!-- Generate video button -->
+            <button class="btn btn-primary" id="video-studio-btn" style="width:100%;justify-content:center;font-size:14px;padding:10px 16px;">
+              ✦ 生成视频
+            </button>
+            <div id="video-gen-msg" class="out"></div>
+
+            <!-- Inline JobCard for video polling -->
+            <div id="video-job-card-wrap" class="hidden" style="margin-top:12px;"></div>
           </div>
 
           <!-- RIGHT: Gallery -->
@@ -439,6 +475,8 @@
             <!-- Filter chips -->
             <div class="photo-filter-row" id="photo-filter-row">
               <span class="chip active" data-filter="all">全部</span>
+              <span class="chip" data-filter="photo">写真</span>
+              <span class="chip" data-filter="video">视频</span>
               <span class="chip" data-filter="favorite">收藏</span>
             </div>
 
