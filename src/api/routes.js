@@ -8,6 +8,10 @@ import { loadConfig, updateConfig, listProviders } from '../gateway/registry.js'
 import { setEnvKey } from '../lib/env.js';
 import { generatedUrlToDataUrl } from '../lib/files.js';
 import { ENV_FILE, GENERATED_DIR } from '../lib/paths.js';
+import { buildPlanMessages, buildScriptMessages, extractDialogue } from '../studio/interview.js';
+import { ffmpegAvailable, runFfmpeg, probeDurationSec, buildSrt } from '../lib/ffmpeg.js';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   createArtist, listArtists, getArtist, updateArtist, deleteArtist, addPortrait,
 } from '../studio/artists.js';
@@ -18,9 +22,12 @@ import {
 } from '../studio/artist-create.js';
 import { getGallery, addAssets, toggleFavorite, removeAsset } from '../studio/assets.js';
 import { buildBlueprintMessages, extractBlueprint, blueprintToRenderReq } from '../studio/music.js';
+import os from 'node:os';
 
 const MAX_BODY = 1 * 1024 * 1024;
 const MAX_MEDIA_BODY = 32 * 1024 * 1024;
+
+function stripFence(t) { return String(t).trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, ''); }
 // NOTE: 精确匹配——若未来新增子路径端点（如 /api/ai/image/variations）需扩展此集合
 const MEDIA_BODY_PATHS = new Set(['/api/ai/asr', '/api/ai/image', '/api/ai/video', '/api/ai/music']);
 
@@ -376,6 +383,87 @@ export function registerRoutes(route) {
                              : { title: b.title || '', lyrics: b.lyrics || '', style: b.style || '', gender: blueprintToRenderReq({}, artist).gender };
       return { artistId: params.id, lyrics: rr.lyrics, prompt: rr.style, style: rr.style, gender: rr.gender, title: rr.title };
     });
+  });
+
+  route('POST /api/artist/:id/interview/plan', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    if (!artist) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    try {
+      const { system, messages } = buildPlanMessages(artist, body.topic);
+      const r = await execute('content', { system, messages, maxTokens: 1000 });
+      let plan; try { plan = JSON.parse(stripFence(r.text)); } catch { return jsonError(res, 'provider_error', '企划解析失败'); }
+      json(res, { plan });
+    } catch (e) { sendGatewayError(res, e); }
+  });
+
+  route('POST /api/artist/:id/interview/script', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    if (!artist) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    try {
+      const { system, messages } = buildScriptMessages(artist, body.plan || {});
+      const r = await execute('content', { system, messages, maxTokens: 2000 });
+      let dialogue; try { dialogue = extractDialogue(r.text); } catch (e) { return jsonError(res, 'provider_error', `脚本解析失败：${e.message}`); }
+      json(res, { dialogue });
+    } catch (e) { sendGatewayError(res, e); }
+  });
+
+  route('POST /api/artist/:id/interview/compose', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    if (!artist) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    const dialogue = Array.isArray(body.dialogue) ? body.dialogue : null;
+    if (!dialogue || !dialogue.length) return jsonError(res, 'bad_request', 'dialogue 必填');
+    if (dialogue.length > 30) return jsonError(res, 'bad_request', '每次合成最多 30 行对话');
+    if (dialogue.some((l) => String(l?.text || '').length > 300)) return jsonError(res, 'bad_request', '单行台词不超过 300 字');
+    if (!ffmpegAvailable()) return jsonError(res, 'bad_request', '未检测到 ffmpeg，请安装后重启服务');
+    const frame = getGallery(params.id).assets.find((a) => a.type === 'photo')?.url || artist.portraits?.[0]?.url;
+    if (!frame) return jsonError(res, 'bad_request', '请先为该艺人生成一张写真作为画面');
+
+    res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+    const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'iv_'));
+    try {
+      send('stage', { stage: 'audio', progress: 5, msg: '配音中' });
+      const artistVoice = (artist.gender || '').match(/男|male/i) ? 'Ethan' : 'Cherry';
+      const segs = [];
+      for (let i = 0; i < dialogue.length; i++) {
+        const line = dialogue[i];
+        const voice = line.speaker === '记者' ? 'Chelsie' : artistVoice;
+        const r = await execute('tts', { text: line.text, voice });
+        const url = r.files?.[0]?.url;
+        if (!url) throw new Error('TTS 未返回音频');
+        const abs = path.join(GENERATED_DIR, url.replace('/generated/', ''));
+        segs.push({ text: line.text, file: abs, durationSec: probeDurationSec(abs) });
+        send('stage', { stage: 'audio', progress: 5 + Math.round((i + 1) / dialogue.length * 60), msg: `配音 ${i + 1}/${dialogue.length}` });
+      }
+      send('stage', { stage: 'subtitle', progress: 68, msg: '生成字幕与音轨' });
+      const listFile = path.join(tmp, 'list.txt');
+      fs.writeFileSync(listFile, segs.map((s) => `file '${s.file.replace(/\\/g, '/')}'`).join('\n'));
+      const audioOut = path.join(tmp, 'audio.mp3');
+      // TTS 产物为 PCM/wav，concat 后重编码为 mp3（-c copy 无法把 PCM 塞进 mp3 容器）
+      runFfmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', listFile, '-c:a', 'libmp3lame', '-ar', '44100', audioOut]);
+      const srtFile = path.join(tmp, 'sub.srt');
+      fs.writeFileSync(srtFile, buildSrt(segs));
+      send('stage', { stage: 'final', progress: 80, msg: '合成成片' });
+      const frameAbs = path.join(GENERATED_DIR, frame.replace('/generated/', ''));
+      const name = `iv_${Date.now()}.mp4`;
+      const outAbs = path.join(GENERATED_DIR, name);
+      const srtEsc = srtFile.replace(/\\/g, '/').replace(/:/g, '\\:');
+      runFfmpeg(['-y', '-loop', '1', '-i', frameAbs, '-i', audioOut,
+        '-vf', `scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,subtitles='${srtEsc}'`,
+        '-c:v', 'libx264', '-tune', 'stillimage', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', outAbs], 300000);
+      const totalSec = segs.reduce((a, s) => a + s.durationSec, 0);
+      addAssets(params.id, [{ type: 'interview', url: `/generated/${name}`, prompt: '访谈成片', durationSec: Math.round(totalSec), title: '访谈节目' }]);
+      send('done', { url: `/generated/${name}`, durationSec: Math.round(totalSec) });
+    } catch (e) {
+      if (e instanceof GatewayError) { send('error', e.toJSON()); }
+      else { console.error('[interview] 合成失败', e.message); send('error', { code: 'internal', message: '成片合成失败，请重试' }); }
+    } finally {
+      try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
+      res.end();
+    }
   });
 
   route('POST /api/artist/:id/gallery/:assetId/favorite', async (req, res, { params }) => {

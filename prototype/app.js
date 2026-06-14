@@ -101,6 +101,18 @@ function switchView(viewId) {
       if (studioArea) studioArea.classList.add('hidden');
     }
   }
+  if (viewId === 'interview') {
+    const noArtist = $('#interview-no-artist');
+    const studioArea = $('#interview-studio-area');
+    if (state.currentArtistId) {
+      if (noArtist) noArtist.classList.add('hidden');
+      if (studioArea) studioArea.classList.remove('hidden');
+      loadInterviewLibrary();
+    } else {
+      if (noArtist) noArtist.classList.remove('hidden');
+      if (studioArea) studioArea.classList.add('hidden');
+    }
+  }
 }
 
 function initRouter() {
@@ -405,6 +417,7 @@ function renderArtistPicker(artists) {
         if (state.currentView === 'companion') renderCompanionView();
         if (state.currentView === 'photo-video') { updatePhotoArtistCard(); loadGallery(); }
         if (state.currentView === 'music') { switchView('music'); }
+        if (state.currentView === 'interview') { switchView('interview'); }
       });
     });
   }
@@ -1602,6 +1615,355 @@ function initMusicStudio() {
   }
 }
 
+/* ── Interview Studio (S5) ── */
+const interviewState = { plan: null, dialogue: null };
+
+/**
+ * The 5 pipeline stages in order (backend names).
+ * Map: script (done once dialogue exists), audio, subtitle, visual, final.
+ */
+const INTERVIEW_STAGES = ['script', 'audio', 'subtitle', 'visual', 'final'];
+
+/**
+ * Update the stepper dots: done / cur / pending.
+ * stagesDone = set of completed stage names.
+ * curStage   = name of current active stage (or null).
+ */
+function updateInterviewStepper(stagesDone, curStage) {
+  const steps = $$('#interview-stepper .stepper-step');
+  let pastCur = false;
+  steps.forEach((step) => {
+    const s = step.dataset.stage;
+    const dot = step.querySelector('.stepper-dot');
+    dot.className = 'stepper-dot';
+    if (stagesDone.has(s)) {
+      dot.classList.add('done');
+      dot.textContent = '✓';
+    } else if (s === curStage && !pastCur) {
+      dot.classList.add('cur');
+      dot.textContent = '';
+      pastCur = true;
+    } else {
+      dot.classList.add('pending');
+      dot.textContent = '';
+    }
+  });
+}
+
+/**
+ * Render the editable dialogue rows from an array of {speaker, text}.
+ */
+function renderDialogueRows(dialogue) {
+  const container = $('#interview-dialogue-rows');
+  if (!container) return;
+  container.innerHTML = dialogue
+    .map((line, i) => {
+      const spk = esc(line.speaker);
+      const txt = esc(line.text);
+      return `<div class="dialogue-row" data-idx="${i}">
+        <span class="dialogue-speaker-badge">${spk}</span>
+        <textarea class="dialogue-text-input" rows="2" data-idx="${i}">${txt}</textarea>
+        <button class="tile-btn dialogue-del-btn" data-idx="${i}" title="删除">✕</button>
+      </div>`;
+    })
+    .join('');
+
+  // Bind delete buttons
+  container.querySelectorAll('.dialogue-del-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const idx = Number(btn.dataset.idx);
+      interviewState.dialogue.splice(idx, 1);
+      renderDialogueRows(interviewState.dialogue);
+    });
+  });
+}
+
+/**
+ * Read current dialogue from the editable rows back into an array.
+ */
+function readDialogueRows() {
+  const rows = $$('#interview-dialogue-rows .dialogue-row');
+  const result = [];
+  rows.forEach((row) => {
+    const badge = row.querySelector('.dialogue-speaker-badge');
+    const textarea = row.querySelector('.dialogue-text-input');
+    if (!badge || !textarea) return;
+    const text = textarea.value.trim();
+    if (text) result.push({ speaker: badge.textContent, text });
+  });
+  return result;
+}
+
+/**
+ * Load interview assets (type==='interview') into the library grid.
+ */
+async function loadInterviewLibrary() {
+  const grid = $('#interview-library-grid');
+  if (!grid) return;
+  if (!state.currentArtistId) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">
+      <div class="icon">🎬</div>
+      <div class="title">请先选择艺人</div>
+    </div>`;
+    return;
+  }
+  const data = await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/gallery`);
+  if (data.error) return;
+  const interviews = (data.assets || []).filter((a) => a.type === 'interview');
+  if (!interviews.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">
+      <div class="icon">🎬</div>
+      <div class="title">还没有成片</div>
+      <div class="desc">完成上方流程后，成片将自动存入此处。</div>
+    </div>`;
+    return;
+  }
+  grid.innerHTML = interviews.map((v) => {
+    const url = esc(v.url);
+    const id = esc(v.id);
+    const dur = v.durationSec ? `${esc(String(v.durationSec))}s` : '';
+    const title = esc(v.title || '访谈成片');
+    return `<div class="interview-video-tile">
+      <video src="${url}" controls preload="metadata" class="interview-tile-player"></video>
+      <div class="interview-tile-meta">
+        <span class="interview-tile-title">${title}</span>
+        ${dur ? `<span class="text-ink-3">${dur}</span>` : ''}
+        <button class="tile-btn tile-del" data-id="${id}" title="删除">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  grid.querySelectorAll('.tile-del').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!state.currentArtistId) return;
+      if (!confirm('确认删除这个成片？')) return;
+      await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/gallery/${encodeURIComponent(btn.dataset.id)}`, undefined, 'DELETE');
+      loadInterviewLibrary();
+    });
+  });
+}
+
+function initInterviewStudio() {
+  // ── Plan generation ──
+  const planBtn = $('#interview-plan-btn');
+  if (planBtn) {
+    planBtn.addEventListener('click', async () => {
+      if (!state.currentArtistId) {
+        toast('请先选择一名艺人', 'err');
+        return;
+      }
+      const topic = $('#interview-topic') ? $('#interview-topic').value.trim() : '';
+      if (!topic) {
+        toast('请输入访谈主题', 'err');
+        return;
+      }
+      const msgEl = $('#interview-plan-msg');
+      planBtn.disabled = true;
+      if (msgEl) { msgEl.textContent = '生成企划中…'; msgEl.style.color = ''; }
+
+      const r = await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/interview/plan`, { topic });
+      planBtn.disabled = false;
+
+      if (r.error) {
+        if (msgEl) { msgEl.textContent = errText(r.error); msgEl.style.color = 'var(--err)'; }
+        toast(errText(r.error), 'err');
+        return;
+      }
+
+      if (msgEl) { msgEl.textContent = ''; }
+      interviewState.plan = r.plan;
+
+      // Fill 企划卡
+      const angleEl = $('#interview-plan-angle');
+      if (angleEl) angleEl.textContent = r.plan.angle || '';
+      const qList = $('#interview-plan-questions');
+      if (qList) {
+        qList.innerHTML = (r.plan.questions || [])
+          .map((q) => `<li>${esc(q)}</li>`)
+          .join('');
+      }
+
+      // Show plan card
+      const planCard = $('#interview-plan-card');
+      if (planCard) planCard.classList.remove('hidden');
+
+      toast('访谈企划已生成', 'ok');
+    });
+  }
+
+  // ── Script generation ──
+  const scriptBtn = $('#interview-script-btn');
+  if (scriptBtn) {
+    scriptBtn.addEventListener('click', async () => {
+      if (!state.currentArtistId || !interviewState.plan) {
+        toast('请先生成访谈企划', 'err');
+        return;
+      }
+      const msgEl = $('#interview-script-msg');
+      scriptBtn.disabled = true;
+      if (msgEl) { msgEl.textContent = '生成脚本中…'; msgEl.style.color = ''; }
+
+      const r = await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/interview/script`, { plan: interviewState.plan });
+      scriptBtn.disabled = false;
+
+      if (r.error) {
+        if (msgEl) { msgEl.textContent = errText(r.error); msgEl.style.color = 'var(--err)'; }
+        toast(errText(r.error), 'err');
+        return;
+      }
+
+      if (msgEl) { msgEl.textContent = ''; }
+      interviewState.dialogue = r.dialogue || [];
+      renderDialogueRows(interviewState.dialogue);
+
+      // Show script card
+      const scriptCard = $('#interview-script-card');
+      if (scriptCard) scriptCard.classList.remove('hidden');
+
+      toast('脚本已生成，可编辑后合成', 'ok');
+    });
+  }
+
+  // ── Compose (SSE) ──
+  const composeBtn = $('#interview-compose-btn');
+  if (composeBtn) {
+    composeBtn.addEventListener('click', async () => {
+      if (!state.currentArtistId) {
+        toast('请先选择一名艺人', 'err');
+        return;
+      }
+
+      // Require at least one photo
+      const galleryData = await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/gallery`);
+      const assets = galleryData.error ? [] : (galleryData.assets || []);
+      const hasPhoto = assets.some((a) => a.type === 'photo' || (a.type !== 'video' && a.type !== 'song' && a.type !== 'interview'));
+      const noticeEl = $('#interview-photo-notice');
+      if (!hasPhoto) {
+        if (noticeEl) noticeEl.classList.remove('hidden');
+        toast('请先在写真页生成一张写真作为画面', 'err');
+        return;
+      }
+      if (noticeEl) noticeEl.classList.add('hidden');
+
+      // Read edited dialogue from rows
+      const dialogue = readDialogueRows();
+      if (!dialogue.length) {
+        toast('逐字稿为空，请先生成脚本', 'err');
+        return;
+      }
+
+      const msgEl = $('#interview-compose-msg');
+      composeBtn.disabled = true;
+      if (msgEl) { msgEl.textContent = ''; }
+
+      // Show stepper card, hide result card
+      const stepperCard = $('#interview-stepper-card');
+      const resultCard = $('#interview-result-card');
+      if (stepperCard) stepperCard.classList.remove('hidden');
+      if (resultCard) resultCard.classList.add('hidden');
+
+      // Stage 0: script is already done (we have dialogue)
+      const stagesDone = new Set(['script']);
+      updateInterviewStepper(stagesDone, 'audio');
+      const progressFill = $('#interview-progress-fill');
+      const stageMsgEl = $('#interview-stage-msg');
+      if (progressFill) progressFill.style.width = '20%';
+      if (stageMsgEl) stageMsgEl.textContent = '脚本已就绪，开始配音…';
+
+      try {
+        const res = await fetch(
+          `/api/artist/${encodeURIComponent(state.currentArtistId)}/interview/compose`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dialogue }) }
+        );
+
+        if (!res.ok || !res.body) {
+          const err = await res.json().catch(() => ({ error: { code: 'bad_response', message: `HTTP ${res.status}` } }));
+          composeBtn.disabled = false;
+          if (msgEl) { msgEl.textContent = errText(err.error || err); msgEl.style.color = 'var(--err)'; }
+          if (stepperCard) stepperCard.classList.add('hidden');
+          return;
+        }
+
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let carry = '';
+        let done = false;
+
+        // Stage → index map for progress calculation
+        const stageOrder = { script: 0, audio: 1, subtitle: 2, visual: 3, final: 4 };
+        const totalStages = 5;
+
+        while (!done) {
+          const { done: rdDone, value } = await reader.read();
+          if (rdDone) break;
+          carry += dec.decode(value, { stream: true });
+          let i;
+          while ((i = carry.indexOf('\n\n')) >= 0) {
+            const block = carry.slice(0, i);
+            carry = carry.slice(i + 2);
+            const ev = (block.match(/^event: (.*)$/m) || [])[1];
+            const dataLine = (block.match(/^data: (.*)$/m) || [])[1];
+            if (!dataLine) continue;
+            let payload;
+            try { payload = JSON.parse(dataLine); } catch { continue; }
+
+            if (ev === 'stage') {
+              const stage = payload.stage;
+              // Mark previous stages as done
+              const idx = stageOrder[stage] ?? 0;
+              for (const [s, si] of Object.entries(stageOrder)) {
+                if (si < idx) stagesDone.add(s);
+              }
+              updateInterviewStepper(stagesDone, stage);
+              const pct = Math.round(((idx + 0.5) / totalStages) * 100);
+              if (progressFill) progressFill.style.width = `${pct}%`;
+              if (stageMsgEl) stageMsgEl.textContent = payload.msg || stage;
+
+            } else if (ev === 'done') {
+              done = true;
+              // All stages done
+              INTERVIEW_STAGES.forEach((s) => stagesDone.add(s));
+              updateInterviewStepper(stagesDone, null);
+              if (progressFill) progressFill.style.width = '100%';
+              if (stageMsgEl) stageMsgEl.textContent = '合成完成！';
+
+              // Show result video
+              const videoEl = $('#interview-result-video');
+              if (videoEl && payload.url) videoEl.src = esc(payload.url);
+              if (resultCard) resultCard.classList.remove('hidden');
+
+              // Reload library
+              await loadInterviewLibrary();
+              toast('访谈成片已生成，已存入作品库', 'ok');
+
+            } else if (ev === 'error') {
+              done = true;
+              composeBtn.disabled = false;
+              if (msgEl) { msgEl.textContent = errText(payload); msgEl.style.color = 'var(--err)'; }
+              if (stepperCard) stepperCard.classList.add('hidden');
+              toast(payload.message || '合成失败', 'err');
+            }
+          }
+        }
+
+        composeBtn.disabled = false;
+
+      } catch (e) {
+        composeBtn.disabled = false;
+        if (msgEl) { msgEl.textContent = `连接失败：${esc(e.message)}`; msgEl.style.color = 'var(--err)'; }
+        if (stepperCard) stepperCard.classList.add('hidden');
+        toast(`合成失败：${e.message}`, 'err');
+      }
+    });
+  }
+
+  // ── Library refresh ──
+  const libRefreshBtn = $('#interview-library-refresh');
+  if (libRefreshBtn) {
+    libRefreshBtn.addEventListener('click', () => loadInterviewLibrary());
+  }
+}
+
 /* ── Boot ── */
 function boot() {
   initRouter();
@@ -1612,6 +1974,7 @@ function boot() {
   initPhotoStudio();
   initVideoStudio();
   initMusicStudio();
+  initInterviewStudio();
   initChat();
   initImage();
   initMusic();
