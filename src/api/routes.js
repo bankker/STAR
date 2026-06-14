@@ -739,7 +739,7 @@ export function registerRoutes(route) {
     const artist = getArtist(params.id);
     const d = getDrama(params.did);
     if (!artist || !d || d.artistId !== params.id) return jsonError(res, 'not_found', '无此短剧');
-    if (!ffmpegAvailable()) return jsonError(res, 'bad_request', '未检测到 ffmpeg');
+    if (!ffmpegAvailable()) return jsonError(res, 'bad_request', '未检测到 ffmpeg，请安装后重启服务');
     const done = d.episodes.filter((e) => e.episodeUrl);
     if (!done.length) return jsonError(res, 'bad_request', '尚无已成片的分集');
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'drc_'));
@@ -749,13 +749,14 @@ export function registerRoutes(route) {
       const name = `drc_${Date.now()}.mp4`;
       const outAbs = path.join(GENERATED_DIR, name);
       runFfmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', list, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', outAbs], 600000);
-      const totalSec = done.reduce((a, e) => a + (e.durationSec || 0), 0);
+      const totalSec = Math.round(done.reduce((a, e) => a + (e.durationSec || 0), 0));
       addAssets(params.id, [{ type: 'drama', url: `/generated/${name}`, durationSec: totalSec, title: `${d.title} · 连播合集` }]);
       const drama = updateDrama(params.did, { collectionUrl: `/generated/${name}`, status: 'done' });
       json(res, { url: `/generated/${name}`, drama });
     } catch (e) {
+      // ffmpeg 报错可能含路径，发给客户端用通用文案（沿用 S5 加固）；状态用 500（非 SSE 端点）
       console.error('[drama] 连播失败', e.message);
-      jsonError(res, 'internal', '连播合集生成失败');
+      json(res, { error: { code: 'internal', message: '连播合集生成失败' } }, 500);
     } finally { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} }
   });
 
