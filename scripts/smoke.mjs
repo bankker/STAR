@@ -157,6 +157,10 @@ try {
   ok('嘉宾列表可读', gstList.status === 200 && Array.isArray(gstList.data.guests));
   const ivAskMiss = await call(`/api/artist/${created.data.id}/interview2/nope/ask`, {});
   ok('ask 未知会话→not_found', ivAskMiss.status === 200 && ivAskMiss.data.error?.code === 'not_found', ivAskMiss.data.error?.code);
+  const recMiss = await call(`/api/artist/${created.data.id}/interview2/nope/record`, {});
+  ok('record 未知会话→not_found', recMiss.status === 200 && recMiss.data.error?.code === 'not_found', recMiss.data.error?.code);
+  const vidMiss2 = await call(`/api/artist/${created.data.id}/interview2/nope/video`, {});
+  ok('video 未知会话→not_found', vidMiss2.status === 200 && vidMiss2.data.error?.code === 'not_found', vidMiss2.data.error?.code);
 
   const del = await call(`/api/artist/${created.data.id}`, undefined, 'DELETE');
   ok('artist 删除', del.status === 200 && del.data.ok === true);
