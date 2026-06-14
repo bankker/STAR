@@ -57,7 +57,7 @@ const VIEW_TITLES = {
   'photo-video': '写真/视频',
   'music': '音乐工坊',
   'interview': '访谈成片',
-  'shorts': '短片/短剧',
+  'drama': '短剧工坊',
   'health': '能力健康',
   'cost': '成本账本',
   'settings': '设置',
@@ -108,6 +108,18 @@ function switchView(viewId) {
       if (noArtist) noArtist.classList.add('hidden');
       if (studioArea) studioArea.classList.remove('hidden');
       loadInterviewLibrary();
+    } else {
+      if (noArtist) noArtist.classList.remove('hidden');
+      if (studioArea) studioArea.classList.add('hidden');
+    }
+  }
+  if (viewId === 'drama') {
+    const noArtist = $('#drama-no-artist');
+    const studioArea = $('#drama-studio-area');
+    if (state.currentArtistId) {
+      if (noArtist) noArtist.classList.add('hidden');
+      if (studioArea) studioArea.classList.remove('hidden');
+      enterDramaProjectList();
     } else {
       if (noArtist) noArtist.classList.remove('hidden');
       if (studioArea) studioArea.classList.add('hidden');
@@ -1065,6 +1077,7 @@ function updatePhotoArtistCard() {
 
 function mediaTileHtml(asset) {
   if (asset.type === 'video') return videoTileHtml(asset);
+  if (asset.type === 'drama') return dramaTileHtml(asset);
   const url = esc(asset.url);
   const id = esc(asset.id);
   const shot = esc(asset.shot || '');
@@ -1099,6 +1112,25 @@ function videoTileHtml(asset) {
       </div>
     </div>
     <div class="media-tile-meta">🎬 视频${dur ? ' · ' + dur : ''}</div>
+  </div>`;
+}
+
+function dramaTileHtml(asset) {
+  const url = esc(asset.url);
+  const id = esc(asset.id);
+  const dur = asset.durationSec ? `${esc(String(asset.durationSec))}s` : '';
+  const title = esc(asset.title || '短剧');
+  const isFav = asset.favorite;
+  return `<div class="media-tile media-tile-video" data-asset-id="${id}">
+    <div class="media-tile-img-wrap media-tile-video-wrap">
+      <video src="${url}" controls preload="metadata" class="video-tile-player"></video>
+      <span class="media-tile-lock lock-badge lock-badge-video">🎞️ 短剧</span>
+      <div class="media-tile-actions">
+        <button class="tile-btn tile-fav${isFav ? ' faved' : ''}" data-id="${id}" title="${isFav ? '取消收藏' : '收藏'}">★</button>
+        <button class="tile-btn tile-del" data-id="${id}" title="删除">🗑</button>
+      </div>
+    </div>
+    <div class="media-tile-meta">🎞️ ${title}${dur ? ' · ' + dur : ''}</div>
   </div>`;
 }
 
@@ -1964,6 +1996,698 @@ function initInterviewStudio() {
   }
 }
 
+/* ════════════════════════════════════════════════════════
+   短剧工坊 (S6 Drama Studio) — 7-stage pipeline
+   立项 → 剧本 → 选角 → 分镜 → 出片 → 成片 → 连播
+   ════════════════════════════════════════════════════════ */
+
+const dramaState = {
+  drama: null,
+  episodeCount: 2,
+  durationSec: 30,
+  busy: false,
+};
+
+const DRAMA_STAGES = ['project', 'script', 'cast', 'storyboard', 'compose', 'final', 'collection'];
+
+/** Build the artist base path; null if no artist. */
+function dramaBase() {
+  if (!state.currentArtistId) return null;
+  return `/api/artist/${encodeURIComponent(state.currentArtistId)}/drama`;
+}
+
+/**
+ * Generic SSE POST reader (mirrors interview compose).
+ * Resolves when the stream ends. Calls onStage(payload)/onDone(payload)/onError(payload).
+ * Returns true if a `done` event was seen, false otherwise.
+ */
+async function dramaSSE(path, body, { onStage, onDone, onError } = {}) {
+  let res;
+  try {
+    res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {}),
+    });
+  } catch (e) {
+    if (onError) onError({ code: 'network', message: e.message });
+    return false;
+  }
+  if (!res.ok || !res.body) {
+    const err = await res.json().catch(() => ({ error: { code: 'bad_response', message: `HTTP ${res.status}` } }));
+    if (onError) onError(err.error || err);
+    return false;
+  }
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let carry = '';
+  let sawDone = false;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    carry += dec.decode(value, { stream: true });
+    let i;
+    while ((i = carry.indexOf('\n\n')) >= 0) {
+      const block = carry.slice(0, i);
+      carry = carry.slice(i + 2);
+      const ev = (block.match(/^event: (.*)$/m) || [])[1];
+      const dataLine = (block.match(/^data: (.*)$/m) || [])[1];
+      if (!dataLine) continue;
+      let payload;
+      try { payload = JSON.parse(dataLine); } catch { continue; }
+      if (ev === 'stage') { if (onStage) onStage(payload); }
+      else if (ev === 'done') { sawDone = true; if (onDone) await onDone(payload); }   // onDone 可能 async（成片后拉取最新 drama），需 await 以保证顺序
+      else if (ev === 'error') { if (onError) onError(payload); }
+    }
+  }
+  return sawDone;
+}
+
+/** Update the 7-stage stepper from current drama state. */
+function updateDramaStepper(drama) {
+  const done = new Set(['project']);
+  let cur = 'script';
+  if (drama) {
+    done.add('project');
+    if ((drama.episodes || []).length) done.add('script');
+    // cast done if all non-lead cast have a portrait
+    const support = (drama.cast || []).filter((c) => !c.isLead);
+    const castDone = support.length > 0 && support.every((c) => c.portrait && c.portrait.current >= 0);
+    if (castDone) done.add('cast');
+    // storyboard done if every scene has a frame
+    const eps = drama.episodes || [];
+    const allScenes = eps.flatMap((e) => e.scenes || []);
+    const sbDone = allScenes.length > 0 && allScenes.every((s) => s.frame && s.frame.current >= 0);
+    if (sbDone) done.add('storyboard');
+    // compose done if any episode composed
+    const anyComposed = eps.some((e) => e.episodeUrl);
+    if (anyComposed) { done.add('compose'); done.add('final'); }
+    if (drama.collectionUrl) done.add('collection');
+    // current = first not-done stage
+    cur = DRAMA_STAGES.find((s) => !done.has(s)) || null;
+  }
+  const steps = $$('#drama-stepper .stepper-step');
+  let pastCur = false;
+  steps.forEach((step) => {
+    const s = step.dataset.stage;
+    const dot = step.querySelector('.stepper-dot');
+    dot.className = 'stepper-dot';
+    if (done.has(s)) { dot.classList.add('done'); dot.textContent = '✓'; }
+    else if (s === cur && !pastCur) { dot.classList.add('cur'); dot.textContent = ''; pastCur = true; }
+    else { dot.classList.add('pending'); dot.textContent = ''; }
+  });
+}
+
+/** Show the project list / 立项 pane; hide the work pane. */
+function enterDramaProjectList() {
+  dramaState.drama = null;
+  const proj = $('#drama-project-pane');
+  const work = $('#drama-work-pane');
+  if (proj) proj.classList.remove('hidden');
+  if (work) work.classList.add('hidden');
+  loadDramaList();
+}
+
+/** GET dramas list and render cards. */
+async function loadDramaList() {
+  const grid = $('#drama-list-grid');
+  if (!grid) return;
+  const base = dramaBase();
+  if (!base) { grid.innerHTML = ''; return; }
+  const data = await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/dramas`);
+  if (data.error) { grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="icon">🎞️</div><div class="title">${esc(errText(data.error))}</div></div>`; return; }
+  const dramas = data.dramas || [];
+  if (!dramas.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">
+      <div class="icon">🎞️</div>
+      <div class="title">还没有短剧</div>
+      <div class="desc">在上方填写题材与集数，立项一部新短剧。</div>
+    </div>`;
+    return;
+  }
+  grid.innerHTML = dramas.map((d) => {
+    const eps = (d.episodes || []).length;
+    const composed = (d.episodes || []).filter((e) => e.episodeUrl).length;
+    return `<div class="drama-list-card" data-did="${esc(d.id)}">
+      <div class="drama-list-title">${esc(d.title || '未命名短剧')}</div>
+      <div class="drama-list-meta">${esc(d.theme || '')}</div>
+      <div class="drama-list-tags">
+        <span class="pill dim">${eps} 集</span>
+        ${composed ? `<span class="pill ok">已出片 ${composed}</span>` : '<span class="pill dim">未出片</span>'}
+        ${d.collectionUrl ? '<span class="pill s2">已连播</span>' : ''}
+      </div>
+    </div>`;
+  }).join('');
+  grid.querySelectorAll('.drama-list-card').forEach((card) => {
+    card.addEventListener('click', () => openDrama(card.dataset.did));
+  });
+}
+
+/** GET drama detail and switch to work pane. */
+async function openDrama(did) {
+  const base = dramaBase();
+  if (!base) return;
+  const data = await api(`${base}/${encodeURIComponent(did)}`);
+  if (data.error) { toast(errText(data.error), 'err'); return; }
+  dramaState.drama = data.drama;
+  const proj = $('#drama-project-pane');
+  const work = $('#drama-work-pane');
+  if (proj) proj.classList.add('hidden');
+  if (work) work.classList.remove('hidden');
+  renderDrama(data.drama);
+}
+
+/** Master render: header, stepper, and all stage panels. */
+function renderDrama(drama) {
+  dramaState.drama = drama;
+  if (!drama) return;
+
+  // Header
+  const titleEl = $('#drama-work-title');
+  if (titleEl) titleEl.textContent = drama.title || '未命名短剧';
+  const themeEl = $('#drama-work-theme');
+  if (themeEl) themeEl.textContent = drama.theme || '';
+  const cpill = $('#drama-consistency-pill');
+  if (cpill) {
+    if (drama.consistencyMode === 'image_ref') cpill.textContent = '已启用图像参考锁脸';
+    else cpill.textContent = '当前为描述级一致性';
+  }
+
+  updateDramaStepper(drama);
+  renderDramaScript(drama);
+  renderDramaCast(drama);
+  renderDramaStoryboard(drama);
+  renderDramaCompose(drama);
+  renderDramaCollection(drama);
+}
+
+/* ── 剧本 stage ── */
+function renderDramaScript(drama) {
+  const loglineEl = $('#drama-edit-logline');
+  if (loglineEl) loglineEl.value = drama.logline || '';
+
+  // cast summary (read-only cards)
+  const castWrap = $('#drama-cast-summary');
+  if (castWrap) {
+    castWrap.innerHTML = (drama.cast || []).map((c) => `
+      <div class="drama-cast-card">
+        <div class="drama-cast-name">${esc(c.name)} ${c.isLead ? '<span class="pill s2">主演</span>' : '<span class="pill dim">配角</span>'}</div>
+        <div class="drama-cast-role">${esc(c.role || '')}</div>
+        <div class="drama-cast-appearance">${esc(c.appearance || '')}</div>
+      </div>`).join('');
+  }
+
+  // scenes editable
+  const scenesWrap = $('#drama-scenes-edit');
+  if (scenesWrap) {
+    scenesWrap.innerHTML = (drama.episodes || []).map((ep) => `
+      <div class="drama-ep-block">
+        <div class="drama-ep-head">第 ${esc(String(ep.index))} 集 · ${esc(ep.title || '')}</div>
+        ${(ep.scenes || []).map((sc) => `
+          <div class="drama-scene-edit" data-eid="${esc(ep.id)}" data-sid="${esc(sc.id)}">
+            <div class="drama-scene-head">场景 ${esc(String(sc.index))} · ${esc(sc.setting || '')}</div>
+            <div class="field mb-8">
+              <div class="label-upper">动作</div>
+              <textarea class="dialogue-text-input drama-scene-action" rows="2">${esc(sc.action || '')}</textarea>
+            </div>
+            <div class="label-upper mb-4">台词</div>
+            <div class="drama-lines">
+              ${(sc.lines || []).map((ln, li) => `
+                <div class="drama-line-row" data-li="${li}">
+                  <span class="dialogue-speaker-badge">${esc(ln.character || '')}</span>
+                  <textarea class="dialogue-text-input drama-line-text" rows="1">${esc(ln.text || '')}</textarea>
+                </div>`).join('')}
+            </div>
+          </div>`).join('')}
+      </div>`).join('');
+  }
+}
+
+/** Serialize edited script back into episodes/logline and PUT. */
+async function saveDramaScript() {
+  const drama = dramaState.drama;
+  if (!drama) return;
+  const base = dramaBase();
+  if (!base) return;
+
+  // Deep-ish clone episodes so we mutate a copy
+  const episodes = JSON.parse(JSON.stringify(drama.episodes || []));
+  const byScene = {};
+  episodes.forEach((ep) => (ep.scenes || []).forEach((sc) => { byScene[`${ep.id}|${sc.id}`] = sc; }));
+
+  $$('#drama-scenes-edit .drama-scene-edit').forEach((scEl) => {
+    const key = `${scEl.dataset.eid}|${scEl.dataset.sid}`;
+    const sc = byScene[key];
+    if (!sc) return;
+    const actEl = scEl.querySelector('.drama-scene-action');
+    if (actEl) sc.action = actEl.value;
+    const lineRows = scEl.querySelectorAll('.drama-line-row');
+    lineRows.forEach((row) => {
+      const li = Number(row.dataset.li);
+      const txtEl = row.querySelector('.drama-line-text');
+      if (sc.lines && sc.lines[li] && txtEl) sc.lines[li].text = txtEl.value;
+    });
+  });
+
+  const loglineEl = $('#drama-edit-logline');
+  const logline = loglineEl ? loglineEl.value : drama.logline;
+
+  const msgEl = $('#drama-save-msg');
+  const btn = $('#drama-save-script-btn');
+  if (btn) btn.disabled = true;
+  if (msgEl) { msgEl.textContent = '保存中…'; msgEl.style.color = ''; }
+
+  const r = await api(`${base}/${encodeURIComponent(drama.id)}`, { logline, episodes }, 'PUT');
+  if (btn) btn.disabled = false;
+  if (r.error) { if (msgEl) { msgEl.textContent = errText(r.error); msgEl.style.color = 'var(--err)'; } toast(errText(r.error), 'err'); return; }
+  if (msgEl) { msgEl.textContent = '已保存'; msgEl.style.color = 'var(--ok)'; }
+  renderDrama(r.drama);
+  toast('剧本已保存', 'ok');
+}
+
+/* ── 选角 stage ── */
+function renderDramaCast(drama) {
+  const notice = $('#drama-cast-notice');
+  if (notice) {
+    notice.textContent = drama.consistencyMode === 'image_ref'
+      ? '已启用图像参考锁脸：主演沿用一致性包定妆照，配角按描述出图。'
+      : '当前为描述级一致性：主演沿用一致性包，配角按描述出图。';
+  }
+  const wrap = $('#drama-cast-portraits');
+  if (!wrap) return;
+  wrap.innerHTML = (drama.cast || []).map((c) => {
+    // portrait.current 是版本下标（-1 表示无）；取对应版本的 url
+    const pv = c.portrait && c.portrait.current >= 0 ? c.portrait.versions[c.portrait.current] : null;
+    const url = pv ? esc(pv.url) : '';
+    const lead = c.isLead;
+    return `<div class="drama-cast-card">
+      <div class="drama-portrait-wrap">
+        ${url ? `<img src="${url}" alt="" loading="lazy">` : `<div class="drama-portrait-empty">${lead ? '主演一致性包' : '待生成'}</div>`}
+        ${lead ? '<span class="lock-badge drama-portrait-badge">⬡ 一致性</span>' : ''}
+      </div>
+      <div class="drama-cast-name">${esc(c.name)} ${lead ? '<span class="pill s2">主演</span>' : '<span class="pill dim">配角</span>'}</div>
+      <div class="drama-cast-role">${esc(c.role || '')}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ── 分镜 stage ── */
+function renderDramaStoryboard(drama) {
+  const wrap = $('#drama-storyboard-episodes');
+  if (!wrap) return;
+  wrap.innerHTML = (drama.episodes || []).map((ep) => {
+    const scenesDone = (ep.scenes || []).filter((s) => s.frame && s.frame.current >= 0).length;
+    const total = (ep.scenes || []).length;
+    return `<div class="drama-ep-block" data-eid="${esc(ep.id)}">
+      <div class="drama-ep-head">
+        第 ${esc(String(ep.index))} 集 · ${esc(ep.title || '')}
+        <span class="pill dim">${scenesDone}/${total} 分镜</span>
+        <button class="btn btn-primary btn-sm drama-sb-gen-btn" data-eid="${esc(ep.id)}" style="margin-left:auto;">✦ 生成分镜</button>
+      </div>
+      <div class="drama-sb-grid">
+        ${(ep.scenes || []).map((sc) => {
+          const versions = (sc.frame && sc.frame.versions) || [];
+          const curIdx = sc.frame ? sc.frame.current : -1;   // 版本下标（-1 无）
+          const curUrl = curIdx >= 0 && versions[curIdx] ? esc(versions[curIdx].url) : '';
+          return `<div class="drama-sb-cell" data-eid="${esc(ep.id)}" data-sid="${esc(sc.id)}">
+            <div class="drama-sb-thumb">
+              ${curUrl ? `<img src="${curUrl}" alt="" loading="lazy">` : '<div class="drama-sb-empty">无分镜</div>'}
+              ${versions.length > 1 ? `<span class="drama-sb-vbadge">${curIdx >= 0 ? curIdx + 1 : 1}/${versions.length}</span>` : ''}
+            </div>
+            <div class="drama-sb-meta">${esc(sc.setting || ('场景 ' + sc.index))}</div>
+            <div class="drama-sb-actions">
+              ${versions.length > 1 ? `
+                <button class="tile-btn drama-sb-prev" data-eid="${esc(ep.id)}" data-sid="${esc(sc.id)}" title="上一版">‹</button>
+                <button class="tile-btn drama-sb-next" data-eid="${esc(ep.id)}" data-sid="${esc(sc.id)}" title="下一版">›</button>` : ''}
+              <button class="tile-btn drama-sb-reframe" data-eid="${esc(ep.id)}" data-sid="${esc(sc.id)}" title="重抽">↻ 重抽</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+
+  // bind storyboard buttons
+  wrap.querySelectorAll('.drama-sb-gen-btn').forEach((btn) => {
+    btn.addEventListener('click', () => generateStoryboard(btn.dataset.eid, btn));
+  });
+  wrap.querySelectorAll('.drama-sb-reframe').forEach((btn) => {
+    btn.addEventListener('click', () => reframeScene(btn.dataset.eid, btn.dataset.sid, btn));
+  });
+  wrap.querySelectorAll('.drama-sb-prev').forEach((btn) => {
+    btn.addEventListener('click', () => switchFrame(btn.dataset.eid, btn.dataset.sid, -1));
+  });
+  wrap.querySelectorAll('.drama-sb-next').forEach((btn) => {
+    btn.addEventListener('click', () => switchFrame(btn.dataset.eid, btn.dataset.sid, +1));
+  });
+}
+
+function findScene(drama, eid, sid) {
+  const ep = (drama.episodes || []).find((e) => e.id === eid);
+  if (!ep) return {};
+  const sc = (ep.scenes || []).find((s) => s.id === sid);
+  return { ep, sc };
+}
+
+async function reframeScene(eid, sid, btn) {
+  const base = dramaBase();
+  const drama = dramaState.drama;
+  if (!base || !drama) return;
+  if (btn) btn.disabled = true;
+  toast('重抽分镜中…', '');
+  const r = await api(`${base}/${encodeURIComponent(drama.id)}/episode/${encodeURIComponent(eid)}/scene/${encodeURIComponent(sid)}/reframe`, {});
+  if (btn) btn.disabled = false;
+  if (r.error) { toast(errText(r.error), 'err'); return; }
+  renderDrama(r.drama);
+  toast('已生成新版分镜', 'ok');
+}
+
+async function switchFrame(eid, sid, dir) {
+  const base = dramaBase();
+  const drama = dramaState.drama;
+  if (!base || !drama) return;
+  const { sc } = findScene(drama, eid, sid);
+  if (!sc || !sc.frame) return;
+  const versions = sc.frame.versions || [];
+  if (versions.length < 2) return;
+  let idx = sc.frame.current >= 0 ? sc.frame.current : 0;   // current 即版本下标
+  idx = (idx + dir + versions.length) % versions.length;
+  const r = await api(`${base}/${encodeURIComponent(drama.id)}/episode/${encodeURIComponent(eid)}/scene/${encodeURIComponent(sid)}/frame`, { index: idx });
+  if (r.error) { toast(errText(r.error), 'err'); return; }
+  renderDrama(r.drama);
+}
+
+async function generateStoryboard(eid, btn) {
+  const base = dramaBase();
+  const drama = dramaState.drama;
+  if (!base || !drama) return;
+  if (dramaState.busy) { toast('请等待当前任务完成', 'err'); return; }
+  const path = `${base}/${encodeURIComponent(drama.id)}/episode/${encodeURIComponent(eid)}/storyboard`;
+
+  // estimate (no confirm)
+  const est = await api(path, {});
+  if (est.error && est.error.code === 'confirm_required') {
+    showCostConfirm('drama-sb', est.error.estimate, '生成分镜图', async () => {
+      await runStoryboardSSE(path, btn);
+    });
+    return;
+  }
+  if (est.error) { toast(errText(est.error), 'err'); return; }
+  // no confirm needed → run directly (unlikely, but handle)
+  await runStoryboardSSE(path, btn);
+}
+
+async function runStoryboardSSE(path, btn) {
+  dramaState.busy = true;
+  if (btn) btn.disabled = true;
+  toast('分镜出图中…', '');
+  let lastErr = null;
+  await dramaSSE(path, { confirm: true }, {
+    onStage: (p) => { /* progress per scene */ },
+    onDone: (p) => { if (p.drama) renderDrama(p.drama); },
+    onError: (p) => { lastErr = p; },
+  });
+  dramaState.busy = false;
+  if (btn) btn.disabled = false;
+  if (lastErr) { toast(lastErr.message || '分镜生成失败', 'err'); return; }
+  toast('分镜已生成', 'ok');
+}
+
+/* ── 出片 + 成片 stage ── */
+function renderDramaCompose(drama) {
+  const wrap = $('#drama-compose-episodes');
+  if (!wrap) return;
+  wrap.innerHTML = (drama.episodes || []).map((ep) => {
+    const tier = ep.tier || 'low';
+    return `<div class="drama-ep-block" data-eid="${esc(ep.id)}">
+      <div class="drama-ep-head">
+        第 ${esc(String(ep.index))} 集 · ${esc(ep.title || '')}
+        ${ep.episodeUrl ? '<span class="pill ok">已出片</span>' : '<span class="pill dim">未出片</span>'}
+      </div>
+      <div class="drama-compose-row">
+        <div class="tier-toggle" data-eid="${esc(ep.id)}">
+          <button class="tier-btn${tier === 'low' ? ' active' : ''}" data-tier="low" data-eid="${esc(ep.id)}">低成本</button>
+          <button class="tier-btn${tier === 'high' ? ' active' : ''}" data-tier="high" data-eid="${esc(ep.id)}">高质量</button>
+        </div>
+        <button class="btn btn-primary btn-sm drama-compose-btn" data-eid="${esc(ep.id)}">✦ 成片</button>
+      </div>
+      <div class="drama-compose-progress hidden" data-eid="${esc(ep.id)}">
+        <div class="progress-bar mb-8"><div class="fill" style="width:0%"></div></div>
+        <div class="drama-compose-stage-msg text-sm text-ink-3"></div>
+      </div>
+      ${ep.episodeUrl ? `<video class="drama-ep-player" src="${esc(ep.episodeUrl)}" controls preload="metadata"></video>` : ''}
+    </div>`;
+  }).join('');
+
+  // tier toggles
+  wrap.querySelectorAll('.tier-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const grp = btn.closest('.tier-toggle');
+      grp.querySelectorAll('.tier-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+  // compose buttons
+  wrap.querySelectorAll('.drama-compose-btn').forEach((btn) => {
+    btn.addEventListener('click', () => composeEpisode(btn.dataset.eid, btn));
+  });
+}
+
+function selectedTier(eid) {
+  const wrap = $('#drama-compose-episodes');
+  if (!wrap) return 'low';
+  const active = wrap.querySelector(`.tier-toggle[data-eid="${cssEsc(eid)}"] .tier-btn.active`);
+  return active ? active.dataset.tier : 'low';
+}
+
+/** CSS.escape fallback for attribute selectors (ids are safe but be defensive). */
+function cssEsc(s) {
+  if (window.CSS && CSS.escape) return CSS.escape(s);
+  return String(s).replace(/["\\]/g, '\\$&');
+}
+
+async function composeEpisode(eid, btn) {
+  const base = dramaBase();
+  const drama = dramaState.drama;
+  if (!base || !drama) return;
+  if (dramaState.busy) { toast('请等待当前任务完成', 'err'); return; }
+  const tier = selectedTier(eid);
+  const path = `${base}/${encodeURIComponent(drama.id)}/episode/${encodeURIComponent(eid)}/compose`;
+
+  if (tier === 'high') {
+    const est = await api(path, { tier });
+    if (est.error && est.error.code === 'confirm_required') {
+      showCostConfirm('drama-cp', est.error.estimate, '高质量出片', async () => {
+        await runComposeSSE(path, { tier, confirm: true }, eid, btn);
+      });
+      return;
+    }
+    if (est.error) { toast(errText(est.error), 'err'); return; }
+    await runComposeSSE(path, { tier, confirm: true }, eid, btn);
+  } else {
+    // low tier runs immediately
+    await runComposeSSE(path, { tier }, eid, btn);
+  }
+}
+
+async function runComposeSSE(path, body, eid, btn) {
+  dramaState.busy = true;
+  if (btn) btn.disabled = true;
+  const wrap = $('#drama-compose-episodes');
+  const progBox = wrap ? wrap.querySelector(`.drama-compose-progress[data-eid="${cssEsc(eid)}"]`) : null;
+  const fill = progBox ? progBox.querySelector('.fill') : null;
+  const msgEl = progBox ? progBox.querySelector('.drama-compose-stage-msg') : null;
+  if (progBox) progBox.classList.remove('hidden');
+  if (fill) fill.style.width = '5%';
+  if (msgEl) msgEl.textContent = '开始出片…';
+
+  let lastErr = null;
+  await dramaSSE(path, body, {
+    onStage: (p) => {
+      if (fill && typeof p.progress === 'number') fill.style.width = `${Math.max(0, Math.min(100, Math.round(p.progress)))}%`;
+      if (msgEl) msgEl.textContent = p.msg || p.stage || '';
+    },
+    onDone: async (p) => {
+      if (fill) fill.style.width = '100%';
+      if (msgEl) msgEl.textContent = '出片完成！';
+      // refresh drama detail to pick up episodeUrl（用 drama.id 直接拼，避免 split 脆弱）
+      const fresh = await api(`${dramaBase()}/${dramaState.drama.id}`);
+      if (!fresh.error && fresh.drama) renderDrama(fresh.drama);
+    },
+    onError: (p) => { lastErr = p; },
+  });
+
+  dramaState.busy = false;
+  if (btn) btn.disabled = false;
+  if (lastErr) { if (msgEl) { msgEl.textContent = errText(lastErr); } toast(lastErr.message || '出片失败', 'err'); return; }
+  toast('本集已出片', 'ok');
+  loadGallery();
+}
+
+/* ── 连播 stage ── */
+function renderDramaCollection(drama) {
+  const btn = $('#drama-collection-btn');
+  const composed = (drama.episodes || []).filter((e) => e.episodeUrl).length;
+  if (btn) btn.disabled = composed < 1;
+  const result = $('#drama-collection-result');
+  if (result) {
+    result.innerHTML = drama.collectionUrl
+      ? `<video class="drama-ep-player" src="${esc(drama.collectionUrl)}" controls preload="metadata"></video>`
+      : '';
+  }
+  const msg = $('#drama-collection-msg');
+  if (msg) msg.textContent = composed < 1 ? '至少出片 1 集后才能生成连播合集。' : `已出片 ${composed} 集，可生成连播合集。`;
+}
+
+async function generateCollection() {
+  const base = dramaBase();
+  const drama = dramaState.drama;
+  if (!base || !drama) return;
+  const btn = $('#drama-collection-btn');
+  const msg = $('#drama-collection-msg');
+  if (btn) btn.disabled = true;
+  if (msg) { msg.textContent = '拼接连播合集中…'; msg.style.color = ''; }
+  const r = await api(`${base}/${encodeURIComponent(drama.id)}/collection`, {});
+  if (btn) btn.disabled = false;
+  if (r.error) { if (msg) { msg.textContent = errText(r.error); msg.style.color = 'var(--err)'; } toast(errText(r.error), 'err'); return; }
+  if (r.drama) renderDrama(r.drama);
+  if (msg) { msg.textContent = '连播合集已生成，已存入作品库。'; msg.style.color = 'var(--ok)'; }
+  toast('连播合集已生成', 'ok');
+  loadGallery();
+}
+
+/* ── Inline cost-confirm bar helper ── */
+/**
+ * Show a cost-confirm bar by prefix (e.g. 'drama-cast'); on confirm run onConfirm().
+ * Expects #<prefix>-confirm (bar), #<prefix>-confirm-text, #<prefix>-ok, #<prefix>-cancel.
+ */
+function showCostConfirm(prefix, estimate, label, onConfirm) {
+  const bar = $(`#${prefix}-confirm`);
+  const text = $(`#${prefix}-confirm-text`);
+  const ok = $(`#${prefix}-ok`);
+  const cancel = $(`#${prefix}-cancel`);
+  if (!bar || !ok || !cancel) { if (onConfirm) onConfirm(); return; }
+  const count = estimate && estimate.count != null ? estimate.count : '?';
+  const usd = estimate && estimate.estimatedUsd != null ? estimate.estimatedUsd : '?';
+  if (text) text.textContent = `${label}：约 ${count} 项，预估成本 $${usd}。确认继续？`;
+  bar.classList.remove('hidden');
+  const close = () => {
+    bar.classList.add('hidden');
+    ok.removeEventListener('click', yes);
+    cancel.removeEventListener('click', no);
+  };
+  const yes = () => { close(); if (onConfirm) onConfirm(); };
+  const no = () => { close(); };
+  ok.addEventListener('click', yes);
+  cancel.addEventListener('click', no);
+}
+
+/* ── 选角 generation ── */
+async function generateCast() {
+  const base = dramaBase();
+  const drama = dramaState.drama;
+  if (!base || !drama) return;
+  if (dramaState.busy) { toast('请等待当前任务完成', 'err'); return; }
+  const path = `${base}/${encodeURIComponent(drama.id)}/cast`;
+  const est = await api(path, {});
+  if (est.error && est.error.code === 'confirm_required') {
+    showCostConfirm('drama-cast', est.error.estimate, '生成配角定妆照', async () => {
+      await runCastSSE(path);
+    });
+    return;
+  }
+  if (est.error) { toast(errText(est.error), 'err'); return; }
+  await runCastSSE(path);
+}
+
+async function runCastSSE(path) {
+  dramaState.busy = true;
+  const btn = $('#drama-cast-gen-btn');
+  if (btn) btn.disabled = true;
+  const progBox = $('#drama-cast-progress');
+  const fill = $('#drama-cast-progress-fill');
+  const msgEl = $('#drama-cast-stage-msg');
+  if (progBox) progBox.classList.remove('hidden');
+  if (fill) fill.style.width = '5%';
+  if (msgEl) msgEl.textContent = '开始生成定妆照…';
+
+  let lastErr = null;
+  await dramaSSE(path, { confirm: true }, {
+    onStage: (p) => {
+      if (fill && typeof p.progress === 'number') fill.style.width = `${Math.max(0, Math.min(100, Math.round(p.progress)))}%`;
+      if (msgEl) msgEl.textContent = p.msg || '';
+    },
+    onDone: (p) => {
+      if (fill) fill.style.width = '100%';
+      if (msgEl) msgEl.textContent = '定妆照已生成！';
+      if (p.drama) renderDrama(p.drama);
+    },
+    onError: (p) => { lastErr = p; },
+  });
+
+  dramaState.busy = false;
+  if (btn) btn.disabled = false;
+  if (lastErr) { if (msgEl) msgEl.textContent = errText(lastErr); toast(lastErr.message || '定妆照生成失败', 'err'); return; }
+  toast('配角定妆照已生成', 'ok');
+}
+
+/* ── 立项 (create script) ── */
+async function createDrama() {
+  const base = dramaBase();
+  if (!base) { toast('请先选择一名艺人', 'err'); return; }
+  const theme = $('#drama-theme') ? $('#drama-theme').value.trim() : '';
+  if (!theme) { toast('请输入题材', 'err'); return; }
+  const title = $('#drama-title') ? $('#drama-title').value.trim() : '';
+  const logline = $('#drama-logline') ? $('#drama-logline').value.trim() : '';
+  const brief = {
+    theme,
+    episodeCount: dramaState.episodeCount,
+    durationSec: dramaState.durationSec,
+  };
+  if (title) brief.title = title;
+  if (logline) brief.logline = logline;
+
+  const btn = $('#drama-create-btn');
+  const msg = $('#drama-create-msg');
+  if (btn) btn.disabled = true;
+  if (msg) { msg.textContent = '生成剧本中…'; msg.style.color = ''; }
+
+  const r = await api(`${base}/script`, { brief });
+  if (btn) btn.disabled = false;
+  if (r.error) { if (msg) { msg.textContent = errText(r.error); msg.style.color = 'var(--err)'; } toast(errText(r.error), 'err'); return; }
+  if (msg) msg.textContent = '';
+  toast('剧本已生成，进入工作台', 'ok');
+  // open the new drama
+  const proj = $('#drama-project-pane');
+  const work = $('#drama-work-pane');
+  if (proj) proj.classList.add('hidden');
+  if (work) work.classList.remove('hidden');
+  renderDrama(r.drama);
+}
+
+function initDramaStudio() {
+  initSegCtrl('ctrl-drama-episodes', (v) => { dramaState.episodeCount = Number(v); });
+  initSegCtrl('ctrl-drama-duration', (v) => { dramaState.durationSec = Number(v); });
+
+  const createBtn = $('#drama-create-btn');
+  if (createBtn) createBtn.addEventListener('click', createDrama);
+
+  const listRefresh = $('#drama-list-refresh');
+  if (listRefresh) listRefresh.addEventListener('click', () => loadDramaList());
+
+  const backBtn = $('#drama-back-btn');
+  if (backBtn) backBtn.addEventListener('click', () => enterDramaProjectList());
+
+  const saveBtn = $('#drama-save-script-btn');
+  if (saveBtn) saveBtn.addEventListener('click', saveDramaScript);
+
+  const castGenBtn = $('#drama-cast-gen-btn');
+  if (castGenBtn) castGenBtn.addEventListener('click', generateCast);
+
+  const collectionBtn = $('#drama-collection-btn');
+  if (collectionBtn) collectionBtn.addEventListener('click', generateCollection);
+}
+
 /* ── Boot ── */
 function boot() {
   initRouter();
@@ -1975,6 +2699,7 @@ function boot() {
   initVideoStudio();
   initMusicStudio();
   initInterviewStudio();
+  initDramaStudio();
   initChat();
   initImage();
   initMusic();

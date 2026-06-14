@@ -136,6 +136,15 @@ try {
   const composeEmpty = await call(`/api/artist/${created.data.id}/interview/compose`, {});
   ok('合成无对话→bad_request', composeEmpty.status === 200 && composeEmpty.data.error?.code === 'bad_request', composeEmpty.data.error?.code);
 
+  const drScriptMiss = await call('/api/artist/nope_x/drama/script', { brief: {} });
+  ok('短剧剧本未知艺人→not_found', drScriptMiss.status === 200 && drScriptMiss.data.error?.code === 'not_found', drScriptMiss.data.error?.code);
+
+  const drList = await call(`/api/artist/${created.data.id}/dramas`);
+  ok('短剧列表可读', drList.status === 200 && Array.isArray(drList.data.dramas));
+
+  const drGetMiss = await call(`/api/artist/${created.data.id}/drama/nope_x`);
+  ok('短剧详情未知→not_found', drGetMiss.status === 200 && drGetMiss.data.error?.code === 'not_found', drGetMiss.data.error?.code);
+
   const del = await call(`/api/artist/${created.data.id}`, undefined, 'DELETE');
   ok('artist 删除', del.status === 200 && del.data.ok === true);
 } catch (e) {

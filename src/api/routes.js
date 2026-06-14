@@ -22,6 +22,8 @@ import {
 } from '../studio/artist-create.js';
 import { getGallery, addAssets, toggleFavorite, removeAsset } from '../studio/assets.js';
 import { buildBlueprintMessages, extractBlueprint, blueprintToRenderReq } from '../studio/music.js';
+import { buildScriptMessages as buildDramaScriptMessages, extractScript, assignVoices, buildCastPortraitPrompt, buildScenePrompt, buildI2vPrompt, estimateEpisodeCost } from '../studio/drama.js';
+import { createDrama, getDrama, listDramas, updateDrama, addPortraitVersion, addFrameVersion, setFrameCurrent, curFrameUrl } from '../studio/drama-store.js';
 import os from 'node:os';
 
 const MAX_BODY = 1 * 1024 * 1024;
@@ -98,6 +100,42 @@ async function maybeSummarize(artistId, artist) {
     setMemory(artistId, r.text.trim());
     trimToRecent(artistId, RECENT_KEEP);
   } catch (e) { console.error('[chat] 记忆摘要失败（忽略）', e.message); }
+}
+
+// 取场景出镜角色的定妆照（主演优先）转 base64 dataUrl，供万相图像参考锁脸；description 模式返回空数组。
+function sceneRefImages(drama, scene) {
+  if (drama.consistencyMode !== 'image_ref') return [];
+  const names = scene.characters || [];
+  // 主演优先：按 isLead 标志排序（不依赖 cast 数组下标，cast 顺序变化也稳）。
+  const isLeadName = (n) => (drama.cast.find((x) => x.name === n)?.isLead ? 1 : 0);
+  const ordered = [...names].sort((a, b) => isLeadName(b) - isLeadName(a));
+  const urls = [];
+  for (const n of ordered) {
+    const c = drama.cast.find((x) => x.name === n);
+    const v = c?.portrait?.versions?.[c.portrait.current];
+    if (v?.url) {
+      const dataUrl = generatedUrlToDataUrl(GENERATED_DIR, v.url);
+      if (dataUrl) urls.push(dataUrl);
+    }
+  }
+  return urls;
+}
+
+// 轮询等待一个 media job 完成，返回首个产物 url；失败/超时抛错。字段名见 src/gateway/jobs.js。
+async function waitJob(jobId, timeoutMs = 8 * 60 * 1000) {
+  const until = Date.now() + timeoutMs;
+  while (Date.now() < until) {
+    const job = getJob(jobId);
+    if (!job) throw new Error('job 丢失');
+    if (job.status === 'done') {
+      const url = job.result?.files?.[0]?.url;
+      if (!url) throw new Error('job 完成但无产物');
+      return url;
+    }
+    if (job.status === 'failed' || job.status === 'interrupted') throw new Error(job.error?.message || 'job 失败');
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  throw new Error('job 等待超时');
 }
 
 export function registerRoutes(route) {
@@ -464,6 +502,262 @@ export function registerRoutes(route) {
       try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
       res.end();
     }
+  });
+
+  route('POST /api/artist/:id/drama/script', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    if (!artist) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    try {
+      const { system, messages } = buildDramaScriptMessages(artist, body.brief || {});
+      const r = await execute('content', { system, messages, maxTokens: 3000 });
+      let parsed; try { parsed = extractScript(r.text, artist); }
+      catch (e) { return jsonError(res, 'provider_error', `剧本解析失败：${e.message}`); }
+      const tmpCast = [{ id: 'c_lead', isLead: true, gender: artist.gender },
+        ...parsed.cast.map((c, i) => ({ id: `c_${i + 1}`, isLead: false, gender: c.gender }))];
+      const voiceMap = assignVoices(tmpCast, artist);
+      const drama = createDrama(params.id, artist, body.brief || {}, parsed, { voiceMap, consistencyMode: 'image_ref' });
+      json(res, { drama });
+    } catch (e) { sendGatewayError(res, e); }
+  });
+
+  route('GET /api/artist/:id/dramas', async (req, res, { params }) => {
+    if (!getArtist(params.id)) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    json(res, { dramas: listDramas(params.id) });
+  });
+
+  route('GET /api/artist/:id/drama/:did', async (req, res, { params }) => {
+    const d = getDrama(params.did);
+    if (!d || d.artistId !== params.id) return jsonError(res, 'not_found', '无此短剧');
+    json(res, { drama: d });
+  });
+
+  route('PUT /api/artist/:id/drama/:did', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const d = getDrama(params.did);
+    if (!d || d.artistId !== params.id) return jsonError(res, 'not_found', '无此短剧');
+    const patch = {};
+    for (const k of ['title', 'theme', 'logline', 'cast', 'episodes']) if (k in body) patch[k] = body[k];
+    json(res, { drama: updateDrama(params.did, patch) });
+  });
+
+  route('POST /api/artist/:id/drama/:did/cast', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    const d = getDrama(params.did);
+    if (!artist || !d || d.artistId !== params.id) return jsonError(res, 'not_found', '无此短剧');
+    const todo = d.cast.filter((c) => !c.isLead && c.portrait.current < 0);   // 主演与已出图者跳过
+    // 无待出图配角（仅主演/已全部出图）→ 直接就绪，不必走 $0 成本闸门
+    if (!todo.length) { updateDrama(params.did, { status: 'cast_ready' }); return json(res, { drama: getDrama(params.did) }); }
+    let estimate;
+    try { estimate = { capability: 'image', count: todo.length, estimatedUsd: estimateFor('image', { count: todo.length }).estimatedUsd }; }
+    catch (e) { return sendGatewayError(res, e); }   // 图像无可用路由等 → 在开 SSE 前结构化报错
+    if (body.confirm !== true) return json(res, { error: { code: 'confirm_required', message: '需确认选角出图成本', estimate } });
+
+    res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+    const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    try {
+      for (let i = 0; i < todo.length; i++) {
+        const c = todo[i];
+        const prompt = buildCastPortraitPrompt(c);
+        send('stage', { progress: Math.round(i / todo.length * 100), msg: `选角出图 ${i + 1}/${todo.length}：${c.name}` });
+        const r = await execute('image', { prompt, aspect: '9:16' });
+        const url = r.files?.[0]?.url;
+        if (!url) throw new Error('未返回定妆照');
+        addPortraitVersion(params.did, c.id, { url, prompt });
+        addAssets(params.id, [{ type: 'photo', url, prompt: `选角：${c.name}`, title: c.name }]);
+      }
+      updateDrama(params.did, { status: 'cast_ready' });
+      send('done', { drama: getDrama(params.did) });
+    } catch (e) {
+      if (e instanceof GatewayError) send('error', e.toJSON());
+      else { console.error('[drama] 选角失败', e.message); send('error', { code: 'internal', message: '选角出图失败，请重试' }); }
+    } finally { res.end(); }
+  });
+
+  route('POST /api/artist/:id/drama/:did/episode/:eid/storyboard', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    const d = getDrama(params.did);
+    if (!artist || !d || d.artistId !== params.id) return jsonError(res, 'not_found', '无此短剧');
+    const ep = d.episodes.find((e) => e.id === params.eid);
+    if (!ep) return jsonError(res, 'not_found', '无此分集');
+    const todo = ep.scenes.filter((s) => s.frame.current < 0);
+    if (!todo.length) return json(res, { drama: d });
+    let estimate;
+    try { estimate = { capability: 'image', count: todo.length, estimatedUsd: estimateFor('image', { count: todo.length }).estimatedUsd }; }
+    catch (e) { return sendGatewayError(res, e); }
+    if (body.confirm !== true) return json(res, { error: { code: 'confirm_required', message: '需确认分镜出图成本', estimate } });
+
+    res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+    const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    try {
+      for (let i = 0; i < todo.length; i++) {
+        const sc = todo[i];
+        send('stage', { progress: Math.round(i / todo.length * 100), msg: `分镜出图 ${i + 1}/${todo.length}` });
+        const prompt = buildScenePrompt(artist, sc, d.cast, d.consistencyMode);
+        const refImages = sceneRefImages(d, sc);
+        const r = await execute('image', { prompt, aspect: '9:16', refImages });
+        const url = r.files?.[0]?.url;
+        if (!url) throw new Error('未返回分镜图');
+        addFrameVersion(params.did, params.eid, sc.id, { url, prompt });
+      }
+      send('done', { drama: getDrama(params.did) });
+    } catch (e) {
+      if (e instanceof GatewayError) send('error', e.toJSON());
+      else { console.error('[drama] 分镜失败', e.message); send('error', { code: 'internal', message: '分镜出图失败，请重试' }); }
+    } finally { res.end(); }
+  });
+
+  route('POST /api/artist/:id/drama/:did/episode/:eid/scene/:sid/reframe', async (req, res, { params }) => {
+    const artist = getArtist(params.id);
+    const d = getDrama(params.did);
+    if (!artist || !d || d.artistId !== params.id) return jsonError(res, 'not_found', '无此短剧');
+    const ep = d.episodes.find((e) => e.id === params.eid);
+    const sc = ep?.scenes.find((s) => s.id === params.sid);
+    if (!sc) return jsonError(res, 'not_found', '无此场景');
+    try {
+      const prompt = buildScenePrompt(artist, sc, d.cast, d.consistencyMode);
+      const r = await execute('image', { prompt, aspect: '9:16', refImages: sceneRefImages(d, sc) });
+      const url = r.files?.[0]?.url;
+      if (!url) return jsonError(res, 'provider_error', '未返回分镜图');
+      json(res, { drama: addFrameVersion(params.did, params.eid, params.sid, { url, prompt }) });
+    } catch (e) { sendGatewayError(res, e); }
+  });
+
+  route('POST /api/artist/:id/drama/:did/episode/:eid/scene/:sid/frame', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const d = getDrama(params.did);
+    if (!getArtist(params.id) || !d || d.artistId !== params.id) return jsonError(res, 'not_found', '无此短剧');
+    const drama = setFrameCurrent(params.did, params.eid, params.sid, Number(body.index));
+    drama ? json(res, { drama }) : jsonError(res, 'not_found', '无此场景');
+  });
+
+  route('POST /api/artist/:id/drama/:did/episode/:eid/compose', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    const d = getDrama(params.did);
+    if (!artist || !d || d.artistId !== params.id) return jsonError(res, 'not_found', '无此短剧');
+    const ep = d.episodes.find((e) => e.id === params.eid);
+    if (!ep) return jsonError(res, 'not_found', '无此分集');
+    if (!ffmpegAvailable()) return jsonError(res, 'bad_request', '未检测到 ffmpeg，请安装后重启服务');
+    const tier = body.tier === 'low' ? 'low' : 'high';
+    const scenes = ep.scenes;
+    if (!scenes.length) return jsonError(res, 'bad_request', '本集无场景');
+    if (scenes.some((s) => curFrameUrl(s) === null)) return jsonError(res, 'bad_request', '存在未出分镜图的场景，请先完成分镜');
+    if (scenes.some((s) => !s.lines?.length)) return jsonError(res, 'bad_request', '存在无台词的场景，请先补全台词');   // 防空音轨致 ffmpeg 崩
+    if (tier === 'high' && body.confirm !== true) {
+      return json(res, { error: { code: 'confirm_required', message: '需确认整集 i2v 出片成本',
+        estimate: { capability: 'video', count: scenes.length, estimatedUsd: estimateEpisodeCost(ep, 'high') } } });
+    }
+    const voiceFor = (charName) => {
+      if (charName === '旁白') return 'Chelsie';
+      const c = d.cast.find((x) => x.name === charName);
+      return c?.voice || (artist.gender?.match(/男|male/i) ? 'Ethan' : 'Cherry');
+    };
+
+    res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+    const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dr_'));
+    try {
+      const sceneClips = [];
+      const srtSegs = [];
+      for (let si = 0; si < scenes.length; si++) {
+        const sc = scenes[si];
+        send('stage', { stage: 'scene', progress: Math.round(si / scenes.length * 80), msg: `场景 ${si + 1}/${scenes.length}` });
+        // 1) 本场景逐行配音 → 拼成本场景音轨；收集整集字幕（累计时间）
+        const lineFiles = [];
+        for (const line of sc.lines) {
+          const r = await execute('tts', { text: line.text, voice: voiceFor(line.character) });
+          const u = r.files?.[0]?.url; if (!u) throw new Error('TTS 未返回音频');
+          const abs = path.join(GENERATED_DIR, u.replace('/generated/', ''));
+          lineFiles.push({ file: abs, text: line.text, durationSec: probeDurationSec(abs) });
+        }
+        const sceneAudio = path.join(tmp, `a_${si}.mp3`);
+        const alist = path.join(tmp, `al_${si}.txt`);
+        fs.writeFileSync(alist, lineFiles.map((l) => `file '${l.file.replace(/\\/g, '/')}'`).join('\n'));
+        // TTS 为 PCM/wav，concat 必须重编码为 mp3（S5 教训：-c copy 无法塞 PCM 进 mp3）
+        runFfmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', alist, '-c:a', 'libmp3lame', '-ar', '44100', sceneAudio]);
+        const sceneDur = lineFiles.reduce((a, l) => a + l.durationSec, 0);
+        for (const l of lineFiles) srtSegs.push({ text: l.text, durationSec: l.durationSec });
+        // 2) 本场景画面
+        const frameAbs = path.join(GENERATED_DIR, curFrameUrl(sc).replace('/generated/', ''));
+        const clip = path.join(tmp, `c_${si}.mp4`);
+        if (tier === 'high') {
+          send('stage', { stage: 'scene', progress: Math.round(si / scenes.length * 80) + 2, msg: `场景 ${si + 1} 生成视频中` });
+          // 以分镜图为首帧 i2v；请求里【不放】artistId（否则 galleryExecutor 会把中间片段塞进画廊）
+          const dataUrl = generatedUrlToDataUrl(GENERATED_DIR, curFrameUrl(sc));
+          if (!dataUrl) throw new Error('分镜图读取失败');
+          const job = submitJob('video', { imageRef: dataUrl, prompt: buildI2vPrompt(sc), durationSec: 5, aspect: '9:16' });
+          const vurl = await waitJob(job.id);
+          const vAbs = path.join(GENERATED_DIR, vurl.replace('/generated/', ''));
+          // i2v 片段通常 ~5s，台词可能更长：循环视频(-stream_loop -1)，-shortest 让片段长度跟随配音，避免截断台词
+          runFfmpeg(['-y', '-stream_loop', '-1', '-i', vAbs, '-i', sceneAudio,
+            '-map', '0:v:0', '-map', '1:a:0',
+            '-vf', 'scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280',
+            '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', clip], 300000);
+        } else {
+          // 低成本：静帧 Ken-Burns，时长=本场景配音
+          runFfmpeg(['-y', '-loop', '1', '-i', frameAbs, '-i', sceneAudio,
+            '-vf', `scale=900:1600,zoompan=z='min(zoom+0.0008,1.15)':d=${Math.max(1, Math.round(sceneDur * 25))}:s=720x1280:fps=25,format=yuv420p`,
+            '-c:v', 'libx264', '-tune', 'stillimage', '-c:a', 'aac', '-shortest', clip], 300000);
+        }
+        sceneClips.push(clip);
+      }
+      // 3) 拼接全场景（统一重编码到固定规格，避免异源参数拼接坑）
+      send('stage', { stage: 'concat', progress: 84, msg: '拼接全集' });
+      const clipList = path.join(tmp, 'clips.txt');
+      fs.writeFileSync(clipList, sceneClips.map((c) => `file '${c.replace(/\\/g, '/')}'`).join('\n'));
+      const merged = path.join(tmp, 'merged.mp4');
+      runFfmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', clipList, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', merged], 300000);
+      // 4) 一次性烧字幕（整集累计时间）
+      send('stage', { stage: 'subtitle', progress: 92, msg: '烧录字幕' });
+      const srtFile = path.join(tmp, 'sub.srt');
+      fs.writeFileSync(srtFile, buildSrt(srtSegs));
+      const name = `dr_${Date.now()}.mp4`;
+      const outAbs = path.join(GENERATED_DIR, name);
+      const srtEsc = srtFile.replace(/\\/g, '/').replace(/:/g, '\\:');
+      runFfmpeg(['-y', '-i', merged, '-vf', `subtitles='${srtEsc}'`, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'copy', outAbs], 300000);
+      const totalSec = srtSegs.reduce((a, s) => a + s.durationSec, 0);
+      addAssets(params.id, [{ type: 'drama', url: `/generated/${name}`, durationSec: Math.round(totalSec), title: `${d.title} · ${ep.title}` }]);
+      // 写回该集成片（整体重写 episodes 数组）
+      const dd = getDrama(params.did);
+      const e2 = dd.episodes.find((e) => e.id === params.eid);
+      e2.episodeUrl = `/generated/${name}`; e2.durationSec = Math.round(totalSec); e2.tier = tier;
+      updateDrama(params.did, { episodes: dd.episodes, status: 'episode_in_progress' });
+      send('done', { url: `/generated/${name}`, durationSec: Math.round(totalSec) });
+    } catch (e) {
+      if (e instanceof GatewayError) send('error', e.toJSON());
+      else { console.error('[drama] 成片失败', e.message); send('error', { code: 'internal', message: '成片失败，请重试' }); }
+    } finally {
+      try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
+      res.end();
+    }
+  });
+
+  route('POST /api/artist/:id/drama/:did/collection', async (req, res, { params }) => {
+    const artist = getArtist(params.id);
+    const d = getDrama(params.did);
+    if (!artist || !d || d.artistId !== params.id) return jsonError(res, 'not_found', '无此短剧');
+    if (!ffmpegAvailable()) return jsonError(res, 'bad_request', '未检测到 ffmpeg，请安装后重启服务');
+    const done = d.episodes.filter((e) => e.episodeUrl);
+    if (!done.length) return jsonError(res, 'bad_request', '尚无已成片的分集');
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'drc_'));
+    try {
+      const list = path.join(tmp, 'eps.txt');
+      fs.writeFileSync(list, done.map((e) => `file '${path.join(GENERATED_DIR, e.episodeUrl.replace('/generated/', '')).replace(/\\/g, '/')}'`).join('\n'));
+      const name = `drc_${Date.now()}.mp4`;
+      const outAbs = path.join(GENERATED_DIR, name);
+      runFfmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', list, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', outAbs], 600000);
+      const totalSec = Math.round(done.reduce((a, e) => a + (e.durationSec || 0), 0));
+      addAssets(params.id, [{ type: 'drama', url: `/generated/${name}`, durationSec: totalSec, title: `${d.title} · 连播合集` }]);
+      const drama = updateDrama(params.did, { collectionUrl: `/generated/${name}`, status: 'done' });
+      json(res, { url: `/generated/${name}`, drama });
+    } catch (e) {
+      // ffmpeg 报错可能含路径，发给客户端用通用文案（沿用 S5 加固）；状态用 500（非 SSE 端点）
+      console.error('[drama] 连播失败', e.message);
+      json(res, { error: { code: 'internal', message: '连播合集生成失败' } }, 500);
+    } finally { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} }
   });
 
   route('POST /api/artist/:id/gallery/:assetId/favorite', async (req, res, { params }) => {

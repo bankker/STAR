@@ -50,9 +50,9 @@
         <span class="nav-icon">🎬</span>
         <span class="nav-label">访谈成片</span>
       </div>
-      <div class="nav-item" data-view="shorts">
+      <div class="nav-item" data-view="drama">
         <span class="nav-icon">🎞️</span>
-        <span class="nav-label">短片/短剧</span>
+        <span class="nav-label">短剧工坊</span>
         <span class="nav-tag">S6</span>
       </div>
 
@@ -303,11 +303,11 @@
             <div class="ec-desc">5 阶段管线自动合成艺人访谈成片</div>
             <div class="ec-status"><span class="pill dim">P3</span></div>
           </div>
-          <div class="entry-card" data-view="shorts">
+          <div class="entry-card" data-view="drama">
             <div class="ec-icon">🎞️</div>
-            <div class="ec-title">短片/短剧</div>
+            <div class="ec-title">短剧工坊</div>
             <div class="ec-desc">7 阶段管线，分镜单格重抽，逐集确认成本</div>
-            <div class="ec-status"><span class="pill dim">P3</span></div>
+            <div class="ec-status"><span class="pill s1">S6</span></div>
           </div>
           <div class="entry-card" data-view="health">
             <div class="ec-icon">⚡</div>
@@ -701,18 +701,191 @@
         </div>
       </div>
 
-      <!-- ══ VIEW: 短片/短剧 (P3 placeholder) ══ -->
-      <div id="view-shorts" class="view hidden">
-        <div class="view-h1">短片/短剧 <span class="pill s1">S6</span></div>
-        <div class="panel mt-16">
-          <div class="coming-soon">
-            <div class="cs-icon">🎞️</div>
-            <div class="cs-title">即将到来（P3）</div>
-            <div class="cs-desc">
-              7 阶段管线，分镜板单格重抽，低成本↔高质量档位，逐集/整剧成本闸门，选角定妆。
-            </div>
-            <span class="pill dim cs-pill">开发中</span>
+      <!-- ══ VIEW: 短剧工坊 (S6) ══ -->
+      <div id="view-drama" class="view hidden">
+        <div class="view-h1">短剧工坊 <span class="pill s1">S6</span></div>
+        <p class="text-sm text-ink-3 mt-8 mb-16">7 阶段管线打造艺人主演短剧——立项 → 剧本 → 选角 → 分镜 → 出片 → 成片 → 连播。</p>
+
+        <!-- No artist notice -->
+        <div id="drama-no-artist" class="panel hidden">
+          <div class="empty-state">
+            <div class="icon">🎞️</div>
+            <div class="title">请先选择艺人</div>
+            <div class="desc">从顶部艺人选择器选择或新建一名艺人，再开拍短剧。</div>
           </div>
+        </div>
+
+        <div id="drama-studio-area">
+
+          <!-- ── 项目选择 / 立项 (shown when no drama open) ── -->
+          <div id="drama-project-pane">
+            <!-- 立项 form -->
+            <div class="panel mb-16">
+              <div class="flex items-center gap-8 mb-12">
+                <h2 style="margin:0">新建短剧</h2>
+                <span class="pill s2">立项</span>
+              </div>
+              <div class="drama-form-grid mb-12">
+                <div class="field">
+                  <div class="label-upper">剧名（选填）</div>
+                  <input id="drama-title" placeholder="自动生成或自定">
+                </div>
+                <div class="field">
+                  <div class="label-upper">题材</div>
+                  <input id="drama-theme" placeholder="例如：都市甜宠、复仇逆袭、悬疑探案…">
+                </div>
+                <div class="field field-span">
+                  <div class="label-upper">梗概（选填）</div>
+                  <input id="drama-logline" placeholder="一句话故事线，留空则自动构思">
+                </div>
+                <div class="field">
+                  <div class="label-upper">集数</div>
+                  <div class="seg-ctrl" id="ctrl-drama-episodes">
+                    <button class="seg-btn active" data-val="2">2 集</button>
+                    <button class="seg-btn" data-val="3">3 集</button>
+                    <button class="seg-btn" data-val="4">4 集</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <div class="label-upper">单集时长</div>
+                  <div class="seg-ctrl" id="ctrl-drama-duration">
+                    <button class="seg-btn active" data-val="30">30s</button>
+                    <button class="seg-btn" data-val="45">45s</button>
+                    <button class="seg-btn" data-val="60">60s</button>
+                  </div>
+                </div>
+              </div>
+              <button class="btn btn-primary" id="drama-create-btn" style="width:100%;justify-content:center;">
+                ✦ 生成剧本立项
+              </button>
+              <div id="drama-create-msg" class="out"></div>
+            </div>
+
+            <!-- 已有短剧列表 -->
+            <div class="panel">
+              <div class="flex items-center gap-8 mb-12">
+                <h2 style="margin:0">我的短剧</h2>
+                <button class="btn btn-secondary btn-sm" id="drama-list-refresh" style="margin-left:auto;">↻ 刷新</button>
+              </div>
+              <div id="drama-list-grid" class="drama-list-grid"></div>
+            </div>
+          </div>
+
+          <!-- ── 工作台 (shown when a drama is open) ── -->
+          <div id="drama-work-pane" class="hidden">
+
+            <!-- header: title + back -->
+            <div class="panel mb-16">
+              <div class="flex items-center gap-8">
+                <button class="btn btn-secondary btn-sm" id="drama-back-btn">← 返回列表</button>
+                <h2 id="drama-work-title" style="margin:0 0 0 4px"></h2>
+                <span class="pill dim" id="drama-work-theme"></span>
+                <span class="pill s2" id="drama-consistency-pill" style="margin-left:auto;"></span>
+              </div>
+            </div>
+
+            <!-- 7-stage stepper -->
+            <div class="panel mb-16">
+              <div class="interview-stepper" id="drama-stepper">
+                <div class="stepper-step" data-stage="project"><div class="stepper-dot"></div><div class="stepper-label">立项</div></div>
+                <div class="stepper-connector"></div>
+                <div class="stepper-step" data-stage="script"><div class="stepper-dot"></div><div class="stepper-label">剧本</div></div>
+                <div class="stepper-connector"></div>
+                <div class="stepper-step" data-stage="cast"><div class="stepper-dot"></div><div class="stepper-label">选角</div></div>
+                <div class="stepper-connector"></div>
+                <div class="stepper-step" data-stage="storyboard"><div class="stepper-dot"></div><div class="stepper-label">分镜</div></div>
+                <div class="stepper-connector"></div>
+                <div class="stepper-step" data-stage="compose"><div class="stepper-dot"></div><div class="stepper-label">出片</div></div>
+                <div class="stepper-connector"></div>
+                <div class="stepper-step" data-stage="final"><div class="stepper-dot"></div><div class="stepper-label">成片</div></div>
+                <div class="stepper-connector"></div>
+                <div class="stepper-step" data-stage="collection"><div class="stepper-dot"></div><div class="stepper-label">连播</div></div>
+              </div>
+            </div>
+
+            <!-- 剧本 stage -->
+            <div class="panel mb-16" id="drama-script-card">
+              <div class="flex items-center gap-8 mb-12">
+                <h2 style="margin:0">剧本</h2>
+                <span class="pill s2">可编辑</span>
+                <button class="btn btn-secondary btn-sm" id="drama-save-script-btn" style="margin-left:auto;">💾 保存剧本</button>
+              </div>
+              <div class="field mb-10">
+                <div class="label-upper">梗概 / Logline</div>
+                <textarea id="drama-edit-logline" rows="2" class="dialogue-text-input"></textarea>
+              </div>
+              <div class="label-upper mb-8">演员表</div>
+              <div id="drama-cast-summary" class="drama-cast-grid mb-12"></div>
+              <div class="label-upper mb-8">分集场景</div>
+              <div id="drama-scenes-edit"></div>
+              <div id="drama-save-msg" class="out"></div>
+            </div>
+
+            <!-- 选角 stage -->
+            <div class="panel mb-16" id="drama-cast-card">
+              <div class="flex items-center gap-8 mb-12">
+                <h2 style="margin:0">选角 · 定妆照</h2>
+                <span class="pill s2" id="drama-cast-pill">配角出图</span>
+                <button class="btn btn-primary btn-sm" id="drama-cast-gen-btn" style="margin-left:auto;">✦ 生成定妆照</button>
+              </div>
+              <div id="drama-cast-notice" class="text-sm text-ink-3 mb-12"></div>
+              <!-- cost-confirm bar -->
+              <div class="cost-confirm-bar hidden" id="drama-cast-confirm">
+                <span class="cost-confirm-text" id="drama-cast-confirm-text"></span>
+                <button class="btn btn-secondary btn-sm" id="drama-cast-cancel">取消</button>
+                <button class="btn btn-primary btn-sm" id="drama-cast-ok">确认生成</button>
+              </div>
+              <!-- progress -->
+              <div class="hidden" id="drama-cast-progress">
+                <div class="progress-bar mb-8"><div class="fill" id="drama-cast-progress-fill" style="width:0%"></div></div>
+                <div id="drama-cast-stage-msg" class="text-sm text-ink-3"></div>
+              </div>
+              <div id="drama-cast-portraits" class="drama-cast-grid"></div>
+            </div>
+
+            <!-- 分镜 stage -->
+            <div class="panel mb-16" id="drama-storyboard-card">
+              <div class="flex items-center gap-8 mb-12">
+                <h2 style="margin:0">分镜板</h2>
+                <span class="pill s2">逐场出图</span>
+              </div>
+              <!-- shared cost-confirm bar for storyboard -->
+              <div class="cost-confirm-bar hidden" id="drama-sb-confirm">
+                <span class="cost-confirm-text" id="drama-sb-confirm-text"></span>
+                <button class="btn btn-secondary btn-sm" id="drama-sb-cancel">取消</button>
+                <button class="btn btn-primary btn-sm" id="drama-sb-ok">确认生成</button>
+              </div>
+              <div id="drama-storyboard-episodes"></div>
+            </div>
+
+            <!-- 出片 + 成片 stage -->
+            <div class="panel mb-16" id="drama-compose-card">
+              <div class="flex items-center gap-8 mb-12">
+                <h2 style="margin:0">出片 · 成片</h2>
+                <span class="pill s2">两档拼接</span>
+              </div>
+              <!-- shared cost-confirm bar for compose -->
+              <div class="cost-confirm-bar hidden" id="drama-cp-confirm">
+                <span class="cost-confirm-text" id="drama-cp-confirm-text"></span>
+                <button class="btn btn-secondary btn-sm" id="drama-cp-cancel">取消</button>
+                <button class="btn btn-primary btn-sm" id="drama-cp-ok">确认出片</button>
+              </div>
+              <div id="drama-compose-episodes"></div>
+            </div>
+
+            <!-- 连播 stage -->
+            <div class="panel" id="drama-collection-card">
+              <div class="flex items-center gap-8 mb-12">
+                <h2 style="margin:0">连播合集</h2>
+                <span class="pill s2">整剧拼接</span>
+                <button class="btn btn-primary btn-sm" id="drama-collection-btn" style="margin-left:auto;">✦ 生成连播合集</button>
+              </div>
+              <div id="drama-collection-msg" class="out mb-12"></div>
+              <div id="drama-collection-result"></div>
+            </div>
+
+          </div>
+
         </div>
       </div>
 
