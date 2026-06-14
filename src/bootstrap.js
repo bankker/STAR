@@ -26,6 +26,8 @@ export function bootstrap() {
             type: capability === 'video' ? 'video' : (capability === 'music' ? 'song' : 'photo'),
             url: f.url, prompt: request.prompt || '', aspect: request.aspect || '',
             durationSec: r.durationSec || request.durationSec || null,
+            title: request.title || '',
+            style: request.style || '',
           })));
         } catch (e) { console.error('[jobs] 入画廊失败（忽略）', e.message); }
       }

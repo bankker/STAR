@@ -43,6 +43,8 @@ export function addAssets(artistId, items) {
       type: it.type || 'photo', url: it.url,
       prompt: String(it.prompt || ''), shot: it.shot || '', aspect: it.aspect || '',
       durationSec: it.durationSec || null,
+      title: it.title || '',
+      style: it.style || '',
       favorite: false, createdAt: now,
     });
   }
