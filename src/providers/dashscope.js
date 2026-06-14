@@ -10,7 +10,7 @@ const auth = (env) => ({ authorization: `Bearer ${env.DASHSCOPE_API_KEY}` });
 const adapter = {
   id: 'dashscope',
   label: '阿里云百炼',
-  capabilities: ['chat', 'content', 'world', 'plan', 'tts', 'asr', 'image', 'video'],
+  capabilities: ['chat', 'content', 'world', 'plan', 'tts', 'asr', 'image', 'video', 'music'],
   envKeys: ['DASHSCOPE_API_KEY'],
   isConfigured: (env) => Boolean(env.DASHSCOPE_API_KEY),
 
@@ -30,6 +30,7 @@ const adapter = {
     if (capability === 'asr') return invokeAsr(request, ctx);
     if (capability === 'image') return invokeImage(request, ctx);
     if (capability === 'video') return invokeVideo(request, ctx);
+    if (capability === 'music') return invokeMusic(request, ctx);
     throw gatewayError('bad_request', `dashscope 暂未实现能力 ${capability}`, { providerId: 'dashscope' });
   },
 };
@@ -147,6 +148,23 @@ async function invokeVideo(request, ctx) {
     if (status === 'FAILED') throw gatewayError('provider_error', `万相视频失败: ${st.output?.message || st.output?.code || '无详情'}`, { providerId: 'dashscope' });
   }
   throw gatewayError('timeout', `万相视频轮询超时（${VID_MAX_MS / 60000} 分钟）`, { providerId: 'dashscope' });
+}
+
+const MUSIC_GEN = `${BASE}/api/v1/services/audio/music/generation`;
+
+async function invokeMusic(request, ctx) {
+  const input = {};
+  if (request.lyrics) input.lyrics = request.lyrics;
+  else input.prompt = request.prompt || request.style || '一首流行歌曲';
+  if (request.gender === 'male' || request.gender === 'female') input.gender = request.gender;
+  const data = await ctx.fetchJson(MUSIC_GEN, {
+    headers: auth(ctx.env), timeoutMs: 180000,
+    body: { model: request.model, input },
+  });
+  const url = data.output?.audio?.url;
+  if (!url) throw gatewayError('provider_error', `fun-music 无音频 URL: ${JSON.stringify(data.output || {}).slice(0, 200)}`, { providerId: 'dashscope' });
+  const buf = await ctx.fetchBuffer(url, { method: 'GET', headers: {}, timeoutMs: 180000 });
+  return { files: [ctx.saveFile(buf, 'mp3')], usage: { songs: 1 } };
 }
 
 export default adapter;

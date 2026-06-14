@@ -1304,6 +1304,81 @@ select option { background: var(--panel-2); color: var(--ink); }
   align-items: stretch;
 }
 
+/* ========================================================
+   §5 Music Studio (S4) — 音乐工坊
+   ======================================================== */
+
+/* Stage panels */
+.music-stage-panel {
+  border-left: 3px solid var(--brand);
+}
+
+.music-blueprint-card {
+  border-left: 3px solid var(--accent);
+}
+
+/* Song tile — audio player card */
+.song-tile {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: border-color .15s, transform .15s;
+  position: relative;
+}
+.song-tile:hover {
+  border-color: var(--brand);
+  transform: translateY(-1px);
+}
+
+.song-tile-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.song-tile-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.song-tile audio {
+  width: 100%;
+  height: 36px;
+  border-radius: var(--r-sm);
+  accent-color: var(--brand);
+}
+.song-tile-actions {
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.song-tile:hover .song-tile-actions {
+  opacity: 1;
+}
+
+/* Music library grid */
+.music-library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+/* Inline song job card */
+.song-job-card {
+  flex-direction: column;
+  align-items: stretch;
+}
+
 /* scrollbar global */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

@@ -124,6 +124,12 @@ try {
   const vidMiss = await call('/api/artist/nope_x/video', { prompt: 'x' });
   ok('视频未知艺人→not_found', vidMiss.status === 200 && vidMiss.data.error?.code === 'not_found', vidMiss.data.error?.code);
 
+  const bpMiss = await call('/api/artist/nope_x/song/blueprint', { brief: 'x' });
+  ok('蓝图未知艺人→not_found', bpMiss.status === 200 && bpMiss.data.error?.code === 'not_found', bpMiss.data.error?.code);
+
+  const songEmpty = await call(`/api/artist/${created.data.id}/song`, {});
+  ok('渲染无蓝图→bad_request', songEmpty.status === 200 && songEmpty.data.error?.code === 'bad_request', songEmpty.data.error?.code);
+
   const del = await call(`/api/artist/${created.data.id}`, undefined, 'DELETE');
   ok('artist 删除', del.status === 200 && del.data.ok === true);
 } catch (e) {
