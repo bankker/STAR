@@ -2056,7 +2056,7 @@ async function dramaSSE(path, body, { onStage, onDone, onError } = {}) {
       let payload;
       try { payload = JSON.parse(dataLine); } catch { continue; }
       if (ev === 'stage') { if (onStage) onStage(payload); }
-      else if (ev === 'done') { sawDone = true; if (onDone) onDone(payload); }
+      else if (ev === 'done') { sawDone = true; if (onDone) await onDone(payload); }   // onDone 可能 async（成片后拉取最新 drama），需 await 以保证顺序
       else if (ev === 'error') { if (onError) onError(payload); }
     }
   }
@@ -2509,8 +2509,8 @@ async function runComposeSSE(path, body, eid, btn) {
     onDone: async (p) => {
       if (fill) fill.style.width = '100%';
       if (msgEl) msgEl.textContent = '出片完成！';
-      // refresh drama detail to pick up episodeUrl
-      const fresh = await api(`${path.split('/episode/')[0]}`);
+      // refresh drama detail to pick up episodeUrl（用 drama.id 直接拼，避免 split 脆弱）
+      const fresh = await api(`${dramaBase()}/${dramaState.drama.id}`);
       if (!fresh.error && fresh.drama) renderDrama(fresh.drama);
     },
     onError: (p) => { lastErr = p; },
