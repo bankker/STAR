@@ -10,7 +10,7 @@ const auth = (env) => ({ authorization: `Bearer ${env.DASHSCOPE_API_KEY}` });
 const adapter = {
   id: 'dashscope',
   label: '阿里云百炼',
-  capabilities: ['chat', 'content', 'world', 'plan', 'tts', 'asr', 'image'],
+  capabilities: ['chat', 'content', 'world', 'plan', 'tts', 'asr', 'image', 'video'],
   envKeys: ['DASHSCOPE_API_KEY'],
   isConfigured: (env) => Boolean(env.DASHSCOPE_API_KEY),
 
@@ -29,6 +29,7 @@ const adapter = {
     if (capability === 'tts') return invokeTts(request, ctx);
     if (capability === 'asr') return invokeAsr(request, ctx);
     if (capability === 'image') return invokeImage(request, ctx);
+    if (capability === 'video') return invokeVideo(request, ctx);
     throw gatewayError('bad_request', `dashscope 暂未实现能力 ${capability}`, { providerId: 'dashscope' });
   },
 };
@@ -110,6 +111,42 @@ async function invokeImage(request, ctx) {
     if (status === 'FAILED') throw gatewayError('provider_error', `万相生成失败: ${st.output?.message || st.output?.code || '无详情'}`, { providerId: 'dashscope' });
   }
   throw gatewayError('timeout', `万相轮询超时（${IMG_MAX_MS / 60000} 分钟）`, { providerId: 'dashscope' });
+}
+
+const I2V_SUBMIT = `${BASE}/api/v1/services/aigc/video-generation/video-synthesis`;
+const VID_POLL_MS = 10000;
+const VID_MAX_MS = 8 * 60 * 1000;
+const vidSleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function invokeVideo(request, ctx) {
+  const img = request.imageRef;
+  if (!img) throw gatewayError('bad_request', '图生视频需要首帧图（artist 需先有写真/定妆照）', { providerId: 'dashscope' });
+  const submit = await ctx.fetchJson(I2V_SUBMIT, {
+    headers: { ...auth(ctx.env), 'X-DashScope-Async': 'enable' }, timeoutMs: 30000,
+    body: { model: request.model, input: { prompt: request.prompt || '', img_url: img }, parameters: {} },
+  });
+  const taskId = submit.output?.task_id;
+  if (!taskId) throw gatewayError('provider_error', `万相视频未返回 task_id: ${JSON.stringify(submit).slice(0, 200)}`, { providerId: 'dashscope' });
+  const deadline = Date.now() + VID_MAX_MS;
+  let lastPct = 5, pollErrors = 0;
+  while (Date.now() < deadline) {
+    await vidSleep(VID_POLL_MS);
+    let st;
+    try { st = await ctx.fetchJson(`${BASE}/api/v1/tasks/${taskId}`, { method: 'GET', headers: auth(ctx.env), timeoutMs: 30000 }); pollErrors = 0; }
+    catch (err) { if (++pollErrors >= 3) throw err; ctx.onProgress('万相视频: 轮询重试', lastPct); continue; }
+    const status = st.output?.task_status;
+    lastPct = Math.max(lastPct, status === 'RUNNING' ? 50 : 20);
+    ctx.onProgress(`万相视频: ${status || '排队'}`, lastPct);
+    if (status === 'SUCCEEDED') {
+      const url = st.output?.video_url || st.output?.results?.[0]?.url;
+      if (!url) throw gatewayError('provider_error', '万相视频成功但无 URL', { providerId: 'dashscope' });
+      ctx.onProgress('下载视频', 90);
+      const buf = await ctx.fetchBuffer(url, { method: 'GET', headers: {}, timeoutMs: 300000 });
+      return { files: [ctx.saveFile(buf, 'mp4')], durationSec: request.durationSec || 5, usage: { seconds: request.durationSec || 5 } };
+    }
+    if (status === 'FAILED') throw gatewayError('provider_error', `万相视频失败: ${st.output?.message || st.output?.code || '无详情'}`, { providerId: 'dashscope' });
+  }
+  throw gatewayError('timeout', `万相视频轮询超时（${VID_MAX_MS / 60000} 分钟）`, { providerId: 'dashscope' });
 }
 
 export default adapter;
