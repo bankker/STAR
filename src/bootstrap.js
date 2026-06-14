@@ -25,6 +25,7 @@ export function bootstrap() {
           addAssets(request.artistId, r.files.map((f) => ({
             type: capability === 'video' ? 'video' : 'photo',
             url: f.url, prompt: request.prompt || '', aspect: request.aspect || '',
+            durationSec: r.durationSec || request.durationSec || null,
           })));
         } catch (e) { console.error('[jobs] 入画廊失败（忽略）', e.message); }
       }
