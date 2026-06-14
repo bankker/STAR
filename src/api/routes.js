@@ -511,7 +511,11 @@ export function registerRoutes(route) {
     const d = getDrama(params.did);
     if (!artist || !d || d.artistId !== params.id) return jsonError(res, 'not_found', '无此短剧');
     const todo = d.cast.filter((c) => !c.isLead && c.portrait.current < 0);   // 主演与已出图者跳过
-    const estimate = { capability: 'image', count: todo.length, estimatedUsd: estimateFor('image', { count: todo.length }).estimatedUsd };
+    // 无待出图配角（仅主演/已全部出图）→ 直接就绪，不必走 $0 成本闸门
+    if (!todo.length) { updateDrama(params.did, { status: 'cast_ready' }); return json(res, { drama: getDrama(params.did) }); }
+    let estimate;
+    try { estimate = { capability: 'image', count: todo.length, estimatedUsd: estimateFor('image', { count: todo.length }).estimatedUsd }; }
+    catch (e) { return sendGatewayError(res, e); }   // 图像无可用路由等 → 在开 SSE 前结构化报错
     if (body.confirm !== true) return json(res, { error: { code: 'confirm_required', message: '需确认选角出图成本', estimate } });
 
     res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
@@ -519,11 +523,12 @@ export function registerRoutes(route) {
     try {
       for (let i = 0; i < todo.length; i++) {
         const c = todo[i];
+        const prompt = buildCastPortraitPrompt(c);
         send('stage', { progress: Math.round(i / todo.length * 100), msg: `选角出图 ${i + 1}/${todo.length}：${c.name}` });
-        const r = await execute('image', { prompt: buildCastPortraitPrompt(c), aspect: '9:16' });
+        const r = await execute('image', { prompt, aspect: '9:16' });
         const url = r.files?.[0]?.url;
         if (!url) throw new Error('未返回定妆照');
-        addPortraitVersion(params.did, c.id, { url, prompt: buildCastPortraitPrompt(c) });
+        addPortraitVersion(params.did, c.id, { url, prompt });
         addAssets(params.id, [{ type: 'photo', url, prompt: `选角：${c.name}`, title: c.name }]);
       }
       updateDrama(params.did, { status: 'cast_ready' });
