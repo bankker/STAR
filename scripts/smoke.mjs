@@ -118,6 +118,12 @@ try {
   const galMiss = await call('/api/artist/nope_x/gallery');
   ok('gallery 未知艺人 404', galMiss.status === 200 && galMiss.data.error?.code === 'not_found', galMiss.data.error?.code);
 
+  const vidNoFrame = await call(`/api/artist/${created.data.id}/video`, { prompt: 'x' });
+  ok('视频无首帧→bad_request', vidNoFrame.status === 200 && vidNoFrame.data.error?.code === 'bad_request', vidNoFrame.data.error?.code);
+
+  const vidMiss = await call('/api/artist/nope_x/video', { prompt: 'x' });
+  ok('视频未知艺人→not_found', vidMiss.status === 200 && vidMiss.data.error?.code === 'not_found', vidMiss.data.error?.code);
+
   const del = await call(`/api/artist/${created.data.id}`, undefined, 'DELETE');
   ok('artist 删除', del.status === 200 && del.data.ok === true);
 } catch (e) {

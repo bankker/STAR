@@ -1267,9 +1267,14 @@ function renderVideoJobCard(job, cardWrap) {
  * On failed: show error in card.
  */
 function pollVideoJob(jobId, cardWrap) {
+  let pollErrs = 0;
   const intervalId = setInterval(async () => {
     const data = await api(`/api/jobs/${encodeURIComponent(jobId)}`);
-    if (data.error || !data.job) return;
+    if (data.error || !data.job) {
+      if (++pollErrs >= 5) { clearInterval(intervalId); }
+      return;
+    }
+    pollErrs = 0;
     const job = data.job;
     renderVideoJobCard(job, cardWrap);
     if (job.status === 'done') {
