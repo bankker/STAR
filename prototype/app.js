@@ -2072,12 +2072,12 @@ function updateDramaStepper(drama) {
     if ((drama.episodes || []).length) done.add('script');
     // cast done if all non-lead cast have a portrait
     const support = (drama.cast || []).filter((c) => !c.isLead);
-    const castDone = support.length > 0 && support.every((c) => c.portrait && c.portrait.current);
+    const castDone = support.length > 0 && support.every((c) => c.portrait && c.portrait.current >= 0);
     if (castDone) done.add('cast');
     // storyboard done if every scene has a frame
     const eps = drama.episodes || [];
     const allScenes = eps.flatMap((e) => e.scenes || []);
-    const sbDone = allScenes.length > 0 && allScenes.every((s) => s.frame && s.frame.current);
+    const sbDone = allScenes.length > 0 && allScenes.every((s) => s.frame && s.frame.current >= 0);
     if (sbDone) done.add('storyboard');
     // compose done if any episode composed
     const anyComposed = eps.some((e) => e.episodeUrl);
@@ -2276,7 +2276,9 @@ function renderDramaCast(drama) {
   const wrap = $('#drama-cast-portraits');
   if (!wrap) return;
   wrap.innerHTML = (drama.cast || []).map((c) => {
-    const url = c.portrait && c.portrait.current ? esc(c.portrait.current) : '';
+    // portrait.current 是版本下标（-1 表示无）；取对应版本的 url
+    const pv = c.portrait && c.portrait.current >= 0 ? c.portrait.versions[c.portrait.current] : null;
+    const url = pv ? esc(pv.url) : '';
     const lead = c.isLead;
     return `<div class="drama-cast-card">
       <div class="drama-portrait-wrap">
@@ -2294,7 +2296,7 @@ function renderDramaStoryboard(drama) {
   const wrap = $('#drama-storyboard-episodes');
   if (!wrap) return;
   wrap.innerHTML = (drama.episodes || []).map((ep) => {
-    const scenesDone = (ep.scenes || []).filter((s) => s.frame && s.frame.current).length;
+    const scenesDone = (ep.scenes || []).filter((s) => s.frame && s.frame.current >= 0).length;
     const total = (ep.scenes || []).length;
     return `<div class="drama-ep-block" data-eid="${esc(ep.id)}">
       <div class="drama-ep-head">
@@ -2305,8 +2307,8 @@ function renderDramaStoryboard(drama) {
       <div class="drama-sb-grid">
         ${(ep.scenes || []).map((sc) => {
           const versions = (sc.frame && sc.frame.versions) || [];
-          const curUrl = sc.frame && sc.frame.current ? esc(sc.frame.current) : '';
-          const curIdx = versions.findIndex((v) => v.url === (sc.frame && sc.frame.current));
+          const curIdx = sc.frame ? sc.frame.current : -1;   // 版本下标（-1 无）
+          const curUrl = curIdx >= 0 && versions[curIdx] ? esc(versions[curIdx].url) : '';
           return `<div class="drama-sb-cell" data-eid="${esc(ep.id)}" data-sid="${esc(sc.id)}">
             <div class="drama-sb-thumb">
               ${curUrl ? `<img src="${curUrl}" alt="" loading="lazy">` : '<div class="drama-sb-empty">无分镜</div>'}
@@ -2368,8 +2370,7 @@ async function switchFrame(eid, sid, dir) {
   if (!sc || !sc.frame) return;
   const versions = sc.frame.versions || [];
   if (versions.length < 2) return;
-  let idx = versions.findIndex((v) => v.url === sc.frame.current);
-  if (idx < 0) idx = 0;
+  let idx = sc.frame.current >= 0 ? sc.frame.current : 0;   // current 即版本下标
   idx = (idx + dir + versions.length) % versions.length;
   const r = await api(`${base}/${encodeURIComponent(drama.id)}/episode/${encodeURIComponent(eid)}/scene/${encodeURIComponent(sid)}/frame`, { index: idx });
   if (r.error) { toast(errText(r.error), 'err'); return; }
@@ -2503,7 +2504,7 @@ async function runComposeSSE(path, body, eid, btn) {
   let lastErr = null;
   await dramaSSE(path, body, {
     onStage: (p) => {
-      if (fill && typeof p.progress === 'number') fill.style.width = `${Math.round(p.progress * 100)}%`;
+      if (fill && typeof p.progress === 'number') fill.style.width = `${Math.max(0, Math.min(100, Math.round(p.progress)))}%`;
       if (msgEl) msgEl.textContent = p.msg || p.stage || '';
     },
     onDone: async (p) => {
@@ -2613,7 +2614,7 @@ async function runCastSSE(path) {
   let lastErr = null;
   await dramaSSE(path, { confirm: true }, {
     onStage: (p) => {
-      if (fill && typeof p.progress === 'number') fill.style.width = `${Math.round(p.progress * 100)}%`;
+      if (fill && typeof p.progress === 'number') fill.style.width = `${Math.max(0, Math.min(100, Math.round(p.progress)))}%`;
       if (msgEl) msgEl.textContent = p.msg || '';
     },
     onDone: (p) => {
