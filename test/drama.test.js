@@ -16,9 +16,9 @@ test('extractScript 解析围栏 JSON 并裁剪上限', () => {
     })) }],
   }) + '\n```';
   const s = extractScript(raw, artist);
-  assert.ok(s.cast.length <= MAX_CAST);
+  assert.equal(s.cast.length, MAX_CAST);
   assert.equal(s.episodes[0].scenes.length, MAX_SCENES);
-  assert.ok(s.episodes[0].scenes[0].lines.length <= MAX_LINES_PER_SCENE);
+  assert.equal(s.episodes[0].scenes[0].lines.length, MAX_LINES_PER_SCENE);
 });
 
 test('extractScript 无 JSON 抛错', () => {

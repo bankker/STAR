@@ -25,6 +25,7 @@ export function buildScriptMessages(artist, brief) {
   return { system, messages: [{ role: 'user', content: `请为主演「${a.name || ''}」创作短剧剧本 JSON。` }] };
 }
 
+// artist 预留参数：后续用于把台词 character 归一到主演名（暂未启用，签名稳定供端点调用）。
 export function extractScript(text, artist) {
   if (typeof text !== 'string') throw new Error('无文本可解析');
   let s = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
@@ -57,6 +58,7 @@ export function buildScenePrompt(artist, scene, cast, consistencyMode) {
   const a = artist || {};
   const names = (scene.characters || []);
   const looks = names.map((n) => {
+    // 旁白为画外音不出镜（返回空被下方 filter 丢弃）；主演带一致性包外观，配角带其人设外观。
     if (n === a.name || n === '旁白') return a.name === n ? `${a.name}（${a.visualIdentity || ''}）` : '';
     const m = (cast || []).find((c) => c.name === n);
     return m ? `${m.name}（${m.appearance || ''}）` : n;
