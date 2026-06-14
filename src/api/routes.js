@@ -106,7 +106,9 @@ async function maybeSummarize(artistId, artist) {
 function sceneRefImages(drama, scene) {
   if (drama.consistencyMode !== 'image_ref') return [];
   const names = scene.characters || [];
-  const ordered = [...names].sort((a, b) => (a === drama.cast[0]?.name ? -1 : 0) - (b === drama.cast[0]?.name ? -1 : 0));
+  // 主演优先：按 isLead 标志排序（不依赖 cast 数组下标，cast 顺序变化也稳）。
+  const isLeadName = (n) => (drama.cast.find((x) => x.name === n)?.isLead ? 1 : 0);
+  const ordered = [...names].sort((a, b) => isLeadName(b) - isLeadName(a));
   const urls = [];
   for (const n of ordered) {
     const c = drama.cast.find((x) => x.name === n);
@@ -609,7 +611,7 @@ export function registerRoutes(route) {
   route('POST /api/artist/:id/drama/:did/episode/:eid/scene/:sid/frame', async (req, res, { params, readJsonBody }) => {
     const body = await readJsonBody();
     const d = getDrama(params.did);
-    if (!d || d.artistId !== params.id) return jsonError(res, 'not_found', '无此短剧');
+    if (!getArtist(params.id) || !d || d.artistId !== params.id) return jsonError(res, 'not_found', '无此短剧');
     const drama = setFrameCurrent(params.did, params.eid, params.sid, Number(body.index));
     drama ? json(res, { drama }) : jsonError(res, 'not_found', '无此场景');
   });
