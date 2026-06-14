@@ -23,7 +23,7 @@ export function bootstrap() {
       if (request.artistId && Array.isArray(r.files) && r.files.length) {
         try {
           addAssets(request.artistId, r.files.map((f) => ({
-            type: capability === 'video' ? 'video' : 'photo',
+            type: capability === 'video' ? 'video' : (capability === 'music' ? 'song' : 'photo'),
             url: f.url, prompt: request.prompt || '', aspect: request.aspect || '',
             durationSec: r.durationSec || request.durationSec || null,
           })));

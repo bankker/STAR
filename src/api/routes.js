@@ -17,6 +17,7 @@ import {
   buildInterviewMessages, buildFinalizeMessages, extractProfileJson, buildPortraitPrompt, buildPhotoPrompt,
 } from '../studio/artist-create.js';
 import { getGallery, addAssets, toggleFavorite, removeAsset } from '../studio/assets.js';
+import { buildBlueprintMessages, extractBlueprint, blueprintToRenderReq } from '../studio/music.js';
 
 const MAX_BODY = 1 * 1024 * 1024;
 const MAX_MEDIA_BODY = 32 * 1024 * 1024;
@@ -348,6 +349,32 @@ export function registerRoutes(route) {
       const imageRef = generatedUrlToDataUrl(GENERATED_DIR, frameUrl);
       if (!imageRef) throw new Error('首帧图读取失败');
       return { artistId: params.id, imageRef, prompt: b.prompt || '', durationSec: Number(b.durationSec) || 5, aspect: '9:16' };
+    });
+  });
+
+  route('POST /api/artist/:id/song/blueprint', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    if (!artist) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    try {
+      const { system, messages } = buildBlueprintMessages(artist, body.brief);
+      const r = await execute('content', { system, messages, maxTokens: 1200 });
+      let blueprint;
+      try { blueprint = extractBlueprint(r.text); }
+      catch (e) { return jsonError(res, 'provider_error', `蓝图解析失败：${e.message}`); }
+      json(res, { blueprint, provider: r.provider, model: r.model });
+    } catch (e) { sendGatewayError(res, e); }
+  });
+
+  route('POST /api/artist/:id/song', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    if (!artist) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    await handleMediaSubmit('music', res, body, (b) => {
+      if (!b.blueprint && !b.lyrics && !b.style) throw new Error('需先生成或填写作曲蓝图');
+      const rr = b.blueprint ? blueprintToRenderReq(b.blueprint, artist)
+                             : { title: b.title || '', lyrics: b.lyrics || '', style: b.style || '', gender: blueprintToRenderReq({}, artist).gender };
+      return { artistId: params.id, lyrics: rr.lyrics, prompt: rr.style, style: rr.style, gender: rr.gender, title: rr.title };
     });
   });
 
