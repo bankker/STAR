@@ -1864,6 +1864,171 @@ select option { background: var(--panel-2); color: var(--ink); }
 .gp-card-song .gp-card-title { padding: 0 0 6px; font-weight: 600; color: var(--ink); }
 .gp-card-song audio { width: 100%; height: 32px; }
 
+/* ════════ 深度访谈 (S7) ════════ */
+.deepiv-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 720px) { .deepiv-form-grid { grid-template-columns: 1fr; } }
+
+/* 嘉宾名录 */
+.deepiv-guest-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+.deepiv-guest-card {
+  display: flex;
+  gap: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 12px;
+  transition: border-color .15s;
+}
+.deepiv-guest-card:hover { border-color: var(--line-2); }
+.deepiv-guest-portrait {
+  flex: 0 0 64px;
+  width: 64px; height: 80px;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--bg);
+}
+.deepiv-guest-portrait img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.deepiv-guest-empty {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; color: var(--ink-3);
+}
+.deepiv-guest-body { flex: 1; min-width: 0; }
+.deepiv-guest-name { font-size: 14px; font-weight: 700; color: var(--ink); }
+.deepiv-guest-meta { font-size: 12px; color: var(--brand-2); margin: 2px 0; }
+.deepiv-guest-persona {
+  font-size: 11px; color: var(--ink-3); line-height: 1.5;
+  margin-bottom: 8px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.deepiv-guest-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* 提纲 */
+.deepiv-outline-opening {
+  font-size: 13px; color: var(--ink-2); line-height: 1.6;
+  padding: 10px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+.deepiv-outline-list { margin: 0; padding-left: 20px; }
+.deepiv-outline-list li { font-size: 13px; color: var(--ink-2); line-height: 1.7; }
+
+/* 麦克风不支持提示 */
+.deepiv-mic-warn {
+  font-size: 13px; color: var(--err); line-height: 1.6;
+  padding: 12px 14px;
+  background: rgba(255,107,107,.08);
+  border: 1px solid rgba(255,107,107,.25);
+  border-radius: var(--r-sm);
+}
+
+/* 当前问题 + 录音 */
+.deepiv-current-label {
+  font-size: 11.5px; font-weight: 600; letter-spacing: .3px;
+  text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px;
+}
+.deepiv-current-q {
+  font-size: 16px; font-weight: 600; color: var(--ink); line-height: 1.5;
+  padding: 14px 16px;
+  background: var(--panel-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  margin-bottom: 14px;
+}
+.deepiv-record-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.deepiv-record-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 700; color: #fff;
+  padding: 12px 22px;
+  background: linear-gradient(135deg, var(--brand), var(--brand-2));
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: filter .15s, transform .1s;
+}
+.deepiv-record-btn:hover:not(:disabled) { filter: brightness(1.08); }
+.deepiv-record-btn:active:not(:disabled) { transform: scale(.97); }
+.deepiv-record-btn:disabled { opacity: .5; cursor: not-allowed; }
+.deepiv-record-btn.recording {
+  background: linear-gradient(135deg, #ff5b6e, #ff8a5b);
+  animation: deepivRecPulse 1.2s ease-in-out infinite;
+}
+.deepiv-rec-dot {
+  width: 0; height: 0; border-radius: 50%;
+  background: #fff;
+  transition: width .15s, height .15s;
+}
+.deepiv-record-btn.recording .deepiv-rec-dot {
+  width: 10px; height: 10px;
+  animation: deepivDotBlink 1s ease-in-out infinite;
+}
+@keyframes deepivRecPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,91,110,.55); }
+  50% { box-shadow: 0 0 0 12px rgba(255,91,110,0); }
+}
+@keyframes deepivDotBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .25; }
+}
+
+/* 对话记录 */
+.deepiv-transcript {
+  display: flex; flex-direction: column; gap: 12px;
+  max-height: 480px; overflow-y: auto;
+  padding: 4px;
+}
+.deepiv-transcript-empty {
+  font-size: 13px; color: var(--ink-3); text-align: center; padding: 24px 0;
+}
+.deepiv-bubble-row { display: flex; }
+.deepiv-bubble-row.host { justify-content: flex-start; }
+.deepiv-bubble-row.guest { justify-content: flex-end; }
+.deepiv-bubble {
+  max-width: 78%;
+  padding: 10px 14px;
+  border-radius: var(--r);
+  border: 1px solid var(--line);
+}
+.deepiv-bubble-row.host .deepiv-bubble {
+  background: rgba(124,92,255,.10);
+  border-color: rgba(124,92,255,.30);
+  border-top-left-radius: 4px;
+}
+.deepiv-bubble-row.guest .deepiv-bubble {
+  background: rgba(38,214,196,.10);
+  border-color: rgba(38,214,196,.30);
+  border-top-right-radius: 4px;
+}
+.deepiv-bubble-who {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 700; letter-spacing: .3px;
+  margin-bottom: 4px;
+}
+.deepiv-bubble-row.host .deepiv-bubble-who { color: var(--brand-2); }
+.deepiv-bubble-row.guest .deepiv-bubble-who { color: var(--accent); }
+.deepiv-bubble-text { font-size: 14px; color: var(--ink); line-height: 1.55; white-space: pre-wrap; }
+.deepiv-bubble-play {
+  width: 20px; height: 20px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: .7;
+}
+.deepiv-bubble-play:hover { opacity: 1; }
+
 /* scrollbar global */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

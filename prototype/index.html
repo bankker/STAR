@@ -55,6 +55,11 @@
         <span class="nav-label">短剧工坊</span>
         <span class="nav-tag">S6</span>
       </div>
+      <div class="nav-item" data-view="deepiv">
+        <span class="nav-icon">🎙️</span>
+        <span class="nav-label">深度访谈</span>
+        <span class="nav-tag">S7</span>
+      </div>
 
       <!-- 系统 -->
       <div class="nav-group-label">系统</div>
@@ -883,6 +888,131 @@
               <div id="drama-collection-msg" class="out mb-12"></div>
               <div id="drama-collection-result"></div>
             </div>
+
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ══ VIEW: 深度访谈 (S7) ══ -->
+      <div id="view-deepiv" class="view hidden">
+        <div class="view-h1">深度访谈 <span class="pill s2">S7</span></div>
+        <p class="text-sm text-ink-3 mt-8 mb-16">真人嘉宾入场——管理嘉宾名录、为艺人主持生成访谈提纲，进入实时访谈室用麦克风录音作答，AI 主持自动追问。</p>
+
+        <!-- No artist notice -->
+        <div id="deepiv-no-artist" class="panel hidden">
+          <div class="empty-state">
+            <div class="icon">🎙️</div>
+            <div class="title">请先选择艺人</div>
+            <div class="desc">从顶部艺人选择器选择或新建一名艺人，再开始深度访谈。</div>
+          </div>
+        </div>
+
+        <div id="deepiv-studio-area">
+
+          <!-- ── 嘉宾管理 / 提纲 (shown when not in interview room) ── -->
+          <div id="deepiv-setup-pane">
+
+            <!-- 新建嘉宾 -->
+            <div class="panel mb-16">
+              <div class="flex items-center gap-8 mb-12">
+                <h2 style="margin:0">新建嘉宾</h2>
+                <span class="pill s2">入场登记</span>
+              </div>
+              <div class="deepiv-form-grid mb-12">
+                <div class="field">
+                  <div class="label-upper">姓名</div>
+                  <input id="deepiv-guest-name" placeholder="例如：林见秋">
+                </div>
+                <div class="field">
+                  <div class="label-upper">头衔（选填）</div>
+                  <input id="deepiv-guest-title" placeholder="例如：导演 / 创始人">
+                </div>
+                <div class="field">
+                  <div class="label-upper">机构（选填）</div>
+                  <input id="deepiv-guest-company" placeholder="例如：星河影业">
+                </div>
+              </div>
+              <div class="field mb-12">
+                <div class="label-upper">人物画像 / 看点（选填）</div>
+                <textarea id="deepiv-guest-persona" rows="2" placeholder="背景、成就、性格、想聊的话题…"></textarea>
+              </div>
+              <button class="btn btn-primary" id="deepiv-guest-create-btn" style="width:100%;justify-content:center;">
+                ✦ 添加嘉宾
+              </button>
+              <div id="deepiv-guest-create-msg" class="out"></div>
+            </div>
+
+            <!-- 嘉宾名录 -->
+            <div class="panel">
+              <div class="flex items-center gap-8 mb-12">
+                <h2 style="margin:0">嘉宾名录</h2>
+                <button class="btn btn-secondary btn-sm" id="deepiv-guest-refresh" style="margin-left:auto;">↻ 刷新</button>
+              </div>
+              <div id="deepiv-guest-grid" class="deepiv-guest-grid"></div>
+            </div>
+          </div>
+
+          <!-- ── 实时访谈室 (shown when a session is active) ── -->
+          <div id="deepiv-room-pane" class="hidden">
+
+            <!-- 访谈室头部 -->
+            <div class="panel mb-16">
+              <div class="flex items-center gap-8 mb-8">
+                <button class="btn btn-ghost btn-sm" id="deepiv-back-btn">‹ 返回名录</button>
+                <h2 id="deepiv-room-guest" style="margin:0 0 0 4px;">访谈室</h2>
+                <span class="pill s2" id="deepiv-room-status" style="margin-left:auto;">访谈中</span>
+              </div>
+              <div id="deepiv-room-meta" class="text-sm text-ink-3"></div>
+            </div>
+
+            <!-- 访谈提纲 -->
+            <div class="panel mb-16" id="deepiv-outline-panel">
+              <div class="flex items-center gap-8 mb-12">
+                <h2 style="margin:0">访谈提纲</h2>
+                <span class="pill dim" id="deepiv-outline-pill">AI 生成</span>
+              </div>
+              <div class="field mb-10">
+                <div class="label-upper">开场</div>
+                <div id="deepiv-outline-opening" class="deepiv-outline-opening"></div>
+              </div>
+              <div class="field">
+                <div class="label-upper">问题列表</div>
+                <ol id="deepiv-outline-questions" class="deepiv-outline-list"></ol>
+              </div>
+            </div>
+
+            <!-- 麦克风不支持提示 -->
+            <div id="deepiv-mic-notice" class="panel hidden mb-16">
+              <div class="deepiv-mic-warn">⚠ 当前环境不支持麦克风录音（需要 HTTPS 或 localhost，且浏览器需允许麦克风权限）。访谈室仍可浏览，但无法录音作答。</div>
+            </div>
+
+            <!-- 当前问题 + 录音 -->
+            <div class="panel mb-16 deepiv-stage-panel">
+              <div class="deepiv-current-label">当前问题</div>
+              <div id="deepiv-current-q" class="deepiv-current-q">准备开场…</div>
+              <div class="deepiv-record-row">
+                <button class="deepiv-record-btn" id="deepiv-record-btn" type="button">
+                  <span class="deepiv-rec-dot" id="deepiv-rec-dot"></span>
+                  <span id="deepiv-record-label">🎤 回答</span>
+                </button>
+                <button class="btn btn-secondary" id="deepiv-ask-btn" type="button">↻ 下一问</button>
+                <button class="btn btn-danger" id="deepiv-end-btn" type="button" style="margin-left:auto;">■ 结束访谈</button>
+              </div>
+              <div id="deepiv-room-msg" class="out"></div>
+            </div>
+
+            <!-- 对话记录 -->
+            <div class="panel mb-16">
+              <div class="flex items-center gap-8 mb-12">
+                <h2 style="margin:0">对话记录</h2>
+                <span class="pill dim" id="deepiv-turn-count">0 轮</span>
+              </div>
+              <div id="deepiv-transcript" class="deepiv-transcript"></div>
+            </div>
+
+            <!-- Phase B 成片区占位（Task 10 填充） -->
+            <div id="deepiv-finish" class="panel hidden"></div>
 
           </div>
 
