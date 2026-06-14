@@ -24,6 +24,15 @@ export function dataUrlToBuffer(dataUrl) {
   return { mime: m[1], buf: Buffer.from(m[2], 'base64') };
 }
 
+// base64 dataUrl 落盘到 GENERATED_DIR，按 mime 推断扩展名，返回 /generated/<name> url。
+export function saveDataUrl(genDir, dataUrl) {
+  const { mime, buf } = dataUrlToBuffer(dataUrl);
+  const ext = mime.includes('webm') ? 'webm' : mime.includes('wav') ? 'wav'
+    : mime.includes('mpeg') || mime.includes('mp3') ? 'mp3'
+    : (mime.includes('jpeg') || mime.includes('jpg')) ? 'jpg' : mime.includes('png') ? 'png' : 'bin';
+  return saveBufferToGenerated(genDir, buf, ext).url;
+}
+
 export function generatedUrlToDataUrl(genDir, url) {
   const m = /^\/generated\/([A-Za-z0-9_.-]+)$/.exec(url || '');
   if (!m) return null;

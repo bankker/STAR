@@ -70,6 +70,12 @@ export function srtTime(sec) {
   return `${p(h)}:${p(m)}:${p(s)},${p(mmm, 3)}`;
 }
 
+// 任意音频（含浏览器 webm/opus）→ 16k 单声道 wav，供 ASR。
+export function transcodeToWav(srcAbs, destAbs) {
+  runFfmpeg(['-y', '-i', srcAbs, '-ar', '16000', '-ac', '1', destAbs]);
+  return destAbs;
+}
+
 export function buildSrt(segments) {
   let t = 0, out = '';
   segments.forEach((seg, i) => {

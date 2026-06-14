@@ -6,10 +6,10 @@ import { estimateRequest } from '../gateway/costs.js';
 import { summarize } from '../gateway/ledger.js';
 import { loadConfig, updateConfig, listProviders } from '../gateway/registry.js';
 import { setEnvKey } from '../lib/env.js';
-import { generatedUrlToDataUrl } from '../lib/files.js';
+import { generatedUrlToDataUrl, saveDataUrl } from '../lib/files.js';
 import { ENV_FILE, GENERATED_DIR } from '../lib/paths.js';
 import { buildPlanMessages, buildScriptMessages, extractDialogue } from '../studio/interview.js';
-import { ffmpegAvailable, runFfmpeg, probeDurationSec, buildSrt } from '../lib/ffmpeg.js';
+import { ffmpegAvailable, runFfmpeg, probeDurationSec, buildSrt, transcodeToWav } from '../lib/ffmpeg.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
@@ -24,6 +24,7 @@ import { getGallery, addAssets, toggleFavorite, removeAsset } from '../studio/as
 import { buildBlueprintMessages, extractBlueprint, blueprintToRenderReq } from '../studio/music.js';
 import { buildScriptMessages as buildDramaScriptMessages, extractScript, assignVoices, buildCastPortraitPrompt, buildScenePrompt, buildI2vPrompt, estimateEpisodeCost } from '../studio/drama.js';
 import { createDrama, getDrama, listDramas, updateDrama, addPortraitVersion, addFrameVersion, setFrameCurrent, curFrameUrl, setEpisodeTheme } from '../studio/drama-store.js';
+import { createGuest, getGuest, listGuests, updateGuest, addGuestPortrait, deleteGuest, curGuestPortrait } from '../studio/guests.js';
 import os from 'node:os';
 
 const MAX_BODY = 1 * 1024 * 1024;
@@ -32,6 +33,9 @@ const MAX_MEDIA_BODY = 32 * 1024 * 1024;
 function stripFence(t) { return String(t).trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, ''); }
 // NOTE: 精确匹配——若未来新增子路径端点（如 /api/ai/image/variations）需扩展此集合
 const MEDIA_BODY_PATHS = new Set(['/api/ai/asr', '/api/ai/image', '/api/ai/video', '/api/ai/music']);
+function isMediaPath(pathname) {
+  return MEDIA_BODY_PATHS.has(pathname) || /\/(guest\/[^/]+\/portrait|interview2\/[^/]+\/answer)$/.test(pathname);
+}
 
 export function json(res, data, status = 200) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -47,7 +51,7 @@ export function sendGatewayError(res, e) {
 }
 
 export function readJsonBody(req, pathname) {
-  const limit = MEDIA_BODY_PATHS.has(pathname) ? MAX_MEDIA_BODY : MAX_BODY;
+  const limit = isMediaPath(pathname) ? MAX_MEDIA_BODY : MAX_BODY;
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks = [];
@@ -800,6 +804,51 @@ export function registerRoutes(route) {
       return jsonError(res, 'bad_request', '定妆照必须来自该艺人写真库');
     }
     json(res, { drama: addPortraitVersion(params.did, params.cid, { url, prompt: '写真库复用' }) });
+  });
+
+  route('POST /api/artist/:id/guests', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    if (!getArtist(params.id)) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    if (!String(body.name || '').trim()) return jsonError(res, 'bad_request', '嘉宾姓名必填');
+    json(res, { guest: createGuest(params.id, body) });
+  });
+  route('GET /api/artist/:id/guests', async (req, res, { params }) => {
+    if (!getArtist(params.id)) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    json(res, { guests: listGuests(params.id) });
+  });
+  route('GET /api/artist/:id/guest/:gid', async (req, res, { params }) => {
+    const g = getGuest(params.gid);
+    g && g.artistId === params.id ? json(res, { guest: g }) : jsonError(res, 'not_found', '无此嘉宾');
+  });
+  route('PUT /api/artist/:id/guest/:gid', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const g = getGuest(params.gid);
+    if (!g || g.artistId !== params.id) return jsonError(res, 'not_found', '无此嘉宾');
+    json(res, { guest: updateGuest(params.gid, body) });
+  });
+  route('DELETE /api/artist/:id/guest/:gid', async (req, res, { params }) => {
+    const g = getGuest(params.gid);
+    if (!g || g.artistId !== params.id) return jsonError(res, 'not_found', '无此嘉宾');
+    json(res, { ok: deleteGuest(params.gid) });
+  });
+  route('POST /api/artist/:id/guest/:gid/portrait', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id); const g = getGuest(params.gid);
+    if (!artist || !g || g.artistId !== params.id) return jsonError(res, 'not_found', '无此嘉宾');
+    try {
+      let url;
+      if (body.mode === 'upload') {
+        if (!body.dataUrl) return jsonError(res, 'bad_request', '缺少图片');
+        url = saveDataUrl(GENERATED_DIR, body.dataUrl);
+      } else {
+        const prompt = body.prompt || `商业人物肖像，${g.title || ''} ${g.company || ''}，${g.persona || ''}，正脸半身，专业布光，干净背景，SFW`;
+        const r = await execute('image', { prompt, aspect: '9:16' });
+        url = r.files?.[0]?.url; if (!url) return jsonError(res, 'provider_error', '出图失败');
+      }
+      addGuestPortrait(params.gid, { url, prompt: body.prompt || '嘉宾形象' });
+      addAssets(params.id, [{ type: 'photo', url, prompt: `嘉宾：${g.name}`, title: g.name }]);
+      json(res, { guest: getGuest(params.gid) });
+    } catch (e) { sendGatewayError(res, e); }
   });
 
   route('POST /api/artist/:id/gallery/:assetId/favorite', async (req, res, { params }) => {
