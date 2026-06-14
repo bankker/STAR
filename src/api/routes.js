@@ -710,6 +710,21 @@ export function registerRoutes(route) {
       fs.writeFileSync(clipList, sceneClips.map((c) => `file '${c.replace(/\\/g, '/')}'`).join('\n'));
       const merged = path.join(tmp, 'merged.mp4');
       runFfmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', clipList, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', merged], 300000);
+      // 3.5) 主题曲背景混音（若该集挂了主题曲且文件可读）：BGM 压低 + 循环垫到对白长
+      let subInput = merged;
+      if (ep.themeSongUrl) {
+        try {
+          const bgmAbs = path.join(GENERATED_DIR, ep.themeSongUrl.replace('/generated/', ''));
+          if (fs.existsSync(bgmAbs)) {
+            send('stage', { stage: 'bgm', progress: 90, msg: '混入主题曲' });
+            const mixed = path.join(tmp, 'mixed.mp4');
+            runFfmpeg(['-y', '-i', merged, '-stream_loop', '-1', '-i', bgmAbs,
+              '-filter_complex', '[1:a]volume=0.18[bg];[0:a][bg]amix=inputs=2:duration=first:dropout_transition=2[a]',
+              '-map', '0:v', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', mixed], 300000);
+            subInput = mixed;
+          } else { console.warn('[drama] 主题曲文件不存在，跳过混音', ep.themeSongUrl); }
+        } catch (e) { console.error('[drama] 主题曲混音失败，跳过', e.message); subInput = merged; }
+      }
       // 4) 一次性烧字幕（整集累计时间）
       send('stage', { stage: 'subtitle', progress: 92, msg: '烧录字幕' });
       const srtFile = path.join(tmp, 'sub.srt');
@@ -717,7 +732,7 @@ export function registerRoutes(route) {
       const name = `dr_${Date.now()}.mp4`;
       const outAbs = path.join(GENERATED_DIR, name);
       const srtEsc = srtFile.replace(/\\/g, '/').replace(/:/g, '\\:');
-      runFfmpeg(['-y', '-i', merged, '-vf', `subtitles='${srtEsc}'`, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'copy', outAbs], 300000);
+      runFfmpeg(['-y', '-i', subInput, '-vf', `subtitles='${srtEsc}'`, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'copy', outAbs], 300000);
       const totalSec = srtSegs.reduce((a, s) => a + s.durationSec, 0);
       addAssets(params.id, [{ type: 'drama', url: `/generated/${name}`, durationSec: Math.round(totalSec), title: `${d.title} · ${ep.title}` }]);
       // 写回该集成片（整体重写 episodes 数组）
