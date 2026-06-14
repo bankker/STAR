@@ -645,6 +645,7 @@ export function registerRoutes(route) {
     const scenes = ep.scenes;
     if (!scenes.length) return jsonError(res, 'bad_request', '本集无场景');
     if (scenes.some((s) => curFrameUrl(s) === null)) return jsonError(res, 'bad_request', '存在未出分镜图的场景，请先完成分镜');
+    if (scenes.some((s) => !s.lines?.length)) return jsonError(res, 'bad_request', '存在无台词的场景，请先补全台词');   // 防空音轨致 ffmpeg 崩
     if (tier === 'high' && body.confirm !== true) {
       return json(res, { error: { code: 'confirm_required', message: '需确认整集 i2v 出片成本',
         estimate: { capability: 'video', count: scenes.length, estimatedUsd: estimateEpisodeCost(ep, 'high') } } });
