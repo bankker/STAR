@@ -2029,6 +2029,31 @@ select option { background: var(--panel-2); color: var(--ink); }
 }
 .deepiv-bubble-play:hover { opacity: 1; }
 
+/* ── 深度访谈·成片区 ── */
+.deepiv-finish-section { }
+.deepiv-finish-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* audio player — full width */
+.deepiv-audio-player {
+  display: block;
+  width: 100%;
+  border-radius: var(--r-sm);
+  accent-color: var(--brand);
+}
+
+/* video player — vertical (9:16 portrait), max 360px wide */
+.deepiv-video-player {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  aspect-ratio: 9 / 16;
+  border-radius: var(--r);
+  background: #000;
+  object-fit: contain;
+}
+
+.mt-6 { margin-top: 6px; }
+
 /* scrollbar global */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

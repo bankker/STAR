@@ -3063,9 +3063,9 @@ function enterInterviewRoom(session, gid) {
   const room = $('#deepiv-room-pane');
   if (setup) setup.classList.add('hidden');
   if (room) room.classList.remove('hidden');
-  // reset finish placeholder (Phase B fills it in Task 10)
+  // reset finish region; will be re-revealed below if session already done
   const finish = $('#deepiv-finish');
-  if (finish) { finish.classList.add('hidden'); finish.innerHTML = ''; }
+  if (finish) { finish.classList.add('hidden'); }
 
   // mic support notice + record button guard
   const micNotice = $('#deepiv-mic-notice');
@@ -3082,6 +3082,12 @@ function enterInterviewRoom(session, gid) {
   renderOutline(session);
   renderTranscript(session);
   setDeepivStatus(session.status);
+
+  // if session already ended (revisiting), reveal finish region with existing players
+  if (session.status === 'done' && finish) {
+    finish.classList.remove('hidden');
+    renderFinishPlayers(session);
+  }
 
   // fresh session with 0 turns → auto play opening
   if ((session.turns || []).length === 0 && session.status !== 'done') {
@@ -3256,10 +3262,146 @@ async function endInterview() {
   if (r.error) { toast(errText(r.error), 'err'); return; }
   deepState.session = r.session;
   setDeepivStatus('done');
-  // reveal Phase B placeholder (filled in Task 10)
+  // reveal Phase B finish region
   const finish = $('#deepiv-finish');
-  if (finish) finish.classList.remove('hidden');
+  if (finish) {
+    finish.classList.remove('hidden');
+    renderFinishPlayers(r.session);
+  }
   toast('访谈已结束', 'ok');
+}
+
+/* ── 成片区：重新拉取 session ── */
+async function refetchDeepSession() {
+  const { artistId, session } = deepState;
+  if (!artistId || !session) return null;
+  const r = await api(`/api/artist/${encodeURIComponent(artistId)}/interview2/${encodeURIComponent(session.id)}`);
+  if (r.error) return null;
+  deepState.session = r.session || r;
+  return deepState.session;
+}
+
+/* ── 成片区：渲染已有 players（revisit 时） ── */
+function renderFinishPlayers(session) {
+  if (!session) return;
+  const recPlayer = $('#deepiv-record-player');
+  if (recPlayer && session.recordUrl) {
+    recPlayer.innerHTML = `<audio src="${esc(session.recordUrl)}" controls class="deepiv-audio-player"></audio>`;
+  }
+  const vidPlayer = $('#deepiv-video-player');
+  if (vidPlayer && session.videoUrl) {
+    vidPlayer.innerHTML = `<video src="${esc(session.videoUrl)}" controls class="deepiv-video-player" playsinline></video>
+      <div class="text-sm text-ink-3 mt-6">影像已存入成片库</div>`;
+  }
+}
+
+/* ── 成片区：生成语音对谈记录 ── */
+async function generateDeepRecord() {
+  const { artistId, session } = deepState;
+  if (!artistId || !session) return;
+  const path = `/api/artist/${encodeURIComponent(artistId)}/interview2/${encodeURIComponent(session.id)}/record`;
+
+  const btn = $('#deepiv-record-gen-btn');
+  const progBox = $('#deepiv-record-progress');
+  const fill = $('#deepiv-record-progress-fill');
+  const msgEl = $('#deepiv-record-stage-msg');
+  const player = $('#deepiv-record-player');
+
+  if (btn) btn.disabled = true;
+  if (progBox) progBox.classList.remove('hidden');
+  if (fill) fill.style.width = '5%';
+  if (msgEl) msgEl.textContent = '正在合成语音…';
+
+  let lastErr = null;
+  await dramaSSE(path, {}, {
+    onStage: (p) => {
+      if (fill && typeof p.progress === 'number') fill.style.width = `${Math.max(5, Math.min(95, Math.round(p.progress)))}%`;
+      if (msgEl) msgEl.textContent = p.msg || '';
+    },
+    onDone: async (p) => {
+      if (fill) fill.style.width = '100%';
+      if (msgEl) msgEl.textContent = '语音对谈记录已生成！';
+      const sess = await refetchDeepSession();
+      const url = (sess && sess.recordUrl) || (p && p.url);
+      if (player && url) {
+        player.innerHTML = `<audio src="${esc(url)}" controls class="deepiv-audio-player"></audio>`;
+      }
+      toast('语音对谈记录已生成', 'ok');
+    },
+    onError: (p) => { lastErr = p; },
+  });
+
+  if (btn) btn.disabled = false;
+  if (lastErr) {
+    if (msgEl) { msgEl.textContent = errText(lastErr); }
+    toast(lastErr.message || '生成失败', 'err');
+  }
+}
+
+/* ── 成片区：生成对口型影像 ── */
+async function generateDeepVideo() {
+  const { artistId, session } = deepState;
+  if (!artistId || !session) return;
+  const path = `/api/artist/${encodeURIComponent(artistId)}/interview2/${encodeURIComponent(session.id)}/video`;
+
+  // First call: no confirm → check if cost gate fires
+  const est = await api(path, {});
+  if (est.error && est.error.code === 'confirm_required') {
+    showCostConfirm('deepiv-video', est.error.estimate, '生成对口型影像', async () => {
+      await runDeepVideoSSE(path);
+    });
+    return;
+  }
+  if (est.error) {
+    // Surface bad_request messages prominently (missing portraits, need record first, etc.)
+    toast(est.error.message || errText(est.error), 'err');
+    const msgEl = $('#deepiv-video-stage-msg');
+    const progBox = $('#deepiv-video-progress');
+    if (progBox) progBox.classList.remove('hidden');
+    if (msgEl) { msgEl.textContent = est.error.message || errText(est.error); }
+    return;
+  }
+  // If server went ahead without confirm (unexpected), run SSE directly
+  await runDeepVideoSSE(path);
+}
+
+async function runDeepVideoSSE(path) {
+  const btn = $('#deepiv-video-gen-btn');
+  const progBox = $('#deepiv-video-progress');
+  const fill = $('#deepiv-video-progress-fill');
+  const msgEl = $('#deepiv-video-stage-msg');
+  const player = $('#deepiv-video-player');
+
+  if (btn) btn.disabled = true;
+  if (progBox) progBox.classList.remove('hidden');
+  if (fill) fill.style.width = '5%';
+  if (msgEl) msgEl.textContent = '正在生成对口型影像…';
+
+  let lastErr = null;
+  await dramaSSE(path, { confirm: true }, {
+    onStage: (p) => {
+      if (fill && typeof p.progress === 'number') fill.style.width = `${Math.max(5, Math.min(95, Math.round(p.progress)))}%`;
+      if (msgEl) msgEl.textContent = p.msg || '';
+    },
+    onDone: async (p) => {
+      if (fill) fill.style.width = '100%';
+      if (msgEl) msgEl.textContent = '对口型影像已生成！';
+      const sess = await refetchDeepSession();
+      const url = (sess && sess.videoUrl) || (p && p.url);
+      if (player && url) {
+        player.innerHTML = `<video src="${esc(url)}" controls class="deepiv-video-player" playsinline></video>
+          <div class="text-sm text-ink-3 mt-6">影像已存入成片库</div>`;
+      }
+      toast('对口型影像已生成', 'ok');
+    },
+    onError: (p) => { lastErr = p; },
+  });
+
+  if (btn) btn.disabled = false;
+  if (lastErr) {
+    if (msgEl) { msgEl.textContent = lastErr.message || errText(lastErr); }
+    toast(lastErr.message || '影像生成失败', 'err');
+  }
 }
 
 function initDeepInterview() {
@@ -3280,6 +3422,12 @@ function initDeepInterview() {
 
   const endBtn = $('#deepiv-end-btn');
   if (endBtn) endBtn.addEventListener('click', () => endInterview());
+
+  const recordGenBtn = $('#deepiv-record-gen-btn');
+  if (recordGenBtn) recordGenBtn.addEventListener('click', generateDeepRecord);
+
+  const videoGenBtn = $('#deepiv-video-gen-btn');
+  if (videoGenBtn) videoGenBtn.addEventListener('click', generateDeepVideo);
 }
 
 /* ── Boot ── */

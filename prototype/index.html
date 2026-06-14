@@ -1011,8 +1011,52 @@
               <div id="deepiv-transcript" class="deepiv-transcript"></div>
             </div>
 
-            <!-- Phase B 成片区占位（Task 10 填充） -->
-            <div id="deepiv-finish" class="panel hidden"></div>
+            <!-- Phase B 成片区 -->
+            <div id="deepiv-finish" class="panel hidden">
+              <div class="flex items-center gap-8 mb-16">
+                <h2 style="margin:0">成片</h2>
+                <span class="pill ok">访谈已结束</span>
+              </div>
+
+              <!-- ── 语音对谈记录 ── -->
+              <div class="deepiv-finish-section mb-16">
+                <div class="label-upper mb-8">语音对谈记录</div>
+                <div class="deepiv-finish-row">
+                  <button class="btn btn-primary" id="deepiv-record-gen-btn">✦ 生成语音对谈记录</button>
+                </div>
+                <!-- progress -->
+                <div class="hidden" id="deepiv-record-progress">
+                  <div class="progress-bar mb-8 mt-8"><div class="fill" id="deepiv-record-progress-fill" style="width:0%"></div></div>
+                  <div id="deepiv-record-stage-msg" class="text-sm text-ink-3"></div>
+                </div>
+                <!-- audio player slot -->
+                <div id="deepiv-record-player" class="mt-8"></div>
+              </div>
+
+              <hr class="sep-line" style="margin:0 0 16px;">
+
+              <!-- ── 对口型影像 ── -->
+              <div class="deepiv-finish-section">
+                <div class="label-upper mb-4">对口型影像</div>
+                <div class="text-sm text-ink-3 mb-8">需主持人（艺人）与嘉宾都有形象照</div>
+                <div class="deepiv-finish-row mb-8">
+                  <button class="btn btn-primary" id="deepiv-video-gen-btn">✦ 生成对口型影像</button>
+                </div>
+                <!-- cost-confirm bar -->
+                <div class="cost-confirm-bar hidden" id="deepiv-video-confirm">
+                  <span class="cost-confirm-text" id="deepiv-video-confirm-text"></span>
+                  <button class="btn btn-secondary btn-sm" id="deepiv-video-cancel">取消</button>
+                  <button class="btn btn-primary btn-sm" id="deepiv-video-ok">确认生成</button>
+                </div>
+                <!-- progress -->
+                <div class="hidden" id="deepiv-video-progress">
+                  <div class="progress-bar mb-8"><div class="fill" id="deepiv-video-progress-fill" style="width:0%"></div></div>
+                  <div id="deepiv-video-stage-msg" class="text-sm text-ink-3"></div>
+                </div>
+                <!-- video player slot -->
+                <div id="deepiv-video-player" class="mt-8"></div>
+              </div>
+            </div>
 
           </div>
 
