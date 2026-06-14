@@ -22,6 +22,7 @@ import {
 } from '../studio/artist-create.js';
 import { getGallery, addAssets, toggleFavorite, removeAsset } from '../studio/assets.js';
 import { buildBlueprintMessages, extractBlueprint, blueprintToRenderReq } from '../studio/music.js';
+import os from 'node:os';
 
 const MAX_BODY = 1 * 1024 * 1024;
 const MAX_MEDIA_BODY = 32 * 1024 * 1024;
@@ -414,13 +415,15 @@ export function registerRoutes(route) {
     if (!artist) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
     const dialogue = Array.isArray(body.dialogue) ? body.dialogue : null;
     if (!dialogue || !dialogue.length) return jsonError(res, 'bad_request', 'dialogue 必填');
+    if (dialogue.length > 30) return jsonError(res, 'bad_request', '每次合成最多 30 行对话');
+    if (dialogue.some((l) => String(l?.text || '').length > 300)) return jsonError(res, 'bad_request', '单行台词不超过 300 字');
     if (!ffmpegAvailable()) return jsonError(res, 'bad_request', '未检测到 ffmpeg，请安装后重启服务');
     const frame = getGallery(params.id).assets.find((a) => a.type === 'photo')?.url || artist.portraits?.[0]?.url;
     if (!frame) return jsonError(res, 'bad_request', '请先为该艺人生成一张写真作为画面');
 
     res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
     const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-    const tmp = fs.mkdtempSync(path.join(GENERATED_DIR, 'iv_'));
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'iv_'));
     try {
       send('stage', { stage: 'audio', progress: 5, msg: '配音中' });
       const artistVoice = (artist.gender || '').match(/男|male/i) ? 'Ethan' : 'Cherry';
@@ -455,7 +458,8 @@ export function registerRoutes(route) {
       addAssets(params.id, [{ type: 'interview', url: `/generated/${name}`, prompt: '访谈成片', durationSec: Math.round(totalSec), title: '访谈节目' }]);
       send('done', { url: `/generated/${name}`, durationSec: Math.round(totalSec) });
     } catch (e) {
-      send('error', e instanceof GatewayError ? e.toJSON() : { code: 'internal', message: e.message });
+      if (e instanceof GatewayError) { send('error', e.toJSON()); }
+      else { console.error('[interview] 合成失败', e.message); send('error', { code: 'internal', message: '成片合成失败，请重试' }); }
     } finally {
       try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
       res.end();
