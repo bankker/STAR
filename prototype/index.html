@@ -571,18 +571,133 @@
         </div>
       </div>
 
-      <!-- ══ VIEW: 访谈成片 (P3 placeholder) ══ -->
+      <!-- ══ VIEW: 访谈成片 (S5) ══ -->
       <div id="view-interview" class="view hidden">
-        <div class="view-h1">访谈成片 <span class="pill dim">P3</span></div>
-        <div class="panel mt-16">
-          <div class="coming-soon">
-            <div class="cs-icon">🎬</div>
-            <div class="cs-title">即将到来（P3）</div>
-            <div class="cs-desc">
-              5 阶段管线（script → audio → visual → subtitle → final）双人画面合成，阶段可暂停/重试。
-            </div>
-            <span class="pill dim cs-pill">开发中</span>
+        <div class="view-h1">访谈成片 <span class="pill s2">S5</span></div>
+        <p class="text-sm text-ink-3 mt-8 mb-16">5 阶段管线自动合成艺人访谈成片——策划 → 脚本 → 配音 → 字幕 → 成片。</p>
+
+        <!-- No artist notice -->
+        <div id="interview-no-artist" class="panel hidden">
+          <div class="empty-state">
+            <div class="icon">🎬</div>
+            <div class="title">请先选择艺人</div>
+            <div class="desc">从顶部艺人选择器选择或新建一名艺人，再制作访谈成片。</div>
           </div>
+        </div>
+
+        <div id="interview-studio-area">
+
+          <!-- Stage 1: 主题输入 -->
+          <div class="panel interview-stage-panel mb-16">
+            <div class="flex items-center gap-8 mb-12">
+              <h2 style="margin:0">访谈企划</h2>
+              <span class="pill dim">第一步</span>
+            </div>
+            <div class="field mb-12">
+              <div class="label-upper">访谈主题</div>
+              <input id="interview-topic" placeholder="例如：成长经历、音乐梦想、人生低谷…">
+            </div>
+            <button class="btn btn-primary" id="interview-plan-btn" style="width:100%;justify-content:center;">
+              ✦ 生成访谈企划
+            </button>
+            <div id="interview-plan-msg" class="out"></div>
+          </div>
+
+          <!-- Stage 2: 企划卡 (hidden until plan generated) -->
+          <div class="panel interview-plan-card mb-16 hidden" id="interview-plan-card">
+            <div class="flex items-center gap-8 mb-12">
+              <h2 style="margin:0">访谈企划</h2>
+              <span class="pill ok" id="interview-plan-pill">已生成</span>
+            </div>
+            <div class="field mb-10">
+              <div class="label-upper">访谈角度</div>
+              <div id="interview-plan-angle" class="interview-plan-text"></div>
+            </div>
+            <div class="field mb-12">
+              <div class="label-upper">问题列表</div>
+              <ol id="interview-plan-questions" class="interview-questions-list"></ol>
+            </div>
+            <button class="btn btn-primary" id="interview-script-btn" style="width:100%;justify-content:center;">
+              ✦ 生成脚本
+            </button>
+            <div id="interview-script-msg" class="out"></div>
+          </div>
+
+          <!-- Stage 3: 逐字稿 (hidden until script generated) -->
+          <div class="panel mb-16 hidden" id="interview-script-card">
+            <div class="flex items-center gap-8 mb-12">
+              <h2 style="margin:0">逐字稿</h2>
+              <span class="pill s2" id="interview-script-pill">可编辑</span>
+            </div>
+            <div id="interview-dialogue-rows" class="interview-dialogue-list mb-12"></div>
+            <div id="interview-photo-notice" class="hidden interview-photo-notice mb-12">
+              ⚠ 请先在写真页生成一张写真作为画面
+            </div>
+            <button class="btn btn-primary" id="interview-compose-btn" style="width:100%;justify-content:center;">
+              ✦ 合成成片
+            </button>
+            <div id="interview-compose-msg" class="out"></div>
+          </div>
+
+          <!-- Stage 4: Stepper + progress (shown during compose) -->
+          <div class="panel mb-16 hidden" id="interview-stepper-card">
+            <div class="flex items-center gap-8 mb-16">
+              <h2 style="margin:0">合成进度</h2>
+              <span class="pill s2">生成中</span>
+            </div>
+            <!-- 5-stage stepper -->
+            <div class="interview-stepper mb-16" id="interview-stepper">
+              <div class="stepper-step" data-stage="script">
+                <div class="stepper-dot"></div>
+                <div class="stepper-label">脚本</div>
+              </div>
+              <div class="stepper-connector"></div>
+              <div class="stepper-step" data-stage="audio">
+                <div class="stepper-dot"></div>
+                <div class="stepper-label">配音</div>
+              </div>
+              <div class="stepper-connector"></div>
+              <div class="stepper-step" data-stage="subtitle">
+                <div class="stepper-dot"></div>
+                <div class="stepper-label">字幕</div>
+              </div>
+              <div class="stepper-connector"></div>
+              <div class="stepper-step" data-stage="visual">
+                <div class="stepper-dot"></div>
+                <div class="stepper-label">画面</div>
+              </div>
+              <div class="stepper-connector"></div>
+              <div class="stepper-step" data-stage="final">
+                <div class="stepper-dot"></div>
+                <div class="stepper-label">成片</div>
+              </div>
+            </div>
+            <!-- Progress bar -->
+            <div class="progress-bar mb-8" id="interview-progress-bar">
+              <div class="fill" id="interview-progress-fill" style="width:0%"></div>
+            </div>
+            <div id="interview-stage-msg" class="text-sm text-ink-3"></div>
+          </div>
+
+          <!-- Stage 5: 成片 (shown on done) -->
+          <div class="panel mb-16 hidden" id="interview-result-card">
+            <div class="flex items-center gap-8 mb-12">
+              <h2 style="margin:0">访谈成片</h2>
+              <span class="pill ok">已完成</span>
+              <span class="pill s2 ml-auto" style="margin-left:auto;">已存入作品库</span>
+            </div>
+            <video id="interview-result-video" controls style="width:100%;border-radius:var(--r);background:#000;max-height:480px;"></video>
+          </div>
+
+          <!-- 成片库 -->
+          <div class="panel">
+            <div class="flex items-center gap-8 mb-12">
+              <h2 style="margin:0">成片库</h2>
+              <button class="btn btn-secondary btn-sm" id="interview-library-refresh">↻ 刷新</button>
+            </div>
+            <div id="interview-library-grid" class="interview-library-grid"></div>
+          </div>
+
         </div>
       </div>
 
