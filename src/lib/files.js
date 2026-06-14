@@ -27,8 +27,8 @@ export function dataUrlToBuffer(dataUrl) {
 // base64 dataUrl 落盘到 GENERATED_DIR，按 mime 推断扩展名，返回 /generated/<name> url。
 export function saveDataUrl(genDir, dataUrl) {
   const { mime, buf } = dataUrlToBuffer(dataUrl);
-  const ext = mime.includes('webm') ? 'webm' : mime.includes('wav') ? 'wav'
-    : mime.includes('mpeg') || mime.includes('mp3') ? 'mp3'
+  const ext = mime.includes('webm') ? 'webm' : mime.includes('ogg') ? 'ogg' : mime.includes('wav') ? 'wav'
+    : mime.includes('mpeg') || mime.includes('mp3') ? 'mp3' : mime.includes('aac') ? 'aac' : (mime.includes('mp4') || mime.includes('m4a')) ? 'm4a'
     : (mime.includes('jpeg') || mime.includes('jpg')) ? 'jpg' : mime.includes('png') ? 'png' : 'bin';
   return saveBufferToGenerated(genDir, buf, ext).url;
 }

@@ -918,7 +918,7 @@ export function registerRoutes(route) {
   });
   route('POST /api/artist/:id/interview2/:sid/end', async (req, res, { params }) => {
     const s = getSession(params.sid);
-    if (!s || s.artistId !== params.id) return jsonError(res, 'not_found', '无此会话');
+    if (!getArtist(params.id) || !s || s.artistId !== params.id) return jsonError(res, 'not_found', '无此会话');
     json(res, { session: updateSession(params.sid, { status: 'done' }) });
   });
 
