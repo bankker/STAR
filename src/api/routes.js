@@ -22,6 +22,8 @@ import {
 } from '../studio/artist-create.js';
 import { getGallery, addAssets, toggleFavorite, removeAsset } from '../studio/assets.js';
 import { buildBlueprintMessages, extractBlueprint, blueprintToRenderReq } from '../studio/music.js';
+import { buildScriptMessages as buildDramaScriptMessages, extractScript, assignVoices } from '../studio/drama.js';
+import { createDrama, getDrama, listDramas, updateDrama } from '../studio/drama-store.js';
 import os from 'node:os';
 
 const MAX_BODY = 1 * 1024 * 1024;
@@ -464,6 +466,43 @@ export function registerRoutes(route) {
       try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
       res.end();
     }
+  });
+
+  route('POST /api/artist/:id/drama/script', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    if (!artist) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    try {
+      const { system, messages } = buildDramaScriptMessages(artist, body.brief || {});
+      const r = await execute('content', { system, messages, maxTokens: 3000 });
+      let parsed; try { parsed = extractScript(r.text, artist); }
+      catch (e) { return jsonError(res, 'provider_error', `剧本解析失败：${e.message}`); }
+      const tmpCast = [{ id: 'c_lead', isLead: true, gender: artist.gender },
+        ...parsed.cast.map((c, i) => ({ id: `c_${i + 1}`, isLead: false, gender: c.gender }))];
+      const voiceMap = assignVoices(tmpCast, artist);
+      const drama = createDrama(params.id, artist, body.brief || {}, parsed, { voiceMap, consistencyMode: 'image_ref' });
+      json(res, { drama });
+    } catch (e) { sendGatewayError(res, e); }
+  });
+
+  route('GET /api/artist/:id/dramas', async (req, res, { params }) => {
+    if (!getArtist(params.id)) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    json(res, { dramas: listDramas(params.id) });
+  });
+
+  route('GET /api/artist/:id/drama/:did', async (req, res, { params }) => {
+    const d = getDrama(params.did);
+    if (!d || d.artistId !== params.id) return jsonError(res, 'not_found', '无此短剧');
+    json(res, { drama: d });
+  });
+
+  route('PUT /api/artist/:id/drama/:did', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const d = getDrama(params.did);
+    if (!d || d.artistId !== params.id) return jsonError(res, 'not_found', '无此短剧');
+    const patch = {};
+    for (const k of ['title', 'theme', 'logline', 'cast', 'episodes']) if (k in body) patch[k] = body[k];
+    json(res, { drama: updateDrama(params.did, patch) });
   });
 
   route('POST /api/artist/:id/gallery/:assetId/favorite', async (req, res, { params }) => {
