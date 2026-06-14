@@ -56,7 +56,7 @@ export function createDrama(artistId, artist, brief, parsed, { voiceMap, consist
     voice: voiceMap?.[`c_${i + 1}`] || 'Ethan', portrait: { current: -1, versions: [] },
   }))];
   const episodes = (parsed.episodes || []).map((e, ei) => ({
-    id: `ep_${ei + 1}`, index: ei + 1, title: e.title, tier: 'high', durationSec: null, episodeUrl: null,
+    id: `ep_${ei + 1}`, index: ei + 1, title: e.title, tier: 'high', durationSec: null, episodeUrl: null, themeSongUrl: null,
     scenes: (e.scenes || []).map((sc, si) => ({
       id: `s_${si + 1}`, index: si + 1, setting: sc.setting, action: sc.action,
       characters: sc.characters || [], lines: sc.lines || [],
@@ -102,6 +102,13 @@ export function setFrameCurrent(id, eid, sid, idx) {
   const f = findScene(d, eid, sid); if (!f) return null;
   if (idx < 0 || idx >= f.sc.frame.versions.length) return d;
   f.sc.frame.current = idx; return write(d);
+}
+
+export function setEpisodeTheme(id, eid, songUrl) {
+  const d = getDrama(id); if (!d) return null;
+  const ep = d.episodes.find((e) => e.id === eid); if (!ep) return null;
+  ep.themeSongUrl = songUrl || null;
+  return write(d);
 }
 
 export function addPortraitVersion(id, castId, version) {
