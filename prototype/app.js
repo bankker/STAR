@@ -474,6 +474,26 @@ function initArtistPicker() {
     switchView('artist-creation');
     startNewInterview();
   });
+  initTheme();
+}
+
+/* ── 主题切换：制片棚(默认) ↔ 野兽派 ── */
+function applyTheme(t) {
+  const fauvist = t === 'fauvist';
+  document.documentElement.dataset.theme = fauvist ? 'fauvist' : '';
+  const btn = $('#topbar-theme-btn');
+  if (btn) btn.textContent = fauvist ? '🌙 制片棚' : '🎨 野兽派';
+}
+function initTheme() {
+  let saved = '';
+  try { saved = localStorage.getItem('ui-theme') || ''; } catch {}
+  applyTheme(saved);
+  const btn = $('#topbar-theme-btn');
+  if (btn) btn.addEventListener('click', () => {
+    const next = document.documentElement.dataset.theme === 'fauvist' ? '' : 'fauvist';
+    applyTheme(next);
+    try { localStorage.setItem('ui-theme', next); } catch {}
+  });
 }
 
 /* ── Dashboard ── */
