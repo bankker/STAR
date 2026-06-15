@@ -2075,6 +2075,82 @@ select option { background: var(--panel-2); color: var(--ink); }
 }
 .deepiv-bubble-play:hover { opacity: 1; }
 
+/* ── 深度访谈·历史访谈列表 ── */
+.deepiv-session-list { display: flex; flex-direction: column; gap: 8px; }
+.deepiv-session-empty { font-size: 13px; color: var(--ink-3); text-align: center; padding: 20px 0; }
+.deepiv-session-row {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.deepiv-session-row:hover { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 6%, var(--panel-2)); }
+.deepiv-session-main { flex: 1; min-width: 0; }
+.deepiv-session-name { font-size: 14px; font-weight: 700; color: var(--ink); }
+.deepiv-session-date { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
+.deepiv-session-chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+/* ── 深度访谈·双方主播形象（对称两卡） ── */
+.deepiv-looks-preview:empty { display: none; }
+.deepiv-looks-preview {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  max-width: 560px;
+}
+.deepiv-looks-card {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 10px;
+}
+.deepiv-looks-img {
+  width: 100%;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--bg);
+}
+.deepiv-looks-img img {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+}
+.deepiv-looks-label {
+  font-size: 12px; font-weight: 700; letter-spacing: .3px;
+  color: var(--ink-2);
+  text-align: center;
+}
+
+/* ── 深度访谈·嘉宾配音二选一 ── */
+.deepiv-guestaudio-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.deepiv-guestaudio-label { font-size: 13px; color: var(--ink-2); }
+.deepiv-guestaudio-toggle {
+  display: inline-flex;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
+.deepiv-guestaudio-btn {
+  font-size: 12.5px;
+  padding: 6px 16px;
+  color: var(--ink-2);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.deepiv-guestaudio-btn + .deepiv-guestaudio-btn { border-left: 1px solid var(--line-2); }
+.deepiv-guestaudio-btn:hover { color: var(--ink); }
+.deepiv-guestaudio-btn.active {
+  background: var(--brand);
+  color: #fff;
+}
+
 /* ── 深度访谈·成片区 ── */
 .deepiv-finish-section { }
 .deepiv-finish-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
