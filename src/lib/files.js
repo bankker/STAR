@@ -19,9 +19,14 @@ export function saveBufferToGenerated(genDir, buf, ext) {
 }
 
 export function dataUrlToBuffer(dataUrl) {
-  const m = /^data:([^;,]+);base64,(.+)$/.exec(dataUrl || '');
-  if (!m) throw new Error('无效的 dataUrl');
-  return { mime: m[1], buf: Buffer.from(m[2], 'base64') };
+  // 以 ';base64,' 为界切分，使 mime 可带参数（如浏览器 MediaRecorder 的 'audio/webm;codecs=opus'）。
+  const s = String(dataUrl || '');
+  const i = s.indexOf(';base64,');
+  if (!s.startsWith('data:') || i === -1) throw new Error('无效的 dataUrl');
+  const mime = s.slice(5, i);                 // 'data:' 之后到 ';base64,' 之间（含 codecs 等参数）
+  const data = s.slice(i + ';base64,'.length);
+  if (!data) throw new Error('无效的 dataUrl');
+  return { mime, buf: Buffer.from(data, 'base64') };
 }
 
 // base64 dataUrl 落盘到 GENERATED_DIR，按 mime 推断扩展名，返回 /generated/<name> url。
