@@ -22,7 +22,8 @@ export function extractOutline(text) {
   let s = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
   const i = s.indexOf('{'); const j = s.lastIndexOf('}');
   if (i === -1 || j === -1 || j < i) throw new Error('未在响应中找到提纲 JSON');
-  let obj; try { obj = JSON.parse(s.slice(i, j + 1)); } catch { throw new Error('提纲 JSON 解析失败'); }
+  const raw = s.slice(i, j + 1).replace(/,(\s*[}\]])/g, '$1');   // 容忍 LLM 常见的尾随逗号
+  let obj; try { obj = JSON.parse(raw); } catch { throw new Error('提纲 JSON 解析失败'); }
   const questions = (Array.isArray(obj.questions) ? obj.questions : []).map(STR).filter(Boolean).slice(0, MAX_QUESTIONS);
   return { opening: STR(obj.opening), questions };
 }

@@ -19,7 +19,7 @@ export function extractBlueprint(text) {
   let s = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
   const a = s.indexOf('{'); const b = s.lastIndexOf('}');
   if (a === -1 || b === -1 || b < a) throw new Error('未在响应中找到 JSON');
-  try { return JSON.parse(s.slice(a, b + 1)); }
+  try { return JSON.parse(s.slice(a, b + 1).replace(/,(\s*[}\]])/g, '$1')); }   // 容忍尾随逗号
   catch { throw new Error('蓝图 JSON 解析失败'); }
 }
 
