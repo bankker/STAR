@@ -878,7 +878,8 @@ export function registerRoutes(route) {
     if (!artist || !guest || guest.artistId !== params.id) return jsonError(res, 'not_found', '无此艺人或嘉宾');
     try {
       const { system, messages } = buildOutlineMessages(artist, guest);
-      const r = await execute('content', { system, messages, maxTokens: 1500 });
+      // 提纲走 plan 路由（qwen-flash，在区快且 JSON 稳定）——content/deepseek 偶发非严格 JSON 致解析失败、且慢
+      const r = await execute('plan', { system, messages, maxTokens: 1500 });
       let outline; try { outline = extractOutline(r.text); } catch (e) { return jsonError(res, 'provider_error', `提纲解析失败：${e.message}`); }
       json(res, { session: createSession(params.id, guest.id, outline) });
     } catch (e) { sendGatewayError(res, e); }

@@ -31,7 +31,7 @@ export function extractScript(text, artist) {
   let s = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
   const i = s.indexOf('{'); const j = s.lastIndexOf('}');
   if (i === -1 || j === -1 || j < i) throw new Error('未在响应中找到剧本 JSON');
-  let obj; try { obj = JSON.parse(s.slice(i, j + 1)); } catch { throw new Error('剧本 JSON 解析失败'); }
+  let obj; try { obj = JSON.parse(s.slice(i, j + 1).replace(/,(\s*[}\]])/g, '$1')); } catch { throw new Error('剧本 JSON 解析失败'); }   // 容忍尾随逗号
   const cast = (Array.isArray(obj.cast) ? obj.cast : []).slice(0, MAX_CAST).map((c, k) => ({
     name: STR(c.name) || `配角${k + 1}`, role: STR(c.role), appearance: STR(c.appearance), gender: STR(c.gender),
   }));
