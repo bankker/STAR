@@ -293,7 +293,9 @@ export function registerRoutes(route) {
     }
     try {
       const { system, messages } = buildFinalizeMessages(body.transcript);
-      const r = await execute('content', { system, messages, maxTokens: 1200 });
+      // 档案抽取走 plan 路由（dashscope qwen-flash，在区且快——实测 ~4s vs content/deepseek ~10s）。
+      // 结构化抽取对模型质量不敏感、用户还会复核草稿，故优先速度。
+      const r = await execute('plan', { system, messages, maxTokens: 1200 });
       let draft;
       try { draft = extractProfileJson(r.text); }
       catch (e) { return jsonError(res, 'provider_error', `档案解析失败：${e.message}`); }
