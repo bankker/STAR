@@ -60,6 +60,49 @@ export function probeDurationSec(file) {
   } catch { return 0; }
 }
 
+export function probeImageSize(file) {
+  const bin = resolveFfprobe();
+  if (!bin) return null;
+  try {
+    const out = execFileSync(bin, ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=s=x:p=0', file], { encoding: 'utf8' }).trim();
+    const [w, h] = out.split('x').map((n) => parseInt(n, 10));
+    return (w > 0 && h > 0) ? { w, h } : null;
+  } catch { return null; }
+}
+
+// 万相图像参考要求基图宽/高均在 [512,4096]px——过小(如上传 447²)或过大的形象照会被直接拒。
+// 按需等比缩放到合规范围并重编码 PNG，返回新的 base64 dataUrl；已合规 / 非 dataUrl / 无 ffmpeg 时原样返回。
+export function ensureImageRefSize(dataUrl, { min = 512, max = 4096 } = {}) {
+  if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return dataUrl;
+  if (!ffmpegAvailable()) return dataUrl;
+  const comma = dataUrl.indexOf(',');
+  if (comma === -1) return dataUrl;
+  let buf;
+  try { buf = Buffer.from(dataUrl.slice(comma + 1), 'base64'); } catch { return dataUrl; }
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'imgref_'));
+  try {
+    const src = path.join(tmp, 'in');
+    fs.writeFileSync(src, buf);
+    const dim = probeImageSize(src);
+    if (!dim) return dataUrl;
+    const { w, h } = dim;
+    const inRange = (v) => v >= min && v <= max;
+    if (inRange(w) && inRange(h)) return dataUrl;   // 已合规，免转码
+    const lo = Math.min(w, h), hi = Math.max(w, h);
+    let scale = 1;
+    if (lo < min) scale = 1024 / lo;                // 过小→放大到约 1024 短边（质量更稳）
+    else if (hi > max) scale = max / hi;            // 过大→缩小到长边 = max
+    if (hi * scale > max) scale = max / hi;          // 放大后仍不得超过 max
+    let nw = Math.round(w * scale), nh = Math.round(h * scale);
+    nw = Math.max(min, Math.min(max, nw - (nw % 2)));
+    nh = Math.max(min, Math.min(max, nh - (nh % 2)));
+    const out = path.join(tmp, 'out.png');
+    runFfmpeg(['-y', '-i', src, '-vf', `scale=${nw}:${nh}:flags=lanczos`, out]);
+    return 'data:image/png;base64,' + fs.readFileSync(out).toString('base64');
+  } catch { return dataUrl; }
+  finally { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} }
+}
+
 export function srtTime(sec) {
   const ms = Math.max(0, Math.round(sec * 1000));
   const h = Math.floor(ms / 3600000);

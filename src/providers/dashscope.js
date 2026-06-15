@@ -1,4 +1,5 @@
 import { gatewayError } from '../gateway/errors.js';
+import { ensureImageRefSize } from '../lib/ffmpeg.js';
 
 const BASE = 'https://dashscope.aliyuncs.com';
 const TEXT_CAPS = new Set(['chat', 'content', 'world', 'plan']);
@@ -131,11 +132,12 @@ async function invokeImage(request, ctx) {
 // 图像参考保人物（image_ref 锁脸）：refs[0] 作为基图，description_edit 保外观换景/重构图。单主体编辑。
 // 契约：仅 refs[0] 生效（多 ref 忽略）；n 固定 1；尺寸由基图决定（不接受 aspect/size，最终 9:16 由 compose 裁剪保证）。
 async function invokeImageRef(request, ctx, refs) {
+  const base = ensureImageRefSize(refs[0]);   // 基图缩放到 [512,4096]，避免过小形象照被万相拒
   const submit = await ctx.fetchJson(IMGEDIT_SUBMIT, {
     headers: { ...auth(ctx.env), 'X-DashScope-Async': 'enable' }, timeoutMs: 30000,
     body: {
       model: IMGEDIT_MODEL,
-      input: { function: 'description_edit', prompt: request.prompt || '同一个人物，保持长相不变', base_image_url: refs[0] },
+      input: { function: 'description_edit', prompt: request.prompt || '同一个人物，保持长相不变', base_image_url: base },
       parameters: { n: 1 },
     },
   });
