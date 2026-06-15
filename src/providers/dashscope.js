@@ -11,7 +11,7 @@ const auth = (env) => ({ authorization: `Bearer ${env.DASHSCOPE_API_KEY}` });
 const adapter = {
   id: 'dashscope',
   label: '阿里云百炼',
-  capabilities: ['chat', 'content', 'world', 'plan', 'tts', 'asr', 'image', 'video', 'music', 'lipsync', 'vision'],
+  capabilities: ['chat', 'content', 'world', 'plan', 'tts', 'asr', 'image', 'image-edit', 'video', 'music', 'lipsync'],
   envKeys: ['DASHSCOPE_API_KEY'],
   isConfigured: (env) => Boolean(env.DASHSCOPE_API_KEY),
 
@@ -27,7 +27,7 @@ const adapter = {
 
   async invoke(capability, request, ctx) {
     if (TEXT_CAPS.has(capability)) return invokeText(request, ctx);
-    if (capability === 'vision') return invokeVision(request, ctx);
+    if (capability === 'image-edit') return invokeImageEdit(request, ctx);
     if (capability === 'tts') return invokeTts(request, ctx);
     if (capability === 'asr') return invokeAsr(request, ctx);
     if (capability === 'image') return invokeImage(request, ctx);
@@ -50,22 +50,26 @@ async function invokeText(request, ctx) {
   return { text, usage: { inputTokens: data.usage?.prompt_tokens || 0, outputTokens: data.usage?.completion_tokens || 0 } };
 }
 
-// 看图（Qwen-VL）：compatible-mode chat，content 里塞 image_url(base64 dataUrl)+文字问题 → 文字描述。探针已验证在区可用。
-async function invokeVision(request, ctx) {
-  const content = [];
-  if (request.image) content.push({ type: 'image_url', image_url: { url: request.image } });
-  content.push({ type: 'text', text: request.prompt || '描述这张图片' });
-  const data = await ctx.fetchJson(`${BASE}/compatible-mode/v1/chat/completions`, {
-    headers: auth(ctx.env),
-    body: { model: request.model, messages: [{ role: 'user', content }], max_tokens: request.maxTokens || 200 },
-    timeoutMs: 60000,
-  });
-  const text = data.choices?.[0]?.message?.content || '';
-  if (!text) throw gatewayError('provider_error', 'Qwen-VL 返回空内容', { providerId: 'dashscope' });
-  return { text, usage: { inputTokens: data.usage?.prompt_tokens || 0, outputTokens: data.usage?.completion_tokens || 0 } };
-}
-
 const MULTIMODAL = `${BASE}/api/v1/services/aigc/multimodal-generation/generation`;
+
+// 指令图像编辑（qwen-image-edit）：直接基于真实照片改场景/服装并【保留人物长相】，无需「照片→文字→图」的失真中转。
+// 同步返回（非轮询），结果是 OSS 图片 URL，下载落本地。探针已验证在区可用且锁脸效果好。
+async function invokeImageEdit(request, ctx) {
+  const base = request.image || (Array.isArray(request.refImages) ? request.refImages[0] : null);
+  if (!base) throw gatewayError('bad_request', 'image-edit 需要基图(image)', { providerId: 'dashscope' });
+  const data = await ctx.fetchJson(MULTIMODAL, {
+    headers: auth(ctx.env), timeoutMs: 120000,
+    body: {
+      model: request.model,
+      input: { messages: [{ role: 'user', content: [{ image: base }, { text: request.prompt || '保持人物长相不变' }] }] },
+      parameters: { watermark: false, negative_prompt: request.negativePrompt || '' },
+    },
+  });
+  const url = data.output?.choices?.[0]?.message?.content?.find((c) => c.image)?.image;
+  if (!url) throw gatewayError('provider_error', `qwen-image-edit 未返回图像: ${JSON.stringify(data.output || {}).slice(0, 200)}`, { providerId: 'dashscope' });
+  const buf = await ctx.fetchBuffer(url, { method: 'GET', headers: {}, timeoutMs: 60000 });
+  return { files: [ctx.saveFile(buf, 'png')], usage: { images: 1 } };
+}
 
 async function invokeTts(request, ctx) {
   const data = await ctx.fetchJson(MULTIMODAL, {

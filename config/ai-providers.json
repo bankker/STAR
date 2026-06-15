@@ -51,6 +51,6 @@
     "model": "qwen3-asr-flash"
   },
   "lipsync": { "provider": "dashscope", "model": "liveportrait" },
-  "vision": { "provider": "dashscope", "model": "qwen-vl-max" },
+  "image-edit": { "provider": "dashscope", "model": "qwen-image-edit" },
   "providers": {}
 }
