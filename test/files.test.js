@@ -22,3 +22,9 @@ test('dataUrlToBuffer 解析与拒绝', () => {
   assert.equal(buf.toString(), 'hi');
   assert.throws(() => dataUrlToBuffer('not-a-data-url'));
 });
+
+test('dataUrlToBuffer 接受带 codecs 参数的 mime（浏览器 MediaRecorder 录音）', () => {
+  const { mime, buf } = dataUrlToBuffer('data:audio/webm;codecs=opus;base64,' + Buffer.from('snd').toString('base64'));
+  assert.equal(mime, 'audio/webm;codecs=opus');   // 参数保留，saveDataUrl 据此识别 webm 扩展名
+  assert.equal(buf.toString(), 'snd');
+});
