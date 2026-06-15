@@ -568,15 +568,50 @@ async function sendInterview() {
   renderInterview();
   const btn = $('#interview-send');
   if (btn) btn.disabled = true;
-  const r = await api('/api/artist/interview', { messages: state.interviewHistory });
-  if (btn) btn.disabled = false;
-  if (r.error) {
-    const log = $('#interview-log');
-    if (log) log.insertAdjacentHTML('beforeend', `<div class="bubble ai">${esc(errText(r.error))}</div>`);
-    return;
+  const log = $('#interview-log');
+  const aiId = `iv${Date.now()}`;
+  if (log) {
+    log.insertAdjacentHTML('beforeend', `<div class="bubble ai typing" id="${aiId}"></div>`);
+    log.scrollTop = log.scrollHeight;
   }
-  state.interviewHistory.push({ role: 'assistant', content: r.reply });
-  renderInterview();
+  const aiEl = document.getElementById(aiId);
+  let acc = '';
+  try {
+    const res = await fetch('/api/artist/interview/stream', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: state.interviewHistory }),
+    });
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let carry = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      carry += dec.decode(value, { stream: true });
+      let i;
+      while ((i = carry.indexOf('\n\n')) >= 0) {
+        const block = carry.slice(0, i); carry = carry.slice(i + 2);
+        const ev = (block.match(/^event: (.*)$/m) || [])[1];
+        const dataLine = (block.match(/^data: (.*)$/m) || [])[1];
+        if (!dataLine) continue;
+        let payload; try { payload = JSON.parse(dataLine); } catch { continue; }
+        if (ev === 'token') {
+          acc += payload.t;
+          if (aiEl) aiEl.textContent = acc;
+          if (log) log.scrollTop = log.scrollHeight;
+        } else if (ev === 'done') {
+          state.interviewHistory.push({ role: 'assistant', content: payload.reply || acc });
+          renderInterview();   // 用历史重渲，去掉临时 typing 气泡
+        } else if (ev === 'error') {
+          if (aiEl) { aiEl.textContent = errText(payload); aiEl.classList.remove('typing'); }
+        }
+      }
+    }
+  } catch (e) {
+    if (aiEl) { aiEl.textContent = `网络错误：${e.message}`; aiEl.classList.remove('typing'); }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 async function finalizeInterview() {

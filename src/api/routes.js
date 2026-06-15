@@ -270,6 +270,22 @@ export function registerRoutes(route) {
     } catch (e) { sendGatewayError(res, e); }
   });
 
+  // 流式版（逐字生成），前端默认走这个；非流式保留兼容
+  route('POST /api/artist/interview/stream', async (req, res, { readJsonBody }) => {
+    const body = await readJsonBody();
+    if (!Array.isArray(body.messages)) return jsonError(res, 'bad_request', 'messages 必填且为数组');
+    res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+    const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    try {
+      const { system, messages } = buildInterviewMessages(body.messages);
+      const r = await executeStream('content', { system, messages, maxTokens: 400 }, { onToken: (t) => send('token', { t }) });
+      send('done', { reply: r.text, provider: r.provider, model: r.model });
+    } catch (e) {
+      send('error', e instanceof GatewayError ? e.toJSON() : { code: 'internal', message: e.message });
+    }
+    res.end();
+  });
+
   route('POST /api/artist/finalize', async (req, res, { readJsonBody }) => {
     const body = await readJsonBody();
     if (!body.transcript || (Array.isArray(body.transcript) && body.transcript.length === 0)) {
