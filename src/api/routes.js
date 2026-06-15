@@ -26,7 +26,7 @@ import { buildScriptMessages as buildDramaScriptMessages, extractScript, assignV
 import { createDrama, getDrama, listDramas, updateDrama, addPortraitVersion, addFrameVersion, setFrameCurrent, curFrameUrl, setEpisodeTheme } from '../studio/drama-store.js';
 import { createGuest, getGuest, listGuests, updateGuest, addGuestPortrait, deleteGuest, curGuestPortrait } from '../studio/guests.js';
 import { createSession, getSession, listSessions, appendTurn as appendInterviewTurn, updateSession, setTurnMedia } from '../studio/session-store.js';
-import { buildOutlineMessages, extractOutline, buildNextQuestionMessages, hostVoice, MAX_TURNS } from '../studio/interview2.js';
+import { buildOutlineMessages, extractOutline, buildNextQuestionMessages, hostVoice, ttsClean, MAX_TURNS } from '../studio/interview2.js';
 import os from 'node:os';
 
 const MAX_BODY = 1 * 1024 * 1024;
@@ -493,7 +493,7 @@ export function registerRoutes(route) {
       for (let i = 0; i < dialogue.length; i++) {
         const line = dialogue[i];
         const voice = line.speaker === '记者' ? 'Chelsie' : artistVoice;
-        const r = await execute('tts', { text: line.text, voice });
+        const r = await execute('tts', { text: ttsClean(line.text), voice });
         const url = r.files?.[0]?.url;
         if (!url) throw new Error('TTS 未返回音频');
         const abs = path.join(GENERATED_DIR, url.replace('/generated/', ''));
@@ -692,7 +692,7 @@ export function registerRoutes(route) {
         // 1) 本场景逐行配音 → 拼成本场景音轨；收集整集字幕（累计时间）
         const lineFiles = [];
         for (const line of sc.lines) {
-          const r = await execute('tts', { text: line.text, voice: voiceFor(line.character) });
+          const r = await execute('tts', { text: ttsClean(line.text), voice: voiceFor(line.character) });
           const u = r.files?.[0]?.url; if (!u) throw new Error('TTS 未返回音频');
           const abs = path.join(GENERATED_DIR, u.replace('/generated/', ''));
           lineFiles.push({ file: abs, text: line.text, durationSec: probeDurationSec(abs) });
@@ -907,7 +907,7 @@ export function registerRoutes(route) {
         text = r.text.trim().replace(/^["「]|["」]$/g, '');
         if (s.cursor < (s.outline.questions || []).length) updateSession(params.sid, { cursor: s.cursor + 1 });
       }
-      const tts = await execute('tts', { text, voice: hostVoice(artist) });
+      const tts = await execute('tts', { text: ttsClean(text), voice: hostVoice(artist) });   // 不读括号舞台提示
       const audioUrl = tts.files?.[0]?.url || null;
       const session = appendInterviewTurn(params.sid, { speaker: 'host', text, audioUrl });
       json(res, { turn: session.turns[session.turns.length - 1] });
@@ -931,7 +931,8 @@ export function registerRoutes(route) {
       const r = await execute('asr', { audio: wavB64 });
       const text = (r.text || '').trim();
       if (!text) return jsonError(res, 'provider_error', '未能识别语音，请重试');
-      const session = appendInterviewTurn(params.sid, { speaker: 'guest', text, audioUrl: `/generated/${wavName}` });
+      // audioUrl 当前指向原始录音；recordedUrl 留存原声，供 record 的「用原声」选项（record 走 AI 时会覆盖 audioUrl）
+      const session = appendInterviewTurn(params.sid, { speaker: 'guest', text, audioUrl: `/generated/${wavName}`, recordedUrl: `/generated/${wavName}` });
       json(res, { turn: session.turns[session.turns.length - 1] });
     } catch (e) { sendGatewayError(res, e); }
   });
@@ -941,13 +942,53 @@ export function registerRoutes(route) {
     json(res, { session: updateSession(params.sid, { status: 'done' }) });
   });
 
-  route('POST /api/artist/:id/interview2/:sid/record', async (req, res, { params }) => {
+  // 生成双方「新闻主播」形象（图像参考锁脸 + 主播风格）：先生成→前端对称确认→再出对口型视频
+  route('POST /api/artist/:id/interview2/:sid/looks', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    const s = getSession(params.sid);
+    if (!artist || !s || s.artistId !== params.id) return jsonError(res, 'not_found', '无此会话');
+    const guest = getGuest(s.guestId);
+    const hostSrc = artist.portraits?.[0]?.url;
+    const guestSrc = curGuestPortrait(guest);
+    if (!hostSrc || !guestSrc) return jsonError(res, 'bad_request', '请先给艺人和嘉宾各出一张形象照');
+    if (body.confirm !== true) {
+      return json(res, { error: { code: 'confirm_required', message: '需确认生成双方主播形象成本',
+        estimate: { capability: 'image', count: 2, estimatedUsd: estimateFor('image', { count: 2 }).estimatedUsd } } });
+    }
+    res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+    const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    const PROMPT = '新闻主播形象：深色正装，专业新闻演播室背景，正脸半身居中构图，专业演播室打光，神情专业自信，9:16 竖屏，SFW';
+    try {
+      const mk = async (label, srcUrl) => {
+        const ref = generatedUrlToDataUrl(GENERATED_DIR, srcUrl);
+        if (!ref) throw new Error('形象底图读取失败');
+        const r = await execute('image', { prompt: PROMPT, aspect: '9:16', refImages: [ref] });
+        const u = r.files?.[0]?.url; if (!u) throw new Error('出图失败');
+        addAssets(params.id, [{ type: 'photo', url: u, prompt: PROMPT, title: label }]);
+        return u;
+      };
+      send('stage', { progress: 20, msg: '生成主持人主播形象' });
+      const hostLook = await mk('主持人主播形象', hostSrc);
+      send('stage', { progress: 60, msg: '生成嘉宾主播形象' });
+      const guestLook = await mk('嘉宾主播形象', guestSrc);
+      const session = updateSession(params.sid, { hostLook, guestLook });
+      send('done', { hostLook, guestLook, session });
+    } catch (e) {
+      if (e instanceof GatewayError) send('error', e.toJSON());
+      else { console.error('[interview2] 形象失败', e.message); send('error', { code: 'internal', message: '主播形象生成失败' }); }
+    } finally { res.end(); }
+  });
+
+  route('POST /api/artist/:id/interview2/:sid/record', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
     const artist = getArtist(params.id);
     const s = getSession(params.sid);
     if (!artist || !s || s.artistId !== params.id) return jsonError(res, 'not_found', '无此会话');
     if (!s.turns.length) return jsonError(res, 'bad_request', '尚无对话可生成记录');
     if (!ffmpegAvailable()) return jsonError(res, 'bad_request', '未检测到 ffmpeg');
     const guest = getGuest(s.guestId);
+    const guestOriginal = body.guestAudio === 'original';   // 嘉宾用原声(否则 AI 重配音)
     res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
     const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rec_'));
@@ -956,11 +997,21 @@ export function registerRoutes(route) {
       for (let i = 0; i < s.turns.length; i++) {
         const t = s.turns[i];
         send('stage', { progress: Math.round(i / s.turns.length * 85), msg: `配音 ${i + 1}/${s.turns.length}` });
-        const voice = t.speaker === 'host' ? hostVoice(artist) : (guest?.voice || 'Ethan');
-        const r = await execute('tts', { text: t.text, voice });
-        const u = r.files?.[0]?.url; if (!u) throw new Error('TTS 未返回音频');
-        parts.push(path.join(GENERATED_DIR, u.replace('/generated/', '')));
-        setTurnMedia(params.sid, t.id, { audioUrl: u });
+        let srcAbs;
+        if (t.speaker === 'guest' && guestOriginal && t.recordedUrl) {
+          srcAbs = path.join(GENERATED_DIR, t.recordedUrl.replace('/generated/', ''));   // 嘉宾原声
+          setTurnMedia(params.sid, t.id, { audioUrl: t.recordedUrl });   // 视频也用原声
+        } else {
+          const voice = t.speaker === 'host' ? hostVoice(artist) : (guest?.voice || 'Ethan');
+          const r = await execute('tts', { text: ttsClean(t.text), voice });   // 不读括号舞台提示
+          const u = r.files?.[0]?.url; if (!u) throw new Error('TTS 未返回音频');
+          srcAbs = path.join(GENERATED_DIR, u.replace('/generated/', ''));
+          setTurnMedia(params.sid, t.id, { audioUrl: u });
+        }
+        // 归一到 44100 单声道，避免原声(16k)与 TTS(24k)混拼时 concat 报错
+        const norm = path.join(tmp, `p_${i}.wav`);
+        runFfmpeg(['-y', '-i', srcAbs, '-ar', '44100', '-ac', '1', norm]);
+        parts.push(norm);
       }
       send('stage', { progress: 90, msg: '拼接录音' });
       const listFile = path.join(tmp, 'a.txt');
@@ -988,8 +1039,8 @@ export function registerRoutes(route) {
     const withAudio = s.turns.filter((t) => t.audioUrl);
     if (!withAudio.length) return jsonError(res, 'bad_request', '请先生成语音对谈记录');
     const guest = getGuest(s.guestId);
-    const hostFace = artist.portraits?.[0]?.url;
-    const guestFace = curGuestPortrait(guest);
+    const hostFace = s.hostLook || artist.portraits?.[0]?.url;   // 优先用确认过的主播形象
+    const guestFace = s.guestLook || curGuestPortrait(guest);
     if (!hostFace || !guestFace) return jsonError(res, 'bad_request', '主持人与嘉宾都需有形象照');
     if (body.confirm !== true) {
       return json(res, { error: { code: 'confirm_required', message: '需确认对口型出片成本',

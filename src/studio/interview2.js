@@ -1,4 +1,16 @@
 const JSON_ONLY = '只输出一个 JSON 对象，不要额外文字、不要 markdown 围栏。';
+
+// TTS 前清洗：剥掉舞台提示/情绪标注，不让「（若有所思地说）」这类被读出。
+export function ttsClean(text) {
+  return String(text || '')
+    .replace(/（[^）]*）/g, '')      // 中文全角括号
+    .replace(/\([^)]*\)/g, '')       // 半角括号
+    .replace(/【[^】]*】/g, '')       // 方头括号
+    .replace(/\[[^\]]*\]/g, '')      // 半角方括号
+    .replace(/\*[^*]*\*/g, '')       // *动作* 星号标注
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
 export const MAX_QUESTIONS = 10;
 export const MAX_TURNS = 24;
 export const MAX_ANSWER_SEC = 120;
