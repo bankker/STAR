@@ -3082,6 +3082,60 @@ function enterDeepivSetup() {
   if (setup) setup.classList.remove('hidden');
   if (room) room.classList.add('hidden');
   loadGuests();
+  loadSessionList();
+}
+
+/* ── 历史访谈列表 ── */
+async function loadSessionList() {
+  const wrap = $('#deepiv-session-list');
+  if (!wrap) return;
+  const base = deepivGuestBase();
+  if (!base) { wrap.innerHTML = ''; return; }
+  // fetch sessions + guests (for guestId→name) in parallel
+  const [sData, gData] = await Promise.all([
+    api(`${base}/interviews`),
+    api(`${base}/guests`),
+  ]);
+  if (sData.error) {
+    wrap.innerHTML = `<div class="deepiv-session-empty">${esc(errText(sData.error))}</div>`;
+    return;
+  }
+  const sessions = sData.sessions || [];
+  if (!sessions.length) {
+    wrap.innerHTML = '<div class="deepiv-session-empty">还没有访谈记录</div>';
+    return;
+  }
+  const nameById = {};
+  ((gData && gData.guests) || []).forEach((g) => { nameById[g.id] = g.name; });
+  wrap.innerHTML = sessions.map((s) => {
+    const name = esc(nameById[s.guestId] || '嘉宾');
+    const when = s.createdAt ? new Date(s.createdAt).toLocaleString() : '';
+    const chips = [];
+    if ((s.turns || []).length > 0) chips.push('<span class="pill dim">文字稿</span>');
+    if (s.recordUrl) chips.push('<span class="pill s1">语音记录</span>');
+    if (s.videoUrl) chips.push('<span class="pill ok">对口型</span>');
+    return `<div class="deepiv-session-row" data-sid="${esc(s.id)}">
+      <div class="deepiv-session-main">
+        <div class="deepiv-session-name">${name}</div>
+        <div class="deepiv-session-date">${esc(when)}</div>
+      </div>
+      <div class="deepiv-session-chips">${chips.join('')}</div>
+    </div>`;
+  }).join('');
+  wrap.querySelectorAll('.deepiv-session-row').forEach((row) =>
+    row.addEventListener('click', () => openSession(row.dataset.sid)));
+}
+
+/* ── 复看历史访谈：拉完整 session → 复用访谈室 ── */
+async function openSession(sid) {
+  const base = deepivGuestBase();
+  if (!base || !sid) return;
+  const r = await api(`${base}/interview2/${encodeURIComponent(sid)}`);
+  if (r.error) { toast(errText(r.error), 'err'); return; }
+  const session = r.session || r;
+  deepState.session = session;
+  deepState.artistId = state.currentArtistId;
+  enterInterviewRoom(session, session.guestId);
 }
 
 /* ── 嘉宾名录渲染 ── */
@@ -3432,6 +3486,8 @@ async function refetchDeepSession() {
 /* ── 成片区：渲染已有 players（revisit 时） ── */
 function renderFinishPlayers(session) {
   if (!session) return;
+  renderLooksPreview(session);
+  setVideoGate(session);
   const recPlayer = $('#deepiv-record-player');
   if (recPlayer && session.recordUrl) {
     recPlayer.innerHTML = `<audio src="${esc(session.recordUrl)}" controls class="deepiv-audio-player"></audio>`;
@@ -3440,6 +3496,91 @@ function renderFinishPlayers(session) {
   if (vidPlayer && session.videoUrl) {
     vidPlayer.innerHTML = `<video src="${esc(session.videoUrl)}" controls class="deepiv-video-player" playsinline></video>
       <div class="text-sm text-ink-3 mt-6">影像已存入成片库</div>`;
+  }
+}
+
+/* ── 双方主播形象：对称预览 ── */
+function renderLooksPreview(session) {
+  const wrap = $('#deepiv-looks-preview');
+  if (!wrap) return;
+  if (session && session.hostLook && session.guestLook) {
+    wrap.innerHTML = `
+      <div class="deepiv-looks-card">
+        <div class="deepiv-looks-img"><img src="${esc(session.hostLook)}" alt="主持人形象"></div>
+        <div class="deepiv-looks-label">主持人</div>
+      </div>
+      <div class="deepiv-looks-card">
+        <div class="deepiv-looks-img"><img src="${esc(session.guestLook)}" alt="嘉宾形象"></div>
+        <div class="deepiv-looks-label">嘉宾</div>
+      </div>`;
+  } else {
+    wrap.innerHTML = '';
+  }
+}
+
+/* ── 视频门控：双方形象齐备才放开 ── */
+function setVideoGate(session) {
+  const has = !!(session && session.hostLook && session.guestLook);
+  const btn = $('#deepiv-video-gen-btn');
+  const hint = $('#deepiv-video-hint');
+  if (btn) btn.disabled = !has;
+  if (hint) hint.textContent = has ? '双方主播形象已就绪，可生成对口型影像。' : '需先生成并确认双方主播形象';
+}
+
+/* ── 成片区：生成双方主播形象 ── */
+async function generateDeepLooks() {
+  const { artistId, session } = deepState;
+  if (!artistId || !session) return;
+  const path = `/api/artist/${encodeURIComponent(artistId)}/interview2/${encodeURIComponent(session.id)}/looks`;
+  const gbtn = $('#deepiv-looks-gen-btn');
+
+  if (gbtn) gbtn.disabled = true;
+  const est = await api(path, {});
+  if (gbtn) gbtn.disabled = false;
+  if (est.error && est.error.code === 'confirm_required') {
+    showCostConfirm('deepiv-looks', est.error.estimate, '生成双方主播形象', async () => {
+      await runLooksSSE(path);
+    });
+    return;
+  }
+  if (est.error) { toast(est.error.message || errText(est.error), 'err'); return; }
+  // server went ahead without confirm (unexpected)
+  await runLooksSSE(path);
+}
+
+async function runLooksSSE(path) {
+  const btn = $('#deepiv-looks-gen-btn');
+  const progBox = $('#deepiv-looks-progress');
+  const fill = $('#deepiv-looks-progress-fill');
+  const msgEl = $('#deepiv-looks-stage-msg');
+
+  if (btn) btn.disabled = true;
+  if (progBox) progBox.classList.remove('hidden');
+  if (fill) fill.style.width = '5%';
+  if (msgEl) msgEl.textContent = '正在生成双方主播形象…';
+
+  let lastErr = null;
+  await dramaSSE(path, { confirm: true }, {
+    onStage: (p) => {
+      if (fill && typeof p.progress === 'number') fill.style.width = `${Math.max(5, Math.min(95, Math.round(p.progress)))}%`;
+      if (msgEl) msgEl.textContent = p.msg || '';
+    },
+    onDone: async (p) => {
+      if (fill) fill.style.width = '100%';
+      if (msgEl) msgEl.textContent = '双方主播形象已生成！';
+      const sess = (p && p.session) || await refetchDeepSession();
+      if (p && p.session) deepState.session = p.session;
+      renderLooksPreview(deepState.session || sess);
+      setVideoGate(deepState.session || sess);
+      toast('双方主播形象已生成', 'ok');
+    },
+    onError: (p) => { lastErr = p; },
+  });
+
+  if (btn) btn.disabled = false;
+  if (lastErr) {
+    if (msgEl) { msgEl.textContent = lastErr.message || errText(lastErr); }
+    toast(lastErr.message || '形象生成失败', 'err');
   }
 }
 
@@ -3460,8 +3601,11 @@ async function generateDeepRecord() {
   if (fill) fill.style.width = '5%';
   if (msgEl) msgEl.textContent = '正在合成语音…';
 
+  const activeBtn = $('#deepiv-guestaudio-toggle .deepiv-guestaudio-btn.active');
+  const guestAudio = (activeBtn && activeBtn.dataset.val) || 'ai';
+
   let lastErr = null;
-  await dramaSSE(path, {}, {
+  await dramaSSE(path, { guestAudio }, {
     onStage: (p) => {
       if (fill && typeof p.progress === 'number') fill.style.width = `${Math.max(5, Math.min(95, Math.round(p.progress)))}%`;
       if (msgEl) msgEl.textContent = p.msg || '';
@@ -3573,6 +3717,19 @@ function initDeepInterview() {
 
   const endBtn = $('#deepiv-end-btn');
   if (endBtn) endBtn.addEventListener('click', () => endInterview());
+
+  const looksGenBtn = $('#deepiv-looks-gen-btn');
+  if (looksGenBtn) looksGenBtn.addEventListener('click', generateDeepLooks);
+
+  // 嘉宾配音二选一分段开关
+  const guestAudioToggle = $('#deepiv-guestaudio-toggle');
+  if (guestAudioToggle) {
+    guestAudioToggle.querySelectorAll('.deepiv-guestaudio-btn').forEach((b) =>
+      b.addEventListener('click', () => {
+        guestAudioToggle.querySelectorAll('.deepiv-guestaudio-btn').forEach((x) => x.classList.remove('active'));
+        b.classList.add('active');
+      }));
+  }
 
   const recordGenBtn = $('#deepiv-record-gen-btn');
   if (recordGenBtn) recordGenBtn.addEventListener('click', generateDeepRecord);

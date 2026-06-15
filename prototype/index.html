@@ -945,12 +945,21 @@
             </div>
 
             <!-- 嘉宾名录 -->
-            <div class="panel">
+            <div class="panel mb-16">
               <div class="flex items-center gap-8 mb-12">
                 <h2 style="margin:0">嘉宾名录</h2>
                 <button class="btn btn-secondary btn-sm" id="deepiv-guest-refresh" style="margin-left:auto;">↻ 刷新</button>
               </div>
               <div id="deepiv-guest-grid" class="deepiv-guest-grid"></div>
+            </div>
+
+            <!-- 历史访谈 -->
+            <div class="panel">
+              <div class="flex items-center gap-8 mb-12">
+                <h2 style="margin:0">历史访谈</h2>
+                <span class="pill dim">可复看</span>
+              </div>
+              <div id="deepiv-session-list" class="deepiv-session-list"></div>
             </div>
           </div>
 
@@ -1019,9 +1028,40 @@
                 <span class="pill ok">访谈已结束</span>
               </div>
 
-              <!-- ── 语音对谈记录 ── -->
+              <!-- ── ① 双方主播形象 ── -->
               <div class="deepiv-finish-section mb-16">
-                <div class="label-upper mb-8">语音对谈记录</div>
+                <div class="label-upper mb-4">① 双方主播形象</div>
+                <div class="text-sm text-ink-3 mb-8">先为主持人（艺人）与嘉宾生成新闻主播风格形象，再据此出对口型影像。</div>
+                <div class="deepiv-finish-row mb-8">
+                  <button class="btn btn-primary" id="deepiv-looks-gen-btn">✦ 生成双方主播形象</button>
+                </div>
+                <!-- cost-confirm bar -->
+                <div class="cost-confirm-bar hidden" id="deepiv-looks-confirm">
+                  <span class="cost-confirm-text" id="deepiv-looks-confirm-text"></span>
+                  <button class="btn btn-secondary btn-sm" id="deepiv-looks-cancel">取消</button>
+                  <button class="btn btn-primary btn-sm" id="deepiv-looks-ok">确认生成</button>
+                </div>
+                <!-- progress -->
+                <div class="hidden" id="deepiv-looks-progress">
+                  <div class="progress-bar mb-8"><div class="fill" id="deepiv-looks-progress-fill" style="width:0%"></div></div>
+                  <div id="deepiv-looks-stage-msg" class="text-sm text-ink-3"></div>
+                </div>
+                <!-- symmetric preview slot -->
+                <div id="deepiv-looks-preview" class="deepiv-looks-preview mt-8"></div>
+              </div>
+
+              <hr class="sep-line" style="margin:0 0 16px;">
+
+              <!-- ── ② 语音对谈记录 ── -->
+              <div class="deepiv-finish-section mb-16">
+                <div class="label-upper mb-8">② 语音对谈记录</div>
+                <div class="deepiv-guestaudio-row mb-8">
+                  <span class="deepiv-guestaudio-label">嘉宾配音：</span>
+                  <div class="deepiv-guestaudio-toggle" id="deepiv-guestaudio-toggle">
+                    <button type="button" class="deepiv-guestaudio-btn active" data-val="ai">AI 重配音</button>
+                    <button type="button" class="deepiv-guestaudio-btn" data-val="original">原声</button>
+                  </div>
+                </div>
                 <div class="deepiv-finish-row">
                   <button class="btn btn-primary" id="deepiv-record-gen-btn">✦ 生成语音对谈记录</button>
                 </div>
@@ -1036,12 +1076,12 @@
 
               <hr class="sep-line" style="margin:0 0 16px;">
 
-              <!-- ── 对口型影像 ── -->
+              <!-- ── ③ 对口型影像 ── -->
               <div class="deepiv-finish-section">
-                <div class="label-upper mb-4">对口型影像</div>
-                <div class="text-sm text-ink-3 mb-8">需主持人（艺人）与嘉宾都有形象照</div>
+                <div class="label-upper mb-4">③ 对口型影像</div>
+                <div class="text-sm text-ink-3 mb-8" id="deepiv-video-hint">需先生成并确认双方主播形象</div>
                 <div class="deepiv-finish-row mb-8">
-                  <button class="btn btn-primary" id="deepiv-video-gen-btn">✦ 生成对口型影像</button>
+                  <button class="btn btn-primary" id="deepiv-video-gen-btn" disabled>✦ 生成对口型影像</button>
                 </div>
                 <!-- cost-confirm bar -->
                 <div class="cost-confirm-bar hidden" id="deepiv-video-confirm">

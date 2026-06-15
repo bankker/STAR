@@ -28,7 +28,7 @@ export function extractDialogue(text) {
   let s = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
   const a = s.indexOf('{'); const b = s.lastIndexOf('}');
   if (a === -1 || b === -1 || b < a) throw new Error('未在响应中找到对话 JSON');
-  let obj; try { obj = JSON.parse(s.slice(a, b + 1)); } catch { throw new Error('对话 JSON 解析失败'); }
+  let obj; try { obj = JSON.parse(s.slice(a, b + 1).replace(/,(\s*[}\]])/g, '$1')); } catch { throw new Error('对话 JSON 解析失败'); }   // 容忍尾随逗号
   const d = Array.isArray(obj.dialogue) ? obj.dialogue : (Array.isArray(obj) ? obj : null);
   if (!d || !d.length) throw new Error('对话为空');
   return d.filter((x) => x && x.text).map((x) => ({ speaker: String(x.speaker || '记者'), text: String(x.text) }));

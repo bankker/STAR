@@ -1,6 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { extractOutline, assignGuestVoice, hostVoice, MAX_QUESTIONS, MAX_TURNS } from '../src/studio/interview2.js';
+import { extractOutline, assignGuestVoice, hostVoice, ttsClean, MAX_QUESTIONS, MAX_TURNS } from '../src/studio/interview2.js';
+
+test('ttsClean 剥离括号舞台提示，保留正文', () => {
+  assert.equal(ttsClean('（若有所思地说）我开始创业。【停顿】不容易。'), '我开始创业。不容易。');
+  assert.equal(ttsClean('大家好(微笑)，欢迎。'), '大家好，欢迎。');
+  assert.equal(ttsClean('没有括号的正常句子'), '没有括号的正常句子');
+});
 
 test('extractOutline 解析并裁剪问题上限', () => {
   const raw = '```json\n' + JSON.stringify({ opening: '欢迎来到节目', questions: Array.from({ length: 15 }, (_, i) => `问题${i}`) }) + '\n```';

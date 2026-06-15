@@ -51,6 +51,8 @@ export function createSession(artistId, guestId, outline) {
     turns: [],
     recordUrl: null,
     videoUrl: null,
+    hostLook: null,    // 主播形象（新闻主播风格，确认后供对口型用）
+    guestLook: null,
   };
   return write(s);
 }
@@ -62,6 +64,7 @@ export function appendTurn(id, turn) {
     speaker: turn.speaker === 'guest' ? 'guest' : 'host',
     text: String(turn.text || ''),
     audioUrl: turn.audioUrl || null,
+    recordedUrl: turn.recordedUrl || null,   // 嘉宾原始录音（供「用原声」选项）
     lipsyncUrl: turn.lipsyncUrl || null,
   });
   return write(s);
