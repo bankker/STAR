@@ -2125,6 +2125,12 @@ select option { background: var(--panel-2); color: var(--ink); }
   color: var(--ink-2);
   text-align: center;
 }
+.deepiv-looks-note {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--ink-3);
+  text-align: center;
+}
 
 /* ── 深度访谈·嘉宾配音二选一 ── */
 .deepiv-guestaudio-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

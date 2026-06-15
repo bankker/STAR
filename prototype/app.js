@@ -3502,8 +3502,10 @@ function renderFinishPlayers(session) {
 /* ── 双方主播形象：对称预览 ── */
 function renderLooksPreview(session) {
   const wrap = $('#deepiv-looks-preview');
+  const btn = $('#deepiv-looks-gen-btn');
   if (!wrap) return;
-  if (session && session.hostLook && session.guestLook) {
+  const ready = !!(session && session.hostLook && session.guestLook);
+  if (ready) {
     wrap.innerHTML = `
       <div class="deepiv-looks-card">
         <div class="deepiv-looks-img"><img src="${esc(session.hostLook)}" alt="主持人形象"></div>
@@ -3512,9 +3514,12 @@ function renderLooksPreview(session) {
       <div class="deepiv-looks-card">
         <div class="deepiv-looks-img"><img src="${esc(session.guestLook)}" alt="嘉宾形象"></div>
         <div class="deepiv-looks-label">嘉宾</div>
-      </div>`;
+      </div>
+      <div class="deepiv-looks-note">相貌不满意？可点「重新生成」再出一版（AI 出图有随机性）。</div>`;
+    if (btn) btn.textContent = '↻ 重新生成双方主播形象';
   } else {
     wrap.innerHTML = '';
+    if (btn) btn.textContent = '✦ 生成双方主播形象';
   }
 }
 
