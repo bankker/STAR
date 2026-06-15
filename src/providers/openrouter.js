@@ -31,6 +31,7 @@ async function invokeText(request, ctx) {
   const data = await ctx.fetchJson(`${API}/chat/completions`, {
     headers: auth(ctx.env),
     body: { model: request.model, messages, max_tokens: request.maxTokens || 2048 },
+    timeoutMs: 60000,   // 文本 60s 封顶：本区 OpenRouter 偶发卡死，避免默认 120s 死等 2 分钟
   });
   const text = data.choices?.[0]?.message?.content || '';
   if (!text) throw gatewayError('provider_error', 'OpenRouter 返回空内容', { providerId: 'openrouter' });
@@ -72,6 +73,7 @@ adapter.invokeStream = async (capability, request, ctx, onToken) => {
   await ctx.fetchStream(`${API}/chat/completions`, {
     headers: { ...auth(ctx.env), accept: 'text/event-stream' },
     body: { model: request.model, messages, max_tokens: request.maxTokens || 2048, stream: true },
+    timeoutMs: 60000,   // 流式同样 60s 封顶（短回复足够；卡死则快速失败而非死等 2 分钟）
   }, (data) => {
     if (data === '[DONE]') return;
     let j; try { j = JSON.parse(data); } catch { return; }

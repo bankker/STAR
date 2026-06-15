@@ -41,6 +41,7 @@ async function invokeText(request, ctx) {
   const data = await ctx.fetchJson(`${BASE}/compatible-mode/v1/chat/completions`, {
     headers: auth(ctx.env),
     body: { model: request.model, messages, max_tokens: request.maxTokens || 2048 },
+    timeoutMs: 60000,   // 文本 60s 封顶，避免默认 120s 死等
   });
   const text = data.choices?.[0]?.message?.content || '';
   if (!text) throw gatewayError('provider_error', 'DashScope 返回空内容', { providerId: 'dashscope' });
