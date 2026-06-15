@@ -2105,3 +2105,52 @@ select option { background: var(--panel-2); color: var(--ink); }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
+
+/* ── 灯箱 Lightbox：照片/视频全屏放大 + 前后浏览 ── */
+.lb-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(8, 9, 14, .93);
+  backdrop-filter: blur(6px);
+  animation: lbFade .14s ease;
+}
+.lb-overlay[hidden] { display: none; }
+@keyframes lbFade { from { opacity: 0; } to { opacity: 1; } }
+.lb-stage {
+  flex: 1; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  padding: 36px 84px;
+}
+.lb-media {
+  max-width: 90vw; max-height: 86vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .6);
+  background: #000;
+}
+.lb-audio { width: min(520px, 80vw); }
+.lb-close, .lb-nav {
+  position: absolute; z-index: 2;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(255, 255, 255, .18);
+  background: rgba(255, 255, 255, .08);
+  color: #fff; cursor: pointer;
+  transition: background .15s, border-color .15s, transform .12s;
+}
+.lb-close:hover, .lb-nav:hover { background: var(--brand); border-color: var(--brand); }
+.lb-close { top: 18px; right: 22px; width: 42px; height: 42px; border-radius: 50%; font-size: 18px; }
+.lb-nav { top: 50%; transform: translateY(-50%); width: 54px; height: 54px; border-radius: 50%; font-size: 30px; line-height: 1; }
+.lb-nav:hover { transform: translateY(-50%) scale(1.06); }
+.lb-prev { left: 20px; }
+.lb-next { right: 20px; }
+.lb-caption {
+  position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+  padding: 6px 16px; border-radius: var(--r-pill);
+  background: rgba(0, 0, 0, .5); color: #f3f4f7;
+  font-size: 13px; letter-spacing: .3px;
+}
+.lb-zoomable { cursor: zoom-in; }
+@media (max-width: 640px) {
+  .lb-stage { padding: 20px 56px; }
+  .lb-nav { width: 44px; height: 44px; font-size: 24px; }
+}

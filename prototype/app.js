@@ -1143,6 +1143,77 @@ function updatePhotoArtistCard() {
   textEl.textContent = name ? `锁脸基准：${name}` : '请先在顶部选择/创设一个艺人';
 }
 
+/* ── 灯箱：照片/视频全屏放大 + 前后浏览 ── */
+const lbState = { items: [], idx: 0 };
+function lbIsMp3(u) { return /\.mp3(\?|$)/i.test(u || ''); }
+function lbIsVideo(it) {
+  return /\.(mp4|webm|mov)(\?|$)/i.test(it.url || '') || (!lbIsMp3(it.url) && ['video', 'drama', 'interview'].includes(it.type));
+}
+function openLightbox(items, idx) {
+  if (!items || !items.length) return;
+  lbState.items = items;
+  lbState.idx = Math.max(0, Math.min(idx || 0, items.length - 1));
+  const ov = $('#lightbox');
+  if (!ov) return;
+  ov.hidden = false;
+  document.body.style.overflow = 'hidden';
+  lbRender();
+  document.addEventListener('keydown', lbKey);
+}
+function closeLightbox() {
+  const ov = $('#lightbox');
+  if (!ov) return;
+  ov.hidden = true;
+  const stage = $('#lb-stage');
+  if (stage) stage.innerHTML = '';   // 卸载媒体，停止视频/音频播放
+  document.body.style.overflow = '';
+  document.removeEventListener('keydown', lbKey);
+}
+function lbStep(d) {
+  if (lbState.items.length < 2) return;
+  lbState.idx = (lbState.idx + d + lbState.items.length) % lbState.items.length;
+  lbRender();
+}
+function lbRender() {
+  const it = lbState.items[lbState.idx];
+  const stage = $('#lb-stage');
+  const cap = $('#lb-caption');
+  if (!it || !stage) return;
+  const u = esc(it.url);
+  stage.innerHTML = lbIsMp3(it.url)
+    ? `<audio src="${u}" controls autoplay class="lb-audio"></audio>`
+    : lbIsVideo(it)
+      ? `<video src="${u}" controls autoplay playsinline class="lb-media"></video>`
+      : `<img src="${u}" alt="" class="lb-media">`;
+  const label = it.title || it.shot || '';
+  if (cap) cap.textContent = `${lbState.idx + 1} / ${lbState.items.length}${label ? ' · ' + label : ''}`;
+  const multi = lbState.items.length > 1;
+  const prev = $('#lb-prev'); const next = $('#lb-next');
+  if (prev) prev.style.visibility = multi ? '' : 'hidden';
+  if (next) next.style.visibility = multi ? '' : 'hidden';
+}
+function lbKey(e) {
+  if (e.key === 'Escape') closeLightbox();
+  else if (e.key === 'ArrowLeft') lbStep(-1);
+  else if (e.key === 'ArrowRight') lbStep(1);
+}
+function initLightbox() {
+  $('#lb-close')?.addEventListener('click', closeLightbox);
+  $('#lb-prev')?.addEventListener('click', () => lbStep(-1));
+  $('#lb-next')?.addEventListener('click', () => lbStep(1));
+  // 点遮罩空白处关闭（点到媒体/按钮不关）
+  $('#lightbox')?.addEventListener('click', (e) => {
+    if (e.target.id === 'lightbox' || e.target.id === 'lb-stage') closeLightbox();
+  });
+}
+// 从某 grid 的资产列表打开灯箱：list = 该 grid 当前渲染的资产数组，id = 被点资产 id
+function openLightboxFromList(list, id) {
+  const idx = list.findIndex((a) => String(a.id) === String(id));
+  if (idx < 0) return;
+  const items = list.map((a) => ({ url: a.url, type: a.type, title: a.title, shot: a.shot }));
+  openLightbox(items, idx);
+}
+
 function mediaTileHtml(asset) {
   if (asset.type === 'video') return videoTileHtml(asset);
   if (asset.type === 'drama') return dramaTileHtml(asset);
@@ -1156,6 +1227,7 @@ function mediaTileHtml(asset) {
       <img src="${url}" alt="" loading="lazy">
       <span class="media-tile-lock lock-badge">⬡ 锁脸</span>
       <div class="media-tile-actions">
+        <button class="tile-btn tile-max" data-id="${id}" title="放大浏览">⛶</button>
         <button class="tile-btn tile-fav${isFav ? ' faved' : ''}" data-id="${id}" title="${isFav ? '取消收藏' : '收藏'}">★</button>
         <button class="tile-btn tile-redo" data-id="${id}" data-shot="${shot}" data-aspect="${aspect}" title="重抽">↻</button>
         <button class="tile-btn tile-del" data-id="${id}" title="删除">🗑</button>
@@ -1175,6 +1247,7 @@ function videoTileHtml(asset) {
       <video src="${url}" controls preload="metadata" class="video-tile-player"></video>
       <span class="media-tile-lock lock-badge lock-badge-video">⬡ 锁脸</span>
       <div class="media-tile-actions">
+        <button class="tile-btn tile-max" data-id="${id}" title="放大浏览">⛶</button>
         <button class="tile-btn tile-fav${isFav ? ' faved' : ''}" data-id="${id}" title="${isFav ? '取消收藏' : '收藏'}">★</button>
         <button class="tile-btn tile-del" data-id="${id}" title="删除">🗑</button>
       </div>
@@ -1194,6 +1267,7 @@ function dramaTileHtml(asset) {
       <video src="${url}" controls preload="metadata" class="video-tile-player"></video>
       <span class="media-tile-lock lock-badge lock-badge-video">🎞️ 短剧</span>
       <div class="media-tile-actions">
+        <button class="tile-btn tile-max" data-id="${id}" title="放大浏览">⛶</button>
         <button class="tile-btn tile-fav${isFav ? ' faved' : ''}" data-id="${id}" title="${isFav ? '取消收藏' : '收藏'}">★</button>
         <button class="tile-btn tile-del" data-id="${id}" title="删除">🗑</button>
       </div>
@@ -1287,6 +1361,15 @@ function renderGallery(assets) {
       await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/gallery/${encodeURIComponent(btn.dataset.id)}`, undefined, 'DELETE');
       loadGallery();
     });
+  });
+
+  // 放大浏览：⛶ 按钮 + 点照片直接放大（浏览当前筛选后的列表）
+  grid.querySelectorAll('.tile-max').forEach((btn) => {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); openLightboxFromList(list, btn.dataset.id); });
+  });
+  grid.querySelectorAll('.media-tile img').forEach((img) => {
+    img.classList.add('lb-zoomable');
+    img.addEventListener('click', () => openLightboxFromList(list, img.closest('.media-tile')?.dataset.assetId));
   });
 }
 
@@ -1832,6 +1915,7 @@ async function loadInterviewLibrary() {
       <div class="interview-tile-meta">
         <span class="interview-tile-title">${title}</span>
         ${dur ? `<span class="text-ink-3">${dur}</span>` : ''}
+        ${isAudio ? '' : `<button class="tile-btn tile-max" data-id="${id}" title="放大浏览">⛶</button>`}
         <button class="tile-btn tile-del" data-id="${id}" title="删除">🗑</button>
       </div>
     </div>`;
@@ -1844,6 +1928,11 @@ async function loadInterviewLibrary() {
       await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/gallery/${encodeURIComponent(btn.dataset.id)}`, undefined, 'DELETE');
       loadInterviewLibrary();
     });
+  });
+  // 放大浏览：在访谈成片(视频)之间前后翻
+  const lbList = interviews.filter((v) => !/\.mp3($|\?)/i.test(v.url || ''));
+  grid.querySelectorAll('.tile-max').forEach((btn) => {
+    btn.addEventListener('click', () => openLightboxFromList(lbList, btn.dataset.id));
   });
 }
 
@@ -3505,6 +3594,7 @@ function boot() {
   initInterviewStudio();
   initDramaStudio();
   initDeepInterview();
+  initLightbox();
   initChat();
   initImage();
   initMusic();
