@@ -3059,7 +3059,7 @@ function cleanupRec() {
 }
 
 /* ── 访谈状态 ── */
-const deepState = { artistId: null, session: null, recording: false, busy: false };
+const deepState = { artistId: null, session: null, recording: false, busy: false, ending: false };
 
 function deepivGuestBase() {
   if (!state.currentArtistId) return null;
@@ -3265,6 +3265,9 @@ function enterInterviewRoom(session, gid) {
   const room = $('#deepiv-room-pane');
   if (setup) setup.classList.add('hidden');
   if (room) room.classList.remove('hidden');
+  deepState.ending = false;                              // 进房重置结束模式
+  const endBtn0 = $('#deepiv-end-btn');
+  if (endBtn0) { endBtn0.textContent = '结束访谈'; endBtn0.disabled = (session.status === 'done'); }
   // reset finish region; will be re-revealed below if session already done
   const finish = $('#deepiv-finish');
   if (finish) { finish.classList.add('hidden'); }
@@ -3440,8 +3443,9 @@ async function toggleRecord(btn) {
     session.turns.push(r.turn);
     renderTranscript(session);
   }
-  // 自动追问
-  await askNext();
+  // 结束模式：这一轮回答即最后一答 → 主持人致结束语并结束；否则自动追问
+  if (deepState.ending) await finalizeWithClosing();
+  else await askNext();
 }
 
 function setRecordingUI(recording) {
@@ -3451,20 +3455,50 @@ function setRecordingUI(recording) {
   if (label) label.textContent = recording ? '⏹ 停止并提交' : '🎤 回答';
 }
 
-/* ── 结束访谈 ── */
+/* ── 结束访谈 ──
+   流程：点「结束访谈」→ 若主持人有一句待答的问题，先强制作最后回答（🎤）→ 答完后主持人致结束语 → 正式结束。
+   若无待答问题，或用户选「跳过回答直接结束」，则直接进入主持人结束语。 */
 async function endInterview() {
   const session = deepState.session;
   if (!session) return;
   if (deepState.recording) { toast('请先停止录音', 'err'); return; }
   if (deepState.busy) return;
+  const turns = session.turns || [];
+  const pendingQuestion = turns.length > 0 && turns[turns.length - 1].speaker === 'host';
+  if (pendingQuestion && !deepState.ending) {
+    // 进入结束模式：先让嘉宾作最后回答，再由主持人致结束语
+    deepState.ending = true;
+    const msg = $('#deepiv-room-msg');
+    if (msg) { msg.textContent = '请对当前问题作最后回答（🎤），随后主持人将致结束语并结束。'; msg.style.color = ''; }
+    const endBtn = $('#deepiv-end-btn');
+    if (endBtn) endBtn.textContent = '跳过回答 · 直接结束';
+    return;
+  }
+  await finalizeWithClosing();
+}
+
+/* 主持人致结束语并正式结束 */
+async function finalizeWithClosing() {
+  const session = deepState.session;
+  if (!session) return;
   const base = `/api/artist/${encodeURIComponent(deepState.artistId)}/interview2/${encodeURIComponent(session.id)}`;
   setRoomBusy(true);
+  const msg = $('#deepiv-room-msg');
+  if (msg) { msg.textContent = '主持人致结束语…'; msg.style.color = ''; }
   const r = await api(`${base}/end`, {});   // 传体强制 POST
   setRoomBusy(false);
-  if (r.error) { toast(errText(r.error), 'err'); return; }
+  deepState.ending = false;
+  const endBtn = $('#deepiv-end-btn');
+  if (endBtn) endBtn.textContent = '结束访谈';
+  if (r.error) { if (msg) { msg.textContent = errText(r.error); msg.style.color = 'var(--err)'; } toast(errText(r.error), 'err'); return; }
   deepState.session = r.session;
+  if (r.turn) {                              // 主持人结束语入稿并播报
+    renderTranscript(r.session);
+    if (r.turn.audioUrl) new Audio(r.turn.audioUrl).play().catch(() => {});
+  }
+  if (msg) msg.textContent = '';
   setDeepivStatus('done');
-  // reveal Phase B finish region
+  ['#deepiv-ask-btn', '#deepiv-end-btn', '#deepiv-record-btn'].forEach((sel) => { const b = $(sel); if (b) b.disabled = true; });   // 已结束，锁住互动
   const finish = $('#deepiv-finish');
   if (finish) {
     finish.classList.remove('hidden');

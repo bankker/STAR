@@ -53,6 +53,18 @@ export function buildNextQuestionMessages(artist, guest, outline, turns, cursor)
   return { system, messages: [{ role: 'user', content: user }] };
 }
 
+// 主持人结束语：访谈收尾时说的【一句】得体致谢/道别，不再提问。
+export function buildClosingMessages(artist, guest, turns) {
+  const a = artist || {}; const g = guest || {};
+  const recent = (turns || []).slice(-6).map((t) => `${t.speaker === 'host' ? a.name || '主持' : g.name || '嘉宾'}：${t.text}`).join('\n');
+  const system = [
+    `你在扮演访谈主持人「${a.name || ''}」（风格：${a.persona || ''}），正在采访嘉宾「${g.name || ''}」。访谈到此结束。`,
+    '输出主持人的【一句】结束语：自然呼应全程内容、向嘉宾致谢、与观众简短道别。30字以内，口语、得体，不要再提问，不要任何括号舞台提示。只输出这句话本身，不要前缀。',
+  ].join('\n');
+  const user = `已有对话（近段）：\n${recent || '（尚无）'}\n\n主持人结束语：`;
+  return { system, messages: [{ role: 'user', content: user }] };
+}
+
 const FEMALE = ['Cherry', 'Serena']; const MALE = ['Ethan', 'Dylan'];
 const isMale = (g) => /男|male/i.test(g || '');
 export function hostVoice(artist) { return artist?.voiceProfile?.ttsVoice || (isMale(artist?.gender) ? 'Ethan' : 'Cherry'); }

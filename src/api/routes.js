@@ -26,7 +26,7 @@ import { buildScriptMessages as buildDramaScriptMessages, extractScript, assignV
 import { createDrama, getDrama, listDramas, updateDrama, addPortraitVersion, addFrameVersion, setFrameCurrent, curFrameUrl, setEpisodeTheme } from '../studio/drama-store.js';
 import { createGuest, getGuest, listGuests, updateGuest, addGuestPortrait, deleteGuest, curGuestPortrait } from '../studio/guests.js';
 import { createSession, getSession, listSessions, appendTurn as appendInterviewTurn, updateSession, setTurnMedia } from '../studio/session-store.js';
-import { buildOutlineMessages, extractOutline, buildNextQuestionMessages, hostVoice, ttsClean, MAX_TURNS } from '../studio/interview2.js';
+import { buildOutlineMessages, extractOutline, buildNextQuestionMessages, buildClosingMessages, hostVoice, ttsClean, MAX_TURNS } from '../studio/interview2.js';
 import os from 'node:os';
 
 const MAX_BODY = 1 * 1024 * 1024;
@@ -936,10 +936,27 @@ export function registerRoutes(route) {
       json(res, { turn: session.turns[session.turns.length - 1] });
     } catch (e) { sendGatewayError(res, e); }
   });
+  // 结束访谈：先让主持人说一句结束语（配音）作为最后一轮，再标记完成——符合「我说完→主持人致结束语→结束」的流程
   route('POST /api/artist/:id/interview2/:sid/end', async (req, res, { params }) => {
+    const artist = getArtist(params.id);
     const s = getSession(params.sid);
-    if (!getArtist(params.id) || !s || s.artistId !== params.id) return jsonError(res, 'not_found', '无此会话');
-    json(res, { session: updateSession(params.sid, { status: 'done' }) });
+    if (!artist || !s || s.artistId !== params.id) return jsonError(res, 'not_found', '无此会话');
+    const guest = getGuest(s.guestId);
+    try {
+      let closing = '';
+      try {
+        const { system, messages } = buildClosingMessages(artist, guest, s.turns);
+        const r = await execute('content', { system, messages, maxTokens: 120 });
+        closing = r.text.trim().replace(/^["「]|["」]$/g, '');
+      } catch (e) { console.error('[interview2] 结束语生成失败，用模板:', e.message); }
+      if (!closing) closing = `感谢${guest?.name || '嘉宾'}今天的精彩分享，本期访谈就到这里，我们下期再会。`;
+      let audioUrl = null;
+      try { audioUrl = (await execute('tts', { text: ttsClean(closing), voice: hostVoice(artist) })).files?.[0]?.url || null; }
+      catch (e) { console.error('[interview2] 结束语配音失败（忽略）:', e.message); }
+      appendInterviewTurn(params.sid, { speaker: 'host', text: closing, audioUrl });
+      const session = updateSession(params.sid, { status: 'done' });
+      json(res, { turn: session.turns[session.turns.length - 1], session });
+    } catch (e) { sendGatewayError(res, e); }
   });
 
   // 生成双方「新闻主播」形象（图像参考锁脸 + 主播风格）：先生成→前端对称确认→再出对口型视频
