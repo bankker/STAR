@@ -11,7 +11,7 @@ const auth = (env) => ({ authorization: `Bearer ${env.DASHSCOPE_API_KEY}` });
 const adapter = {
   id: 'dashscope',
   label: '阿里云百炼',
-  capabilities: ['chat', 'content', 'world', 'plan', 'tts', 'asr', 'image', 'video', 'music', 'lipsync'],
+  capabilities: ['chat', 'content', 'world', 'plan', 'tts', 'asr', 'image', 'video', 'music', 'lipsync', 'vision'],
   envKeys: ['DASHSCOPE_API_KEY'],
   isConfigured: (env) => Boolean(env.DASHSCOPE_API_KEY),
 
@@ -27,6 +27,7 @@ const adapter = {
 
   async invoke(capability, request, ctx) {
     if (TEXT_CAPS.has(capability)) return invokeText(request, ctx);
+    if (capability === 'vision') return invokeVision(request, ctx);
     if (capability === 'tts') return invokeTts(request, ctx);
     if (capability === 'asr') return invokeAsr(request, ctx);
     if (capability === 'image') return invokeImage(request, ctx);
@@ -46,6 +47,21 @@ async function invokeText(request, ctx) {
   });
   const text = data.choices?.[0]?.message?.content || '';
   if (!text) throw gatewayError('provider_error', 'DashScope 返回空内容', { providerId: 'dashscope' });
+  return { text, usage: { inputTokens: data.usage?.prompt_tokens || 0, outputTokens: data.usage?.completion_tokens || 0 } };
+}
+
+// 看图（Qwen-VL）：compatible-mode chat，content 里塞 image_url(base64 dataUrl)+文字问题 → 文字描述。探针已验证在区可用。
+async function invokeVision(request, ctx) {
+  const content = [];
+  if (request.image) content.push({ type: 'image_url', image_url: { url: request.image } });
+  content.push({ type: 'text', text: request.prompt || '描述这张图片' });
+  const data = await ctx.fetchJson(`${BASE}/compatible-mode/v1/chat/completions`, {
+    headers: auth(ctx.env),
+    body: { model: request.model, messages: [{ role: 'user', content }], max_tokens: request.maxTokens || 200 },
+    timeoutMs: 60000,
+  });
+  const text = data.choices?.[0]?.message?.content || '';
+  if (!text) throw gatewayError('provider_error', 'Qwen-VL 返回空内容', { providerId: 'dashscope' });
   return { text, usage: { inputTokens: data.usage?.prompt_tokens || 0, outputTokens: data.usage?.completion_tokens || 0 } };
 }
 

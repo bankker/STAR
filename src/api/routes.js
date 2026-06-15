@@ -958,29 +958,42 @@ export function registerRoutes(route) {
     }
     res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
     const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-    // 探针结论：万相 imageedit 的 stylization_all + 高 strength(≈0.92) 才能把人物重绘进「新闻演播室+正装」场景；
-    // description_edit/低 strength 几乎不变。性别 + 外貌锁定写进 prompt 才能保住本人长相/发色/肤色不漂移。
-    const lookPrompt = (gender, identity) => {
+    // 探针结论：万相 imageedit 的 stylization_all + 高 strength(0.95) 才能把人物重绘进「新闻演播室+正装」场景
+    // （description_edit/低 strength 几乎不变）。长相用 Qwen-VL 看真实照片现描述（而非靠文字设定），与本人对齐、强锁五官不漂移。
+    const lookPrompt = (gender, faceText) => {
       const sex = gender === '女' ? '女性' : gender === '男' ? '男性' : '';
       const attire = gender === '女' ? '深色职业正装西服套装' : gender === '男' ? '深色西装正装并系领带' : '深色职业正装';
-      // 只取长相/发型/体型，剔除服装描述——否则原服装(如「韩式襦裙」)会和「深色正装」打架、把人物拉回原图
-      const face = identity ? String(identity).split(/身穿|身着|穿着|外搭|外披|脚[踩穿]|手持|手拿|戴着|佩戴/)[0].replace(/\s+/g, ' ').trim().slice(0, 50) : '';
-      const id = face ? `本人长相参考（仅锁定五官/发型/肤色，服装一律按上文的正装）：${face}。` : '';
+      // 剔除可能混入的服装描述——否则原服装(如「韩式襦裙」)会和「深色正装」打架、把人拉回原图
+      const face = faceText ? String(faceText).split(/身穿|身着|穿着|外搭|外披|脚[踩穿]|手持|手拿|戴着|佩戴/)[0].replace(/\s+/g, ' ').trim().slice(0, 80) : '';
+      const id = face ? `本人长相参考（按此锁定五官/发型/发色/肤色，服装一律按上文的正装）：${face}。` : '';
       return `${sex ? '一位' + sex : '同一个人'}专业新闻主播，端坐在专业新闻演播室的主播台前，身穿${attire}，背景为虚化的新闻演播室大屏与演播台灯光，半身居中、正脸面向镜头、神情专业自信。${id}务必保持此人的五官长相、发型、发色、肤色、种族、性别与参考图完全一致，仍是同一个人。写实摄影，9:16 竖屏，SFW`;
     };
+    // 看真实照片 → 长相描述（与本人对齐）；失败回退到文字设定
+    const describeFace = async (refDataUrl, fallbackText) => {
+      try {
+        const v = await execute('vision', { image: refDataUrl,
+          prompt: '用中文简洁描述这个人的长相，只说外貌、不要提服装与背景：性别、大致年龄段、脸型、发型与发色、肤色/人种、显著五官特征。30字以内，逗号分隔。' });
+        const t = (v.text || '').replace(/\s+/g, ' ').trim();
+        if (t) return t;
+      } catch (e) { console.error('[interview2] 看图识脸失败，回退文字设定:', e.message); }
+      return fallbackText || '';
+    };
+    const inferGender = (stored, faceText) => stored || (/女(性|士|孩|人)/.test(faceText) ? '女' : /男(性|士|孩|人)/.test(faceText) ? '男' : '');
     try {
-      const mk = async (label, srcUrl, prompt) => {
+      const mk = async (name, label, srcUrl, storedGender, fallbackText, pBase) => {
         const ref = generatedUrlToDataUrl(GENERATED_DIR, srcUrl);
         if (!ref) throw new Error('形象底图读取失败');
+        send('stage', { progress: pBase, msg: `识别${name}长相` });
+        const face = await describeFace(ref, fallbackText);
+        const prompt = lookPrompt(inferGender(storedGender, face), face);
+        send('stage', { progress: pBase + 15, msg: `生成${name}主播形象` });
         const r = await execute('image', { prompt, aspect: '9:16', refImages: [ref], editFunction: 'stylization_all', editStrength: 0.95 });
         const u = r.files?.[0]?.url; if (!u) throw new Error('出图失败');
         addAssets(params.id, [{ type: 'photo', url: u, prompt, title: label }]);
         return u;
       };
-      send('stage', { progress: 20, msg: '生成主持人主播形象' });
-      const hostLook = await mk('主持人主播形象', hostSrc, lookPrompt(artist.gender, artist.visualIdentity || artist.persona));
-      send('stage', { progress: 60, msg: '生成嘉宾主播形象' });
-      const guestLook = await mk('嘉宾主播形象', guestSrc, lookPrompt(guest?.gender, guest?.persona));   // 仅用 persona 作外貌锁；title(如「特斯拉创始人」)非外貌，喂进去反而干扰
+      const hostLook = await mk('主持人', '主持人主播形象', hostSrc, artist.gender, artist.visualIdentity || artist.persona, 10);
+      const guestLook = await mk('嘉宾', '嘉宾主播形象', guestSrc, guest?.gender, guest?.persona, 55);
       const session = updateSession(params.sid, { hostLook, guestLook });
       send('done', { hostLook, guestLook, session });
     } catch (e) {

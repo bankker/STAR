@@ -7,6 +7,9 @@ import { ROOT_DIR, PROTOTYPE_DIR, GENERATED_DIR, ENV_FILE } from './src/lib/path
 import { registerRoutes, json, jsonError, readJsonBody } from './src/api/routes.js';
 import { bootstrap } from './src/bootstrap.js';
 
+process.on('uncaughtException', (err) => console.error('[server] uncaughtException', err));
+process.on('unhandledRejection', (err) => console.error('[server] unhandledRejection', err));
+
 loadEnv(ENV_FILE);
 bootstrap();
 const PORT = parseInt(process.env.PORT || '3100', 10) || 3100;
