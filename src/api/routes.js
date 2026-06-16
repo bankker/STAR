@@ -26,7 +26,7 @@ import { buildScriptMessages as buildDramaScriptMessages, extractScript, assignV
 import { createDrama, getDrama, listDramas, updateDrama, addPortraitVersion, addFrameVersion, setFrameCurrent, curFrameUrl, setEpisodeTheme } from '../studio/drama-store.js';
 import { createGuest, getGuest, listGuests, updateGuest, addGuestPortrait, deleteGuest, curGuestPortrait } from '../studio/guests.js';
 import { createSession, getSession, listSessions, appendTurn as appendInterviewTurn, updateSession, setTurnMedia } from '../studio/session-store.js';
-import { buildOutlineMessages, extractOutline, buildNextQuestionMessages, buildClosingMessages, hostVoice, ttsClean, MAX_TURNS } from '../studio/interview2.js';
+import { buildOutlineMessages, extractOutline, buildNextQuestionMessages, buildClosingMessages, hostVoice, ttsClean, clampSharpness, MAX_TURNS } from '../studio/interview2.js';
 import os from 'node:os';
 
 const MAX_BODY = 1 * 1024 * 1024;
@@ -876,12 +876,13 @@ export function registerRoutes(route) {
     const artist = getArtist(params.id);
     const guest = getGuest(body.guestId);
     if (!artist || !guest || guest.artistId !== params.id) return jsonError(res, 'not_found', '无此艺人或嘉宾');
+    const sharpness = clampSharpness(body.sharpness);   // 提问犀利度 1-5（默认 3）
     try {
-      const { system, messages } = buildOutlineMessages(artist, guest);
+      const { system, messages } = buildOutlineMessages(artist, guest, sharpness);
       // 提纲走 plan 路由（qwen-flash，在区快且 JSON 稳定）——content/deepseek 偶发非严格 JSON 致解析失败、且慢
       const r = await execute('plan', { system, messages, maxTokens: 1500 });
       let outline; try { outline = extractOutline(r.text); } catch (e) { return jsonError(res, 'provider_error', `提纲解析失败：${e.message}`); }
-      json(res, { session: createSession(params.id, guest.id, outline) });
+      json(res, { session: createSession(params.id, guest.id, outline, sharpness) });
     } catch (e) { sendGatewayError(res, e); }
   });
   route('GET /api/artist/:id/interviews', async (req, res, { params }) => {
@@ -902,7 +903,7 @@ export function registerRoutes(route) {
       let text;
       if (s.turns.length === 0) { text = s.outline.opening || `欢迎来到节目，今天的嘉宾是${guest?.name || ''}。`; }
       else {
-        const { system, messages } = buildNextQuestionMessages(artist, guest, s.outline, s.turns, s.cursor);
+        const { system, messages } = buildNextQuestionMessages(artist, guest, s.outline, s.turns, s.cursor, s.sharpness);
         const r = await execute('content', { system, messages, maxTokens: 200 });
         text = r.text.trim().replace(/^["「]|["」]$/g, '');
         if (s.cursor < (s.outline.questions || []).length) updateSession(params.sid, { cursor: s.cursor + 1 });

@@ -950,6 +950,21 @@
                 <h2 style="margin:0">嘉宾名录</h2>
                 <button class="btn btn-secondary btn-sm" id="deepiv-guest-refresh" style="margin-left:auto;">↻ 刷新</button>
               </div>
+              <!-- 提问犀利度：开始访谈前选择，越高越冒犯越真实 -->
+              <div class="deepiv-sharp mb-12">
+                <div class="deepiv-sharp-head">
+                  <span class="label-upper">提问犀利度</span>
+                  <span class="deepiv-sharp-cur" id="deepiv-sharp-cur">适中</span>
+                </div>
+                <div class="deepiv-sharp-row" id="deepiv-sharp-row" role="radiogroup" aria-label="提问犀利度">
+                  <button class="deepiv-sharp-btn" data-level="1" title="友善正面、回避争议">温和</button>
+                  <button class="deepiv-sharp-btn" data-level="2" title="常规专业、礼貌中性">平和</button>
+                  <button class="deepiv-sharp-btn is-active" data-level="3" title="有深度、适度追问">适中</button>
+                  <button class="deepiv-sharp-btn" data-level="4" title="直接质疑、不回避矛盾">犀利</button>
+                  <button class="deepiv-sharp-btn" data-level="5" title="穷追不舍、直戳痛点、逼问真相">尖锐</button>
+                </div>
+                <div class="deepiv-sharp-desc text-sm text-ink-3" id="deepiv-sharp-desc">有深度、适度追问，专业而平衡，敢于点到争议但不纠缠。</div>
+              </div>
               <div id="deepiv-guest-grid" class="deepiv-guest-grid"></div>
             </div>
 
@@ -971,7 +986,8 @@
               <div class="flex items-center gap-8 mb-8">
                 <button class="btn btn-ghost btn-sm" id="deepiv-back-btn">‹ 返回名录</button>
                 <h2 id="deepiv-room-guest" style="margin:0 0 0 4px;">访谈室</h2>
-                <span class="pill s2" id="deepiv-room-status" style="margin-left:auto;">访谈中</span>
+                <span class="pill dim" id="deepiv-room-sharp" style="margin-left:auto;">犀利度 适中</span>
+                <span class="pill s2" id="deepiv-room-status">访谈中</span>
               </div>
               <div id="deepiv-room-meta" class="text-sm text-ink-3"></div>
             </div>

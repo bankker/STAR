@@ -35,7 +35,7 @@ export function listSessions(artistId) {
   return out.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 }
 
-export function createSession(artistId, guestId, outline) {
+export function createSession(artistId, guestId, outline, sharpness) {
   if (!SAFE_ID.test(artistId)) throw new Error('非法 artistId');
   const now = new Date().toISOString();
   const s = {
@@ -46,6 +46,7 @@ export function createSession(artistId, guestId, outline) {
     createdAt: now,
     updatedAt: now,
     status: 'interviewing',
+    sharpness: (sharpness >= 1 && sharpness <= 5) ? sharpness : 3,   // 提问犀利度 1-5
     outline: outline || { opening: '', questions: [] },
     cursor: 0,
     turns: [],

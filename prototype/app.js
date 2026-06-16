@@ -3059,7 +3059,15 @@ function cleanupRec() {
 }
 
 /* ── 访谈状态 ── */
-const deepState = { artistId: null, session: null, recording: false, busy: false, ending: false };
+const deepState = { artistId: null, session: null, recording: false, busy: false, ending: false, sharpness: 3 };
+// 提问犀利度 1-5（与后端 interview2.js 的 SHARPNESS 对应）
+const SHARP_META = {
+  1: { label: '温和', desc: '友善正面、轻松随和，给足舒适空间，回避敏感与争议话题。' },
+  2: { label: '平和', desc: '常规专业、礼貌中性，稳妥推进，偶有浅层追问。' },
+  3: { label: '适中', desc: '有深度、适度追问，专业而平衡，敢于点到争议但不纠缠。' },
+  4: { label: '犀利', desc: '直接、不回避争议与矛盾，敢于当面质疑、追问、点出问题与回避。' },
+  5: { label: '尖锐', desc: '咄咄逼人、直戳痛点、穷追不舍，逼问真相、不接受空泛或回避的回答。' },
+};
 
 function deepivGuestBase() {
   if (!state.currentArtistId) return null;
@@ -3245,13 +3253,25 @@ async function guestPortraitUpload(gid, input) {
   loadGuests();
 }
 
-/* ── 开始访谈：建会话 → 进入访谈室 ── */
+/* ── 提问犀利度选择 ── */
+function setSharpness(level) {
+  const n = (level >= 1 && level <= 5) ? level : 3;
+  deepState.sharpness = n;
+  const row = $('#deepiv-sharp-row');
+  if (row) row.querySelectorAll('.deepiv-sharp-btn').forEach((b) =>
+    b.classList.toggle('is-active', Number(b.dataset.level) === n));
+  const cur = $('#deepiv-sharp-cur'); if (cur) cur.textContent = SHARP_META[n].label;
+  const desc = $('#deepiv-sharp-desc'); if (desc) desc.textContent = SHARP_META[n].desc;
+}
+
+/* ── 开始访谈：选定犀利度 → 建会话 → 进入访谈室 ── */
 async function startInterview(gid, btn) {
   const base = deepivGuestBase();
   if (!base || !gid) return;
   if (btn) btn.disabled = true;
-  toast('正在生成访谈提纲…');
-  const r = await api(`${base}/interview2`, { guestId: gid });
+  const sharp = SHARP_META[deepState.sharpness] || SHARP_META[3];
+  toast(`正在以「${sharp.label}」犀利度生成访谈提纲…`);
+  const r = await api(`${base}/interview2`, { guestId: gid, sharpness: deepState.sharpness });
   if (btn) btn.disabled = false;
   if (r.error) { toast(errText(r.error), 'err'); return; }
   deepState.session = r.session;
@@ -3268,6 +3288,8 @@ function enterInterviewRoom(session, gid) {
   deepState.ending = false;                              // 进房重置结束模式
   const endBtn0 = $('#deepiv-end-btn');
   if (endBtn0) { endBtn0.textContent = '结束访谈'; endBtn0.disabled = (session.status === 'done'); }
+  const sharpPill = $('#deepiv-room-sharp');             // 显示本场犀利度
+  if (sharpPill) { const m = SHARP_META[session.sharpness] || SHARP_META[3]; sharpPill.textContent = `犀利度 ${m.label}`; }
   // reset finish region; will be re-revealed below if session already done
   const finish = $('#deepiv-finish');
   if (finish) { finish.classList.add('hidden'); }
@@ -3744,6 +3766,13 @@ function initDeepInterview() {
 
   const refreshBtn = $('#deepiv-guest-refresh');
   if (refreshBtn) refreshBtn.addEventListener('click', () => loadGuests());
+
+  // 提问犀利度选择器
+  const sharpRow = $('#deepiv-sharp-row');
+  if (sharpRow) {
+    sharpRow.querySelectorAll('.deepiv-sharp-btn').forEach((b) =>
+      b.addEventListener('click', () => setSharpness(Number(b.dataset.level))));
+  }
 
   const backBtn = $('#deepiv-back-btn');
   if (backBtn) backBtn.addEventListener('click', () => enterDeepivSetup());

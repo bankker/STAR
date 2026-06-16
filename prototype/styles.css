@@ -2157,6 +2157,24 @@ select option { background: var(--panel-2); color: var(--ink); }
   color: #fff;
 }
 
+/* ── 深度访谈·提问犀利度 ── */
+.deepiv-sharp { background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; }
+.deepiv-sharp-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.deepiv-sharp-cur { font-size: 13px; font-weight: 700; color: var(--brand); }
+.deepiv-sharp-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.deepiv-sharp-btn {
+  font-size: 12.5px; padding: 7px 4px; text-align: center;
+  color: var(--ink-2); background: var(--bg);
+  border: 1px solid var(--line-2); border-radius: var(--r-sm);
+  cursor: pointer; transition: background .15s, color .15s, border-color .15s;
+}
+.deepiv-sharp-btn:hover { color: var(--ink); border-color: var(--brand); }
+.deepiv-sharp-btn.is-active { background: var(--brand); color: #fff; border-color: var(--brand); font-weight: 700; }
+/* 越靠右越“烫”：4-5 档点缀暖色描边，强化“犀利”语义 */
+.deepiv-sharp-btn[data-level="4"].is-active { background: #e07b39; border-color: #e07b39; }
+.deepiv-sharp-btn[data-level="5"].is-active { background: var(--err, #d9434e); border-color: var(--err, #d9434e); }
+.deepiv-sharp-desc { margin-top: 8px; }
+
 /* ── 深度访谈·成片区 ── */
 .deepiv-finish-section { }
 .deepiv-finish-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
