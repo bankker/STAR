@@ -1218,6 +1218,27 @@ select option { background: var(--panel-2); color: var(--ink); }
 .pill, .tag, .chip, .nav-tag { white-space: nowrap; }
 /* 对话陪伴空态：填满聊天区、去掉嵌套虚线框 */
 .chat-empty { min-height: 100%; justify-content: center; border: none !important; background: transparent !important; }
+
+/* 统一确认弹窗（替代原生 confirm，匹配整体观感） */
+.cmodal-overlay {
+  position: fixed; inset: 0; z-index: 1200;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(4, 5, 9, .62); backdrop-filter: blur(3px);
+  padding: 24px;
+}
+.cmodal-overlay.hidden { display: none; }
+.cmodal {
+  width: 100%; max-width: 384px;
+  background: var(--panel); border: 1px solid var(--line-2);
+  border-radius: var(--r); padding: 22px;
+  box-shadow: var(--shadow-float);
+  animation: cmodal-in .16s ease;
+}
+@keyframes cmodal-in { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
+.cmodal-title { font-size: 16px; font-weight: 800; color: var(--ink); margin-bottom: 8px; letter-spacing: -.01em; }
+.cmodal-msg { font-size: 13.5px; color: var(--ink-2); line-height: 1.6; margin-bottom: 18px; }
+.cmodal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.cmodal-actions .btn { padding: 8px 18px; }
 .seg-btn:hover:not(.active) {
   color: var(--ink-2);
   background: rgba(255,255,255,.04);

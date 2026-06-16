@@ -796,7 +796,7 @@ async function showArtistDetail(id) {
   });
 
   $('#detail-del').addEventListener('click', async (e) => {
-    if (!confirm(`确认删除艺人「${a.name}」？此操作不可恢复。`)) return;
+    if (!await confirmDialog({ title: '删除艺人', message: `确认删除艺人「${a.name}」？此操作不可恢复。`, confirmText: '删除', danger: true })) return;
     await api(`/api/artist/${encodeURIComponent(e.currentTarget.dataset.id)}`, undefined, 'DELETE');
     panel.classList.add('hidden');
     if (state.currentArtistId === e.currentTarget.dataset.id) state.currentArtistId = null;
@@ -1362,7 +1362,7 @@ function renderGallery(assets) {
   grid.querySelectorAll('.tile-del').forEach((btn) => {
     btn.addEventListener('click', async () => {
       if (!state.currentArtistId) return;
-      if (!confirm('确认删除这张写真？')) return;
+      if (!await confirmDialog({ title: '删除写真', message: '确认删除这张写真？', confirmText: '删除', danger: true })) return;
       await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/gallery/${encodeURIComponent(btn.dataset.id)}`, undefined, 'DELETE');
       loadGallery();
     });
@@ -1677,7 +1677,7 @@ async function loadMusicLibrary() {
   grid.querySelectorAll('.tile-del').forEach((btn) => {
     btn.addEventListener('click', async () => {
       if (!state.currentArtistId) return;
-      if (!confirm('确认删除这首歌曲？')) return;
+      if (!await confirmDialog({ title: '删除歌曲', message: '确认删除这首歌曲？', confirmText: '删除', danger: true })) return;
       await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/gallery/${encodeURIComponent(btn.dataset.id)}`, undefined, 'DELETE');
       loadMusicLibrary();
     });
@@ -1929,7 +1929,7 @@ async function loadInterviewLibrary() {
   grid.querySelectorAll('.tile-del').forEach((btn) => {
     btn.addEventListener('click', async () => {
       if (!state.currentArtistId) return;
-      if (!confirm('确认删除这个成片？')) return;
+      if (!await confirmDialog({ title: '删除成片', message: '确认删除这个成片？', confirmText: '删除', danger: true })) return;
       await api(`/api/artist/${encodeURIComponent(state.currentArtistId)}/gallery/${encodeURIComponent(btn.dataset.id)}`, undefined, 'DELETE');
       loadInterviewLibrary();
     });
@@ -2893,6 +2893,48 @@ async function generateCollection() {
  * Show a cost-confirm bar by prefix (e.g. 'drama-cast'); on confirm run onConfirm().
  * Expects #<prefix>-confirm (bar), #<prefix>-confirm-text, #<prefix>-ok, #<prefix>-cancel.
  */
+/* ── 统一的确认弹窗（替代原生 confirm，匹配整体观感；支持 Esc/点遮罩取消、Enter 确认） ── */
+function confirmDialog({ title = '确认操作', message = '', confirmText = '确认', cancelText = '取消', danger = false } = {}) {
+  return new Promise((resolve) => {
+    let ov = $('#ux-confirm-modal');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'ux-confirm-modal';
+      ov.className = 'cmodal-overlay hidden';
+      ov.innerHTML = '<div class="cmodal" role="dialog" aria-modal="true">'
+        + '<div class="cmodal-title"></div><div class="cmodal-msg"></div>'
+        + '<div class="cmodal-actions"><button class="btn btn-secondary cmodal-cancel"></button>'
+        + '<button class="btn cmodal-ok"></button></div></div>';
+      document.body.appendChild(ov);
+    }
+    const okBtn = ov.querySelector('.cmodal-ok');
+    const cancelBtn = ov.querySelector('.cmodal-cancel');
+    ov.querySelector('.cmodal-title').textContent = title;
+    ov.querySelector('.cmodal-msg').textContent = message;
+    okBtn.textContent = confirmText;
+    cancelBtn.textContent = cancelText;
+    okBtn.className = 'btn cmodal-ok ' + (danger ? 'btn-danger' : 'btn-primary');
+    ov.classList.remove('hidden');
+    okBtn.focus();
+    const cleanup = (val) => {
+      ov.classList.add('hidden');
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      ov.removeEventListener('mousedown', onOverlay);
+      document.removeEventListener('keydown', onKey);
+      resolve(val);
+    };
+    const onOk = () => cleanup(true);
+    const onCancel = () => cleanup(false);
+    const onOverlay = (e) => { if (e.target === ov) cleanup(false); };
+    const onKey = (e) => { if (e.key === 'Escape') cleanup(false); else if (e.key === 'Enter') cleanup(true); };
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    ov.addEventListener('mousedown', onOverlay);
+    document.addEventListener('keydown', onKey);
+  });
+}
+
 function showCostConfirm(prefix, estimate, label, onConfirm) {
   const bar = $(`#${prefix}-confirm`);
   const text = $(`#${prefix}-confirm-text`);
