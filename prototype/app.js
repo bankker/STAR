@@ -876,9 +876,14 @@ async function loadChat(id) {
   if (!data.error) {
     const log = $('#chat-log');
     if (log) {
-      log.innerHTML = (data.messages || [])
-        .map((m) => `<div class="bubble ${m.role === 'user' ? 'me' : 'ai'}">${esc(m.content)}</div>`)
-        .join('');
+      const msgs = data.messages || [];
+      log.innerHTML = msgs.length
+        ? msgs.map((m) => `<div class="bubble ${m.role === 'user' ? 'me' : 'ai'}">${esc(m.content)}</div>`).join('')
+        : `<div class="empty-state chat-empty">
+             <div class="icon">💬</div>
+             <div class="title">开始第一句对话</div>
+             <div class="desc">和 TA 聊聊近况、心情或创作灵感，关系会随对话升温。</div>
+           </div>`;
       log.scrollTop = log.scrollHeight;
     }
     renderChatState(data.state);
