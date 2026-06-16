@@ -90,11 +90,48 @@ body {
   line-height: 1.6;
   background: var(--bg);
   color: var(--ink);
+  -webkit-font-smoothing: antialiased;     /* 文字更细腻锐利（顶级观感基础） */
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   /* bg radial glows */
   background-image:
     radial-gradient(ellipse 520px 380px at 90% 0%, color-mix(in srgb, var(--brand) 8%, transparent) 0%, transparent 65%),
     radial-gradient(ellipse 420px 340px at 5% 95%, color-mix(in srgb, var(--accent) 6%, transparent) 0%, transparent 60%);
   background-attachment: fixed;
+}
+
+/* §1c 顶级观感打磨层：选区/可见焦点环/平滑滚动/降噪/标题字距 —— 全局生效、保留现有视觉风格 */
+html { scroll-behavior: smooth; }
+::selection { background: color-mix(in srgb, var(--brand) 34%, transparent); color: var(--ink); }
+
+/* 仅键盘导航时显示焦点环（鼠标点击不显示难看的默认描边），品牌色双环更精致 */
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.btn:focus-visible, button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+}
+input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent);
+}
+
+/* 大标题更紧致挺括 */
+h1, h2 { letter-spacing: -.015em; }
+
+/* 尊重「减少动态」无障碍偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ========================================================
