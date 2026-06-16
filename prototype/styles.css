@@ -2326,6 +2326,37 @@ html:not([data-theme="fauvist"]) .topbar {
   -webkit-backdrop-filter: blur(16px) saturate(1.1);
 }
 
+/* 7) 顶栏面包屑窄屏不再竖排挤压（全主题修复真实缺陷） */
+.breadcrumb { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-theme-btn, .topbar-new-btn { flex-shrink: 0; white-space: nowrap; }
+
+/* 8) 画廊瓦片影院化：更圆、光晕浮起、图像悬停轻微推近 */
+html:not([data-theme="fauvist"]) .media-tile {
+  background: color-mix(in srgb, var(--panel) 78%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+  border-radius: 16px;
+  transition: transform .2s ease, box-shadow .25s ease, border-color .2s ease;
+}
+html:not([data-theme="fauvist"]) .media-tile:hover {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--brand) 50%, transparent);
+  box-shadow: 0 26px 56px -28px color-mix(in srgb, var(--brand) 55%, rgba(0,0,0,.85));
+}
+html:not([data-theme="fauvist"]) .media-tile-img-wrap img { transition: transform .4s ease; }
+html:not([data-theme="fauvist"]) .media-tile:hover .media-tile-img-wrap img { transform: scale(1.045); }
+
+/* 9) 空状态更精致：虚线描边容器 + 图标辉光 */
+html:not([data-theme="fauvist"]) .empty-state {
+  border: 1px dashed color-mix(in srgb, var(--ink) 13%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--panel) 36%, transparent);
+}
+html:not([data-theme="fauvist"]) .empty-state .icon {
+  filter: drop-shadow(0 4px 18px color-mix(in srgb, var(--brand) 50%, transparent));
+}
+
 /* ── 深度访谈·成片区 ── */
 .deepiv-finish-section { }
 .deepiv-finish-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
