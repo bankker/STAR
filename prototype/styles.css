@@ -2248,6 +2248,84 @@ select option { background: var(--panel-2); color: var(--ink); }
 .playdock-stop { background: transparent; border: none; cursor: pointer; font-size: 13px; color: var(--ink-3); padding: 0 2px; line-height: 1; }
 .playdock-stop:hover { color: var(--err, #d9434e); }
 
+/* ========================================================
+   §BOLD — 大胆视觉重塑 v1「影院级·极光工作室」
+   覆盖层，仅作用于默认(制片棚)主题；野兽派保留其平涂海报识别度。
+   设计语言：更深景深 + 极光辉光 + 毛玻璃面板 + Display 排版 + 渐变光晕。
+   ======================================================== */
+html:not([data-theme="fauvist"]) {
+  --bg: #07080e;
+  --r: 18px;
+}
+/* 1) 影院级极光底：更深的黑 + 更大更通透的多彩辉光 */
+html:not([data-theme="fauvist"]) body {
+  background-color: #07080e;
+  background-image:
+    radial-gradient(1100px 720px at 88% -10%, color-mix(in srgb, var(--brand) 28%, transparent) 0%, transparent 60%),
+    radial-gradient(960px 680px at -8% 110%, color-mix(in srgb, var(--accent) 22%, transparent) 0%, transparent 58%),
+    radial-gradient(720px 560px at 52% 44%, color-mix(in srgb, var(--pink) 9%, transparent) 0%, transparent 72%),
+    radial-gradient(540px 440px at 14% -8%, color-mix(in srgb, var(--gold) 7%, transparent) 0%, transparent 62%);
+}
+/* 2) 毛玻璃面板/卡片：半透明 + 背景模糊 + 顶部内高光 + 深景投影 */
+html:not([data-theme="fauvist"]) .panel,
+html:not([data-theme="fauvist"]) .card,
+html:not([data-theme="fauvist"]) .stat-card {
+  background: color-mix(in srgb, var(--panel) 76%, transparent);
+  backdrop-filter: blur(16px) saturate(1.18);
+  -webkit-backdrop-filter: blur(16px) saturate(1.18);
+  border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 6%, transparent), 0 20px 48px -26px rgba(0,0,0,.75);
+}
+/* 小卡片悬停浮起 + 品牌光晕（大内容面板不参与，避免突兀位移） */
+html:not([data-theme="fauvist"]) .stat-card {
+  transition: transform .18s ease, box-shadow .25s ease, border-color .2s ease;
+}
+html:not([data-theme="fauvist"]) .stat-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--brand) 42%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb,#fff 8%,transparent), 0 26px 60px -28px color-mix(in srgb, var(--brand) 60%, rgba(0,0,0,.8));
+}
+/* 3) Display 级视图标题 */
+html:not([data-theme="fauvist"]) .view-h1 {
+  font-size: 30px;
+  font-weight: 850;
+  letter-spacing: -.022em;
+  line-height: 1.12;
+}
+/* 4) 主操作按钮：对角双色渐变 + 光晕，更圆润 */
+html:not([data-theme="fauvist"]) .btn { border-radius: 12px; }
+html:not([data-theme="fauvist"]) .btn-primary {
+  background: linear-gradient(118deg, var(--brand) 0%, color-mix(in srgb, var(--brand) 52%, var(--accent)) 100%);
+  box-shadow: 0 8px 22px -6px color-mix(in srgb, var(--brand) 58%, transparent);
+}
+html:not([data-theme="fauvist"]) .btn-primary:hover:not(:disabled) {
+  box-shadow: 0 13px 32px -6px color-mix(in srgb, var(--brand) 78%, transparent), inset 0 0 0 1px color-mix(in srgb,#fff 14%,transparent);
+}
+/* 5) 侧栏玻璃化 + 选中项整条渐变胶囊 + 图标光晕 */
+html:not([data-theme="fauvist"]) .sidebar {
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+  backdrop-filter: blur(18px) saturate(1.1);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+}
+html:not([data-theme="fauvist"]) .nav-item {
+  margin: 1px 10px; padding: 9px 12px; border-radius: 11px;
+  transition: color .15s, background .15s, box-shadow .2s;
+}
+html:not([data-theme="fauvist"]) .nav-item.active {
+  background: linear-gradient(118deg, color-mix(in srgb, var(--brand) 28%, transparent), color-mix(in srgb, var(--accent) 14%, transparent));
+  box-shadow: 0 8px 22px -10px color-mix(in srgb, var(--brand) 70%, transparent);
+}
+html:not([data-theme="fauvist"]) .nav-item.active::before { display: none; }
+html:not([data-theme="fauvist"]) .nav-item.active .nav-icon {
+  opacity: 1; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--brand) 80%, transparent));
+}
+/* 6) 顶栏玻璃化 */
+html:not([data-theme="fauvist"]) .topbar {
+  background: color-mix(in srgb, var(--panel) 60%, transparent);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+}
+
 /* ── 深度访谈·成片区 ── */
 .deepiv-finish-section { }
 .deepiv-finish-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
