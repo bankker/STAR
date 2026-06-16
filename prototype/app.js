@@ -3539,20 +3539,26 @@ async function refetchDeepSession() {
   return deepState.session;
 }
 
-/* ── 成片区：渲染已有 players（revisit 时） ── */
+/* ── 成片区：按当前 session 渲染（每次都依据本场 session 重置，避免残留上一场访谈的音频/影像/进度） ── */
 function renderFinishPlayers(session) {
   if (!session) return;
   renderLooksPreview(session);
   setVideoGate(session);
+  // 语音记录：有 recordUrl 才放播放器，否则清空（修复未生成时显示上一场访谈音频）
   const recPlayer = $('#deepiv-record-player');
-  if (recPlayer && session.recordUrl) {
-    recPlayer.innerHTML = `<audio src="${esc(session.recordUrl)}" controls class="deepiv-audio-player"></audio>`;
-  }
+  if (recPlayer) recPlayer.innerHTML = session.recordUrl
+    ? `<audio src="${esc(session.recordUrl)}" controls class="deepiv-audio-player"></audio>` : '';
+  // 对口型影像：同理
   const vidPlayer = $('#deepiv-video-player');
-  if (vidPlayer && session.videoUrl) {
-    vidPlayer.innerHTML = `<video src="${esc(session.videoUrl)}" controls class="deepiv-video-player" playsinline></video>
-      <div class="text-sm text-ink-3 mt-6">影像已存入成片库</div>`;
-  }
+  if (vidPlayer) vidPlayer.innerHTML = session.videoUrl
+    ? `<video src="${esc(session.videoUrl)}" controls class="deepiv-video-player" playsinline></video>
+      <div class="text-sm text-ink-3 mt-6">影像已存入成片库</div>` : '';
+  // 重置各进度条/状态，避免残留上一场的进度
+  ['record', 'video', 'looks'].forEach((k) => {
+    const box = $(`#deepiv-${k}-progress`); if (box) box.classList.add('hidden');
+    const fill = $(`#deepiv-${k}-progress-fill`); if (fill) fill.style.width = '0%';
+    const sm = $(`#deepiv-${k}-stage-msg`); if (sm) sm.textContent = '';
+  });
 }
 
 /* ── 双方主播形象：对称预览 ── */
