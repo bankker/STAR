@@ -1,6 +1,6 @@
 const JSON_ONLY = '只输出一个 JSON 对象，不要额外文字、不要 markdown 围栏。';
 
-// TTS 前清洗：剥掉舞台提示/情绪标注，不让「（若有所思地说）」这类被读出。
+// TTS 前清洗：剥掉舞台提示/情绪标注，不让「（若有所思地说）」这类被读出；并把人名间隔号读成停顿而非「乘」。
 export function ttsClean(text) {
   return String(text || '')
     .replace(/（[^）]*）/g, '')      // 中文全角括号
@@ -8,6 +8,7 @@ export function ttsClean(text) {
     .replace(/【[^】]*】/g, '')       // 方头括号
     .replace(/\[[^\]]*\]/g, '')      // 半角方括号
     .replace(/\*[^*]*\*/g, '')       // *动作* 星号标注
+    .replace(/[·・･•‧⋅·]/g, ' ')     // 人名间隔号→空格（否则「比尔·盖茨」被读成「比尔乘盖茨」）
     .replace(/\s{2,}/g, ' ')
     .trim();
 }

@@ -214,7 +214,7 @@ export function registerRoutes(route) {
     if (!body.text) return jsonError(res, 'bad_request', 'text 必填');
     if (String(body.text).length > 1000) return jsonError(res, 'bad_request', 'M1 的 TTS 限 1000 字以内');
     try {
-      const r = await execute('tts', { text: body.text, voice: body.voice });
+      const r = await execute('tts', { text: ttsClean(body.text), voice: body.voice });   // 统一清洗：去舞台提示、间隔号不读「乘」
       json(res, { files: r.files, provider: r.provider, model: r.model });
     } catch (e) { sendGatewayError(res, e); }
   });

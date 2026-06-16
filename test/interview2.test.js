@@ -6,6 +6,8 @@ test('ttsClean 剥离括号舞台提示，保留正文', () => {
   assert.equal(ttsClean('（若有所思地说）我开始创业。【停顿】不容易。'), '我开始创业。不容易。');
   assert.equal(ttsClean('大家好(微笑)，欢迎。'), '大家好，欢迎。');
   assert.equal(ttsClean('没有括号的正常句子'), '没有括号的正常句子');
+  assert.equal(ttsClean('比尔·盖茨'), '比尔 盖茨');            // 间隔号不读成「乘」
+  assert.equal(ttsClean('史蒂夫・乔布斯说'), '史蒂夫 乔布斯说');  // 全角片假名间隔号
 });
 
 test('extractOutline 解析并裁剪问题上限', () => {
