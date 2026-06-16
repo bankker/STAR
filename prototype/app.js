@@ -3381,7 +3381,7 @@ function renderTranscript(session) {
       </div>`;
     }).join('');
     wrap.querySelectorAll('.deepiv-bubble-play').forEach((b) =>
-      b.addEventListener('click', () => { new Audio(b.dataset.url).play().catch(() => {}); }));
+      b.addEventListener('click', () => { playback.clip(b.dataset.url, '🔊 对话回放'); }));
     wrap.scrollTop = wrap.scrollHeight;
   }
   // current question display = last host turn (or first unanswered outline question)
@@ -3423,7 +3423,7 @@ async function askNext() {
     session.turns = session.turns || [];
     session.turns.push(r.turn);
     renderTranscript(session);
-    if (r.turn.audioUrl) new Audio(r.turn.audioUrl).play().catch(() => {});
+    if (r.turn.audioUrl) playback.clip(r.turn.audioUrl, '🔊 主持人');
   }
 }
 
@@ -3516,7 +3516,7 @@ async function finalizeWithClosing() {
   deepState.session = r.session;
   if (r.turn) {                              // 主持人结束语入稿并播报
     renderTranscript(r.session);
-    if (r.turn.audioUrl) new Audio(r.turn.audioUrl).play().catch(() => {});
+    if (r.turn.audioUrl) playback.clip(r.turn.audioUrl, '🔊 主持人');
   }
   if (msg) msg.textContent = '';
   setDeepivStatus('done');
@@ -3813,7 +3813,89 @@ function initDeepInterview() {
 }
 
 /* ── Boot ── */
+/* ── 全局播放管理 ──
+   ① 独占（默认开）：新音/视频一播放，其余自动停止，杜绝重叠。
+   ② 「正在播放」dock：顶栏下方列出当前在放的媒体，可逐个 ⏹ 停止或「全部停止」；关掉「独占」即可多路并放。 */
+const playback = (() => {
+  const active = new Map();   // 媒体元素 -> { label }
+  let exclusive = true;
+  let dock, listEl, exclEl;
+
+  function labelFor(el) {
+    if (el.__pblabel) return el.__pblabel;
+    const isVideo = el.tagName === 'VIDEO';
+    let ctx = '';
+    if (el.closest) {
+      const sec = el.closest('.lb-stage, .gallery-card, .deepiv-finish-section, .panel, .view, [data-view]');
+      const h = sec && sec.querySelector('h1,h2,h3,.label-upper,.gallery-card-title,.deepiv-room-guest');
+      if (h) ctx = h.textContent.trim().replace(/\s+/g, ' ').slice(0, 16);
+    }
+    return (isVideo ? '🎬 ' : '🔊 ') + (ctx || (isVideo ? '视频' : '音频'));
+  }
+
+  function render() {
+    if (!dock) return;
+    if (!active.size) { dock.classList.add('hidden'); listEl.innerHTML = ''; return; }
+    dock.classList.remove('hidden');
+    listEl.innerHTML = '';
+    for (const [el, info] of active) {
+      const row = document.createElement('div');
+      row.className = 'playdock-row';
+      const span = document.createElement('span');
+      span.className = 'playdock-label'; span.textContent = info.label;
+      const btn = document.createElement('button');
+      btn.className = 'playdock-stop'; btn.title = '停止'; btn.textContent = '⏹';
+      btn.addEventListener('click', () => { try { el.pause(); } catch (e) {} });
+      row.append(span, btn);
+      listEl.appendChild(row);
+    }
+  }
+
+  function onPlay(el) {
+    if (exclusive) for (const m of active.keys()) if (m !== el) { try { m.pause(); } catch (e) {} }
+    active.set(el, { label: labelFor(el) });
+    render();
+  }
+  function onStop(el) { if (active.delete(el)) render(); }
+
+  function init() {
+    dock = document.createElement('div');
+    dock.id = 'playdock'; dock.className = 'playdock hidden';
+    dock.innerHTML = '<div class="playdock-head">'
+      + '<span class="playdock-title">正在播放</span>'
+      + '<label class="playdock-excl" title="开启后：新播放会停掉其它，避免重叠"><input type="checkbox" id="playdock-exclusive" checked> 独占</label>'
+      + '<button class="playdock-stopall" id="playdock-stopall">全部停止</button>'
+      + '</div><div class="playdock-list" id="playdock-list"></div>';
+    document.body.appendChild(dock);
+    listEl = dock.querySelector('#playdock-list');
+    exclEl = dock.querySelector('#playdock-exclusive');
+    exclEl.addEventListener('change', () => {
+      exclusive = exclEl.checked;
+      if (exclusive) { const els = [...active.keys()]; els.slice(0, -1).forEach((m) => { try { m.pause(); } catch (e) {} }); }
+    });
+    dock.querySelector('#playdock-stopall').addEventListener('click', () => { [...active.keys()].forEach((m) => { try { m.pause(); } catch (e) {} }); });
+    // 页面内的 audio/video：play/pause/ended 不冒泡，用捕获在 document 上统一拦截
+    document.addEventListener('play', (e) => { if (e.target instanceof HTMLMediaElement) onPlay(e.target); }, true);
+    document.addEventListener('pause', (e) => { if (e.target instanceof HTMLMediaElement) onStop(e.target); }, true);
+    document.addEventListener('ended', (e) => { if (e.target instanceof HTMLMediaElement) onStop(e.target); }, true);
+  }
+
+  // 游离的 new Audio()（主持人语音自动播报、试听）也纳入同一套管理
+  function clip(url, label) {
+    const a = new Audio(url);
+    if (label) a.__pblabel = label;
+    a.addEventListener('play', () => onPlay(a));
+    a.addEventListener('pause', () => onStop(a));
+    a.addEventListener('ended', () => onStop(a));
+    a.play().catch(() => {});
+    return a;
+  }
+
+  return { init, clip };
+})();
+
 function boot() {
+  playback.init();
   initRouter();
   initArtistPicker();
   initArtistStudio();

@@ -2175,6 +2175,42 @@ select option { background: var(--panel-2); color: var(--ink); }
 .deepiv-sharp-btn[data-level="5"].is-active { background: var(--err, #d9434e); border-color: var(--err, #d9434e); }
 .deepiv-sharp-desc { margin-top: 8px; }
 
+/* ── 全局「正在播放」dock（顶栏下方，可逐个停止） ── */
+.playdock {
+  position: fixed;
+  top: calc(var(--topbar-h, 56px) + 10px);
+  right: 24px;
+  z-index: 40;
+  width: 248px;
+  max-width: calc(100vw - 48px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .38);
+  padding: 10px 12px;
+  font-size: 13px;
+}
+.playdock.hidden { display: none; }
+.playdock-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.playdock-title { font-weight: 700; color: var(--ink); }
+.playdock-excl { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--ink-2); cursor: pointer; user-select: none; }
+.playdock-excl input { cursor: pointer; margin: 0; }
+.playdock-stopall {
+  margin-left: auto; font-size: 11.5px; padding: 3px 8px;
+  background: transparent; border: 1px solid var(--line-2); border-radius: var(--r-sm);
+  color: var(--ink-2); cursor: pointer;
+}
+.playdock-stopall:hover { border-color: var(--err, #d9434e); color: var(--err, #d9434e); }
+.playdock-list { display: flex; flex-direction: column; gap: 6px; }
+.playdock-row {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 5px 8px;
+}
+.playdock-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+.playdock-stop { background: transparent; border: none; cursor: pointer; font-size: 13px; color: var(--ink-3); padding: 0 2px; line-height: 1; }
+.playdock-stop:hover { color: var(--err, #d9434e); }
+
 /* ── 深度访谈·成片区 ── */
 .deepiv-finish-section { }
 .deepiv-finish-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
