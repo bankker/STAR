@@ -1,22 +1,18 @@
 {
   "chat": {
-    "provider": "anthropic",
-    "model": "claude-sonnet-4-6",
+    "provider": "dashscope",
+    "model": "qwen-plus",
     "fallback": [
-      {
-        "provider": "openrouter",
-        "model": "deepseek/deepseek-chat-v3-0324"
-      }
+      { "provider": "anthropic", "model": "claude-sonnet-4-6" },
+      { "provider": "openrouter", "model": "deepseek/deepseek-chat-v3-0324" }
     ]
   },
   "content": {
-    "provider": "anthropic",
-    "model": "claude-sonnet-4-6",
+    "provider": "dashscope",
+    "model": "qwen-plus",
     "fallback": [
-      {
-        "provider": "openrouter",
-        "model": "deepseek/deepseek-chat-v3-0324"
-      }
+      { "provider": "anthropic", "model": "claude-sonnet-4-6" },
+      { "provider": "openrouter", "model": "deepseek/deepseek-chat-v3-0324" }
     ]
   },
   "world": {
