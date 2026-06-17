@@ -54,6 +54,7 @@ async function openArtist(id) {
   renderHead(a, null);
   setHint('');
   const ti = $('#threadInner'); ti.innerHTML = '';
+  ti.appendChild(creationStrip());
   $('#suggest').innerHTML = '';
   const data = await api(`/api/artist/${encodeURIComponent(id)}/chat`);
   if (data.error) return;
@@ -103,6 +104,31 @@ function renderSuggest(list) {
   if (!list || !list.length) { wrap.innerHTML = ''; return; }
   wrap.innerHTML = list.map((s) => `<button class="suggest-chip">${esc(s)}</button>`).join('');
   wrap.querySelectorAll('.suggest-chip').forEach((b) => b.addEventListener('click', () => { $('#input').value = b.textContent; wrap.innerHTML = ''; send(); }));
+}
+/* 对话顶部的创作入口卡（在聊天上方的空白处，发现性更好）*/
+const STRIP = [
+  { act: 'chat',  icon: '💬', title: '聊天陪伴', desc: '和 Ta 对话，关系升温' },
+  { act: 'photo', icon: '📸', title: '写真 / 视频', desc: '锁脸生成写真与短视频' },
+  { act: 'music', icon: '🎵', title: '音乐', desc: '为 Ta 作一首歌' },
+  { href: '/studio.html', icon: '🎬', title: '访谈成片', desc: '五阶段自动合成访谈' },
+  { href: '/studio.html', icon: '🎙️', title: '深度访谈', desc: '真人嘉宾 · 对口型影像' },
+  { href: '/studio.html', icon: '🎞️', title: '短剧', desc: '主演 Ta 的微短剧' },
+];
+function creationStrip() {
+  const el = document.createElement('div');
+  el.className = 'create-strip';
+  el.innerHTML = '<div class="create-strip-label">想和 Ta 一起做点什么</div><div class="create-strip-grid">'
+    + STRIP.map((c, i) => `<button class="create-card" data-i="${i}">
+        <span class="cc-ic">${c.icon}</span>
+        <span class="cc-tx"><span class="cc-tt">${esc(c.title)}</span><span class="cc-ds">${esc(c.desc)}</span></span>
+      </button>`).join('') + '</div>';
+  el.querySelectorAll('.create-card').forEach((b) => b.addEventListener('click', () => {
+    const c = STRIP[+b.dataset.i];
+    if (c.href) { toast('这个重流程在「创作工作室」完成'); window.open(c.href, '_blank'); return; }
+    if (c.act === 'chat') { $('#input').focus(); return; }
+    enterMode(c.act);
+  }));
+  return el;
 }
 const scrollDown = () => { const t = $('#thread'); if (t) t.scrollTop = t.scrollHeight; };
 const setHint = (h) => { const el = $('#composerHint'); if (el) el.textContent = h || ''; };

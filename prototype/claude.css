@@ -121,6 +121,21 @@ button { font-family: inherit; cursor: pointer; }
 .artifact-audio audio { display: block; width: 100%; padding: 12px 12px 2px; }
 .artifact-cap { padding: 8px 12px; font-size: 12px; color: var(--ink-3); }
 
+/* 对话顶部创作入口卡 */
+.create-strip { margin-bottom: 28px; }
+.create-strip-label { font-size: 12px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--ink-3); margin: 0 0 12px; }
+.create-strip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(212px, 1fr)); gap: 10px; }
+.create-card {
+  display: flex; align-items: center; gap: 12px; text-align: left;
+  padding: 13px 15px; border: 1px solid var(--line); border-radius: 14px;
+  background: var(--surface); transition: border-color .15s, transform .12s, box-shadow .2s;
+}
+.create-card:hover { border-color: var(--brand); transform: translateY(-2px); box-shadow: 0 12px 26px -18px rgba(41, 38, 31, .22); }
+.cc-ic { font-size: 22px; flex-shrink: 0; line-height: 1; }
+.cc-tx { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cc-tt { font-size: 14px; font-weight: 700; color: var(--ink); }
+.cc-ds { font-size: 11.5px; color: var(--ink-3); }
+
 /* ── 底部常驻 composer ── */
 .composer-wrap { padding: 10px clamp(20px, 6vw, 40px) 22px; flex-shrink: 0; }
 .composer-wrap > * { max-width: var(--col); margin-left: auto; margin-right: auto; }
