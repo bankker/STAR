@@ -16,7 +16,7 @@ import {
   createArtist, listArtists, getArtist, updateArtist, deleteArtist, addPortrait,
 } from '../studio/artists.js';
 import { getConversation, appendTurn, setMemory, trimToRecent, resetConversation } from '../studio/conversations.js';
-import { buildChatMessages, shouldSummarize, buildSummarizeMessages, updateEmotion, RECENT_KEEP } from '../studio/companion.js';
+import { buildChatMessages, shouldSummarize, buildSummarizeMessages, buildEmotionJudgeMessages, applyEmotionJudge, RECENT_KEEP } from '../studio/companion.js';
 import {
   buildInterviewMessages, buildFinalizeMessages, extractProfileJson, buildPortraitPrompt, buildPhotoPrompt,
 } from '../studio/artist-create.js';
@@ -106,6 +106,18 @@ async function maybeSummarize(artistId, artist) {
     setMemory(artistId, r.text.trim());
     trimToRecent(artistId, RECENT_KEEP);
   } catch (e) { console.error('[chat] 记忆摘要失败（忽略）', e.message); }
+}
+
+// 本轮互动后由模型判定真实的好感度增减与心情（plan/qwen-flash 在区快且 JSON 稳）；失败兜底默认 +1。
+async function judgeChatState(artist, userText, aiText, prevState) {
+  try {
+    const jm = buildEmotionJudgeMessages(artist, userText, aiText, prevState);
+    const jr = await execute('plan', { system: jm.system, messages: jm.messages, maxTokens: 100 });
+    return applyEmotionJudge(prevState, jr.text);
+  } catch (e) {
+    console.error('[chat] 好感度判定失败（用默认）', e.message);
+    return applyEmotionJudge(prevState, '');
+  }
 }
 
 // 取场景出镜角色的定妆照（主演优先）转 base64 dataUrl，供万相图像参考锁脸；description 模式返回空数组。
@@ -359,9 +371,9 @@ export function registerRoutes(route) {
     if (!body.message) return jsonError(res, 'bad_request', 'message 必填');
     try {
       const conv = getConversation(params.id);
-      const { system, messages } = buildChatMessages(artist, conv, body.message);
+      const { system, messages } = buildChatMessages(artist, conv, body.message, { immersive: body.immersive });
       const r = await execute('chat', { system, messages, maxTokens: 600 });
-      const state = updateEmotion(conv.state, body.message);
+      const state = await judgeChatState(artist, body.message, r.text, conv.state);
       appendTurn(params.id, body.message, r.text, state);
       await maybeSummarize(params.id, artist);
       json(res, { reply: r.text, state, provider: r.provider, model: r.model });
@@ -377,9 +389,9 @@ export function registerRoutes(route) {
     const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     try {
       const conv = getConversation(params.id);
-      const { system, messages } = buildChatMessages(artist, conv, body.message);
+      const { system, messages } = buildChatMessages(artist, conv, body.message, { immersive: body.immersive });
       const r = await executeStream('chat', { system, messages, maxTokens: 600 }, { onToken: (t) => send('token', { t }) });
-      const state = updateEmotion(conv.state, body.message);
+      const state = await judgeChatState(artist, body.message, r.text, conv.state);
       appendTurn(params.id, body.message, r.text, state);
       await maybeSummarize(params.id, artist);
       send('done', { reply: r.text, state, provider: r.provider, model: r.model });

@@ -1190,6 +1190,21 @@ select option { background: var(--panel-2); color: var(--ink); }
 .state-bar .state-val { font-weight: 600; color: var(--ink); }
 .affinity-bar-wrap { flex: 1; max-width: 120px; }
 
+/* 关系阶段徽章：颜色随关系升温（陌生灰 → 朋友青 → 暧昧紫 → 恋人粉 → 灵魂伴侣金） */
+.state-stage {
+  padding: 2px 11px; border-radius: var(--r-pill);
+  font-weight: 800; font-size: 12.5px; letter-spacing: .3px;
+  background: color-mix(in srgb, var(--ink-3) 18%, transparent); color: var(--ink-2);
+  transition: background .3s, color .3s;
+  display: inline-block;
+}
+.state-stage[data-stage="2"] { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.state-stage[data-stage="3"] { background: color-mix(in srgb, var(--brand) 20%, transparent); color: var(--brand-2); }
+.state-stage[data-stage="4"] { background: color-mix(in srgb, var(--pink) 24%, transparent); color: var(--pink); }
+.state-stage[data-stage="5"] { background: color-mix(in srgb, var(--gold) 24%, transparent); color: var(--gold); }
+@keyframes stage-pulse { 0% { transform: scale(1); } 30% { transform: scale(1.28); } 100% { transform: scale(1); } }
+.state-stage.stage-pulse { animation: stage-pulse .6s ease; }
+
 /* Chat view layout */
 .chat-pane {
   display: flex;

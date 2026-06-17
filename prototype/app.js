@@ -893,6 +893,13 @@ async function loadChat(id) {
   }
 }
 
+/* 关系阶段（与后端 companion.js STAGES 对应）：好感度→阶段名 */
+const CHAT_STAGES = [[0, '陌生'], [20, '初识'], [40, '朋友'], [58, '暧昧'], [75, '恋人'], [92, '灵魂伴侣']];
+function chatStage(aff) {
+  let name = '陌生', index = 0;
+  CHAT_STAGES.forEach(([min, n], i) => { if (aff >= min) { name = n; index = i; } });
+  return { name, index };
+}
 function renderChatState(s) {
   if (!s) return;
   const mood = $('#companion-mood');
@@ -902,6 +909,16 @@ function renderChatState(s) {
   if (aff) aff.textContent = affinity;
   const bar = $('#companion-affinity-bar');
   if (bar) bar.style.width = `${Math.min(100, affinity)}%`;
+  const st = (s.stage && s.stage.name) ? s.stage : chatStage(affinity);
+  const stageEl = $('#companion-stage');
+  if (stageEl) { stageEl.textContent = st.name; stageEl.dataset.stage = String(st.index); }
+  // 关系升级/降温（仅在本轮判定带 stageChanged 时提示）
+  if (s.stageChanged > 0) {
+    toast(`关系升级 → ${st.name} 💖`, 'ok');
+    if (stageEl) { stageEl.classList.remove('stage-pulse'); void stageEl.offsetWidth; stageEl.classList.add('stage-pulse'); }
+  } else if (s.stageChanged < 0) {
+    toast(`关系降温 → ${st.name}`, 'err');
+  }
 }
 
 async function sendChat() {
