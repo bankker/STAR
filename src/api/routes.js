@@ -15,8 +15,8 @@ import path from 'node:path';
 import {
   createArtist, listArtists, getArtist, updateArtist, deleteArtist, addPortrait,
 } from '../studio/artists.js';
-import { getConversation, appendTurn, setMemory, trimToRecent, resetConversation } from '../studio/conversations.js';
-import { buildChatMessages, shouldSummarize, buildSummarizeMessages, buildEmotionJudgeMessages, applyEmotionJudge, RECENT_KEEP } from '../studio/companion.js';
+import { getConversation, appendTurn, appendAssistant, setMemory, trimToRecent, resetConversation } from '../studio/conversations.js';
+import { buildChatMessages, shouldSummarize, buildSummarizeMessages, buildEmotionJudgeMessages, applyEmotionJudge, buildOpeningMessages, buildSuggestionsMessages, parseSuggestions, RECENT_KEEP } from '../studio/companion.js';
 import {
   buildInterviewMessages, buildFinalizeMessages, extractProfileJson, buildPortraitPrompt, buildPhotoPrompt,
 } from '../studio/artist-create.js';
@@ -118,6 +118,15 @@ async function judgeChatState(artist, userText, aiText, prevState) {
     console.error('[chat] 好感度判定失败（用默认）', e.message);
     return applyEmotionJudge(prevState, '');
   }
+}
+
+// 每轮给「对方」3 句可点的回复建议（plan/qwen-flash，失败返回空数组不阻断）
+async function suggestReplies(artist, aiText, state) {
+  try {
+    const sm = buildSuggestionsMessages(artist, aiText, state);
+    const sr = await execute('plan', { system: sm.system, messages: sm.messages, maxTokens: 120 });
+    return parseSuggestions(sr.text);
+  } catch (e) { return []; }
 }
 
 // 取场景出镜角色的定妆照（主演优先）转 base64 dataUrl，供万相图像参考锁脸；description 模式返回空数组。
@@ -373,10 +382,13 @@ export function registerRoutes(route) {
       const conv = getConversation(params.id);
       const { system, messages } = buildChatMessages(artist, conv, body.message, { immersive: body.immersive });
       const r = await execute('chat', { system, messages, maxTokens: 600 });
-      const state = await judgeChatState(artist, body.message, r.text, conv.state);
+      const [state, suggestions] = await Promise.all([
+        judgeChatState(artist, body.message, r.text, conv.state),
+        suggestReplies(artist, r.text, conv.state),
+      ]);
       appendTurn(params.id, body.message, r.text, state);
       await maybeSummarize(params.id, artist);
-      json(res, { reply: r.text, state, provider: r.provider, model: r.model });
+      json(res, { reply: r.text, state, suggestions, provider: r.provider, model: r.model });
     } catch (e) { sendGatewayError(res, e); }
   });
 
@@ -391,14 +403,34 @@ export function registerRoutes(route) {
       const conv = getConversation(params.id);
       const { system, messages } = buildChatMessages(artist, conv, body.message, { immersive: body.immersive });
       const r = await executeStream('chat', { system, messages, maxTokens: 600 }, { onToken: (t) => send('token', { t }) });
-      const state = await judgeChatState(artist, body.message, r.text, conv.state);
+      const [state, suggestions] = await Promise.all([
+        judgeChatState(artist, body.message, r.text, conv.state),
+        suggestReplies(artist, r.text, conv.state),
+      ]);
       appendTurn(params.id, body.message, r.text, state);
       await maybeSummarize(params.id, artist);
-      send('done', { reply: r.text, state, provider: r.provider, model: r.model });
+      send('done', { reply: r.text, state, suggestions, provider: r.provider, model: r.model });
     } catch (e) {
       send('error', e instanceof GatewayError ? e.toJSON() : { code: 'internal', message: e.message });
     }
     res.end();
+  });
+
+  // 进对话时角色主动开场白（仅当还没有任何对话时生成一次并入库）
+  route('POST /api/artist/:id/chat/opening', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    if (!artist) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    const conv = getConversation(params.id);
+    if (conv.messages.length) return json(res, { opening: null, state: conv.state });
+    try {
+      const { system, messages } = buildOpeningMessages(artist, conv, { immersive: body.immersive });
+      const r = await execute('chat', { system, messages, maxTokens: 200 });
+      const opening = (r.text || '').trim();
+      appendAssistant(params.id, opening);
+      const suggestions = await suggestReplies(artist, opening, conv.state);
+      json(res, { opening, suggestions, state: conv.state });
+    } catch (e) { sendGatewayError(res, e); }
   });
 
   route('GET /api/artist/:id/gallery', async (req, res, { params }) => {

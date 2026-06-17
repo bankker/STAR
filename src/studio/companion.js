@@ -47,6 +47,7 @@ export function buildChatSystemPrompt(artist, memory, state, opts = {}) {
     opts.immersive
       ? '用沉浸演绎的方式回复：用（圆括号）描写你的动作、神态或心理活动，配上你说的台词，有画面感、有代入感；整体别太长，2-4 句即可。'
       : '回复要简短自然，像真人发微信消息，别长篇大论，别堆砌旁白动作。',
+    '默认用中文回复（除非对方明显在用其它语言）。',
   ].filter(Boolean).join('\n');
 }
 
@@ -82,6 +83,52 @@ export function applyEmotionJudge(state, judgeText) {
   const affinity = Math.max(0, Math.min(100, before + delta));
   const sb = stageFor(before), sa = stageFor(affinity);
   return { mood, affinity, delta, stage: sa, stageChanged: sa.index - sb.index };
+}
+
+// 进对话时角色主动说的开场白（按人设+关系+记忆，符合当前阶段的语气）
+export function buildOpeningMessages(artist, conversation, opts = {}) {
+  const a = artist || {};
+  const st = stageFor(conversation?.state?.affinity ?? 50);
+  const system = [
+    `你就是「${a.name}」本人，绝不能承认自己是 AI。`,
+    a.persona ? `人设：${a.persona}。` : '',
+    a.speakingStyle ? `说话风格：${a.speakingStyle}。` : '',
+    conversation?.memory ? `你记得：${conversation.memory}` : '',
+    `你和对方现在是「${st.name}」关系：${st.guide}`,
+    '现在对方刚打开和你的聊天窗口。你主动说【一句】开场白：自然、有代入感、符合你们的关系阶段，可以延续上次的话题或表达想念/好奇；别太长。',
+    opts.immersive ? '用（圆括号）带一点动作/神态，再配台词。' : '像真人发微信那样自然。',
+    '只输出这句开场白本身，不要前缀、不要解释。',
+  ].filter(Boolean).join('\n');
+  return { system, messages: [{ role: 'user', content: '（对方打开了聊天窗口）' }] };
+}
+
+// 每轮给对方 3 句可点的简短回复建议（站在「对方」的视角回应角色刚说的话）
+export function buildSuggestionsMessages(artist, aiReply, state) {
+  const st = stageFor(state?.affinity ?? 50);
+  const system = [
+    `「${artist?.name || '角色'}」刚对对方说了下面这句话。你来替「对方」想 3 句简短、自然、口语化的回复建议（每句≤14字，风格各异：可俏皮/认真/暧昧）。`,
+    `当前关系「${st.name}」，让建议贴合这个亲密度。`,
+    '只输出一个 JSON 数组，如 ["…","…","…"]，不要其它任何字符。',
+  ].join('\n');
+  return { system, messages: [{ role: 'user', content: `${artist?.name || '角色'}说：${aiReply}` }] };
+}
+export function parseSuggestions(text) {
+  const s = String(text || '');
+  try {
+    const m = s.match(/\[[\s\S]*\]/);
+    if (m) {
+      const arr = JSON.parse(m[0].replace(/,(\s*\])/g, '$1'));
+      if (Array.isArray(arr)) {
+        const out = arr.map((x) => String(x).trim()).filter(Boolean).slice(0, 3);
+        if (out.length) return out;
+      }
+    }
+  } catch { /* 落到按行兜底 */ }
+  // 兜底：模型没给严格 JSON 时，按行/编号/引号提取
+  const lines = s.split(/\n+/)
+    .map((l) => l.replace(/^[\s\-*\d.、)）。"'「『]+/, '').replace(/["'」』]+$/, '').trim())
+    .filter((l) => l && l.length <= 24 && !/^\[|\]$|json/i.test(l));
+  return lines.slice(0, 3);
 }
 
 export function shouldSummarize(conversation) {

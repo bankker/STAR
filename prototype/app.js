@@ -874,23 +874,67 @@ function renderCompanionView() {
   loadChat(state.currentArtistId);
 }
 
+/* ── 沉浸模式 / 角色头像 / 旁白渲染 / 建议回复 ── */
+let chatImmersive = false;
+try { chatImmersive = localStorage.getItem('chat-immersive') === '1'; } catch {}
+function currentArtistAvatar() {
+  const a = (state.artists || []).find((x) => x.id === state.currentArtistId);
+  return (a && a.portraits && a.portraits[0] && a.portraits[0].url) || '';
+}
+function renderBubbleText(content) {
+  // 转义后把（动作/神态/旁白）与 *动作* 高亮为浅色斜体，营造星野/Talkie 的演绎感
+  let s = esc(content || '');
+  s = s.replace(/[（(][^（()）]{0,80}?[）)]/g, (m) => `<span class="bubble-action">${m}</span>`);
+  s = s.replace(/\*([^*\n]{1,60}?)\*/g, '<span class="bubble-action">$1</span>');   // *动作* → 高亮并去掉星号
+  return s;
+}
+function bubbleHtml(role, content) {
+  if (role === 'user') return `<div class="bubble me">${esc(content)}</div>`;
+  const av = currentArtistAvatar();
+  return `<div class="bubble-row ai">${av ? `<img class="bubble-avatar" src="${esc(av)}" alt="">` : '<div class="bubble-avatar bubble-avatar-empty"></div>'}<div class="bubble ai">${renderBubbleText(content)}</div></div>`;
+}
+function renderSuggestions(list) {
+  const wrap = $('#chat-suggestions');
+  if (!wrap) return;
+  if (!list || !list.length) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = list.map((s) => `<button class="chat-suggest-chip">${esc(s)}</button>`).join('');
+  wrap.querySelectorAll('.chat-suggest-chip').forEach((b) =>
+    b.addEventListener('click', () => { const inp = $('#chat-msg'); if (inp) inp.value = b.textContent; renderSuggestions([]); sendChat(); }));
+}
+function setChatMode(immersive) {
+  chatImmersive = !!immersive;
+  try { localStorage.setItem('chat-immersive', chatImmersive ? '1' : '0'); } catch {}
+  const btn = $('#chat-mode-btn');
+  if (btn) { btn.textContent = chatImmersive ? '🎭 沉浸' : '💬 聊天'; btn.classList.toggle('immersive', chatImmersive); }
+}
+const chatEmptyHtml = () => `<div class="empty-state chat-empty">
+  <div class="icon">💬</div>
+  <div class="title">开始第一句对话</div>
+  <div class="desc">和 TA 聊聊近况、心情或创作灵感，关系会随对话升温。</div>
+</div>`;
+
 async function loadChat(id) {
   const data = await api(`/api/artist/${encodeURIComponent(id)}/chat`);
-  if (!data.error) {
-    const log = $('#chat-log');
-    if (log) {
-      const msgs = data.messages || [];
-      log.innerHTML = msgs.length
-        ? msgs.map((m) => `<div class="bubble ${m.role === 'user' ? 'me' : 'ai'}">${esc(m.content)}</div>`).join('')
-        : `<div class="empty-state chat-empty">
-             <div class="icon">💬</div>
-             <div class="title">开始第一句对话</div>
-             <div class="desc">和 TA 聊聊近况、心情或创作灵感，关系会随对话升温。</div>
-           </div>`;
-      log.scrollTop = log.scrollHeight;
-    }
-    renderChatState(data.state);
+  if (data.error) return;
+  const log = $('#chat-log');
+  renderChatState(data.state);
+  renderSuggestions([]);
+  const msgs = data.messages || [];
+  if (msgs.length) {
+    if (log) { log.innerHTML = msgs.map((m) => bubbleHtml(m.role, m.content)).join(''); log.scrollTop = log.scrollHeight; }
+    return;
   }
+  // 空对话 → 角色主动开场白
+  if (log) log.innerHTML = `<div class="bubble-row ai"><div class="bubble ai typing">…</div></div>`;
+  const op = await api(`/api/artist/${encodeURIComponent(id)}/chat/opening`, { immersive: chatImmersive });
+  if (!log) return;
+  if (!op.error && op.opening) {
+    log.innerHTML = bubbleHtml('assistant', op.opening);
+    renderSuggestions(op.suggestions);
+  } else {
+    log.innerHTML = chatEmptyHtml();
+  }
+  log.scrollTop = log.scrollHeight;
 }
 
 /* 关系阶段（与后端 companion.js STAGES 对应）：好感度→阶段名 */
@@ -929,16 +973,20 @@ async function sendChat() {
 
   const log = $('#chat-log');
   if (log) {
-    log.insertAdjacentHTML('beforeend', `<div class="bubble me">${esc(text)}</div>`);
+    // 首条用户消息会盖掉空态/开场占位，照常追加
+    if (log.querySelector('.chat-empty')) log.innerHTML = '';
+    renderSuggestions([]);
+    log.insertAdjacentHTML('beforeend', bubbleHtml('user', text));
     const aiBubbleId = `b${Date.now()}`;
-    log.insertAdjacentHTML('beforeend', `<div class="bubble ai typing" id="${aiBubbleId}"></div>`);
+    const av = currentArtistAvatar();
+    log.insertAdjacentHTML('beforeend', `<div class="bubble-row ai">${av ? `<img class="bubble-avatar" src="${esc(av)}" alt="">` : '<div class="bubble-avatar bubble-avatar-empty"></div>'}<div class="bubble ai typing" id="${aiBubbleId}"></div></div>`);
     log.scrollTop = log.scrollHeight;
 
     const aiEl = document.getElementById(aiBubbleId);
     try {
       const res = await fetch(
         `/api/artist/${encodeURIComponent(state.chatArtistId)}/chat/stream`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text }) }
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text, immersive: chatImmersive }) }
       );
       const reader = res.body.getReader();
       const dec = new TextDecoder();
@@ -960,8 +1008,10 @@ async function sendChat() {
             if (aiEl) { aiEl.textContent = acc; aiEl.classList.add('typing'); }
             log.scrollTop = log.scrollHeight;
           } else if (ev === 'done') {
-            if (aiEl) { aiEl.textContent = payload.reply || acc; aiEl.classList.remove('typing'); }
+            if (aiEl) { aiEl.innerHTML = renderBubbleText(payload.reply || acc); aiEl.classList.remove('typing'); }
             renderChatState(payload.state);
+            renderSuggestions(payload.suggestions);
+            log.scrollTop = log.scrollHeight;
           } else if (ev === 'error') {
             if (aiEl) { aiEl.textContent = errText(payload); aiEl.classList.remove('typing'); }
           }
@@ -982,6 +1032,9 @@ function initChatView() {
   if (sendBtn) sendBtn.addEventListener('click', sendChat);
   const chatInput = $('#chat-msg');
   if (chatInput) chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+  const modeBtn = $('#chat-mode-btn');
+  if (modeBtn) modeBtn.addEventListener('click', () => setChatMode(!chatImmersive));
+  setChatMode(chatImmersive);   // 初始化按钮文案
 }
 
 /* ── Legacy debug card handlers (hidden, keep backend wiring) ── */

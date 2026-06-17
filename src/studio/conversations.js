@@ -50,6 +50,15 @@ export function appendTurn(artistId, userContent, aiContent, state) {
   return conv;
 }
 
+// 只追加一条角色(assistant)消息——用于进对话时角色主动说的开场白
+export function appendAssistant(artistId, content) {
+  if (!SAFE_ID.test(artistId)) throw new Error('非法 artistId');
+  const conv = getConversation(artistId);
+  conv.messages.push({ role: 'assistant', content: String(content ?? ''), ts: new Date().toISOString() });
+  write(conv);
+  return conv;
+}
+
 export function setMemory(artistId, memory) {
   if (!SAFE_ID.test(artistId)) throw new Error('非法 artistId');
   const conv = getConversation(artistId);

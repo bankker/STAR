@@ -851,6 +851,34 @@ select option { background: var(--panel-2); color: var(--ink); }
 }
 .chat-input-row input { flex: 1; }
 
+/* AI 气泡带角色头像（横排：头像 + 气泡） */
+.bubble-row.ai { display: flex; align-items: flex-end; gap: 8px; align-self: flex-start; max-width: 84%; }
+.bubble-row.ai .bubble.ai { align-self: auto; max-width: 100%; }
+.bubble-avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 1px solid var(--line); }
+.bubble-avatar-empty { background: var(--panel-2); }
+/* 旁白/动作/神态高亮：浅色斜体，营造演绎感 */
+.bubble-action { color: var(--ink-3); font-style: italic; }
+.bubble.me .bubble-action { color: rgba(255, 255, 255, .8); }
+/* 建议回复 chips */
+.chat-suggestions { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0 2px; flex-shrink: 0; }
+.chat-suggestions:empty { display: none; }
+.chat-suggest-chip {
+  font-size: 12.5px; padding: 6px 13px; border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--brand) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 32%, transparent);
+  color: var(--brand-2); cursor: pointer; transition: background .15s, transform .1s;
+}
+.chat-suggest-chip:hover { background: color-mix(in srgb, var(--brand) 18%, transparent); }
+.chat-suggest-chip:active { transform: scale(.97); }
+/* 聊天 / 沉浸 模式按钮 */
+.chat-mode-btn {
+  font-size: 12.5px; padding: 4px 12px; border-radius: var(--r-pill);
+  background: var(--panel-2); border: 1px solid var(--line-2); color: var(--ink-2); cursor: pointer;
+  white-space: nowrap; transition: border-color .15s, color .15s, background .15s;
+}
+.chat-mode-btn:hover { border-color: var(--brand); color: var(--ink); }
+.chat-mode-btn.immersive { background: color-mix(in srgb, var(--brand) 16%, transparent); border-color: var(--brand); color: var(--brand-2); }
+
 /* Artist card grid */
 .artist-grid {
   display: grid;
