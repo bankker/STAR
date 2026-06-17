@@ -85,8 +85,8 @@ button { font-family: inherit; cursor: pointer; }
 
 .conv { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .conv-head {
-  display: flex; align-items: center; gap: 12px;
-  padding: 16px clamp(20px, 6vw, 60px); border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 14px clamp(20px, 6vw, 60px); border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--paper) 82%, transparent);
   backdrop-filter: saturate(1.4) blur(10px); flex-shrink: 0;
 }
@@ -94,7 +94,7 @@ button { font-family: inherit; cursor: pointer; }
 .ch-av img { width: 100%; height: 100%; object-fit: cover; }
 .ch-name { font-family: var(--serif); font-size: 17px; font-weight: 600; }
 .ch-meta { font-size: 12.5px; color: var(--ink-3); }
-.ch-rel { margin-left: auto; font-size: 12px; font-weight: 700; padding: 3px 11px; border-radius: 999px; background: color-mix(in srgb, var(--brand) 14%, transparent); color: var(--brand); }
+.ch-rel { font-size: 12px; font-weight: 700; padding: 3px 11px; border-radius: 999px; background: color-mix(in srgb, var(--brand) 14%, transparent); color: var(--brand); white-space: nowrap; }
 
 /* 消息流：居中阅读列 */
 .thread { flex: 1; overflow-y: auto; padding: 30px 0 12px; }
@@ -121,20 +121,17 @@ button { font-family: inherit; cursor: pointer; }
 .artifact-audio audio { display: block; width: 100%; padding: 12px 12px 2px; }
 .artifact-cap { padding: 8px 12px; font-size: 12px; color: var(--ink-3); }
 
-/* 对话顶部创作入口卡 */
-.create-strip { margin-bottom: 28px; }
-.create-strip-label { font-size: 12px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--ink-3); margin: 0 0 12px; }
-.create-strip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(212px, 1fr)); gap: 10px; }
-.create-card {
-  display: flex; align-items: center; gap: 12px; text-align: left;
-  padding: 13px 15px; border: 1px solid var(--line); border-radius: 14px;
-  background: var(--surface); transition: border-color .15s, transform .12s, box-shadow .2s;
+/* 头部创作工具条（与艺人名/关系同一行）*/
+.ch-id { display: flex; flex-direction: column; min-width: 0; }
+.ch-tools { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.ch-tool {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 11px; border: 1px solid var(--line-2); border-radius: 999px;
+  background: var(--surface); color: var(--ink-2); font-size: 12.5px; font-weight: 600;
+  transition: border-color .15s, color .15s, background .15s;
 }
-.create-card:hover { border-color: var(--brand); transform: translateY(-2px); box-shadow: 0 12px 26px -18px rgba(41, 38, 31, .22); }
-.cc-ic { font-size: 22px; flex-shrink: 0; line-height: 1; }
-.cc-tx { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.cc-tt { font-size: 14px; font-weight: 700; color: var(--ink); }
-.cc-ds { font-size: 11.5px; color: var(--ink-3); }
+.ch-tool:hover { border-color: var(--brand); color: var(--brand); background: color-mix(in srgb, var(--brand) 6%, transparent); }
+.ch-tool-ic { font-size: 14px; line-height: 1; }
 
 /* ── 底部常驻 composer ── */
 .composer-wrap { padding: 10px clamp(20px, 6vw, 40px) 22px; flex-shrink: 0; }

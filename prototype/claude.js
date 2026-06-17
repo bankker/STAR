@@ -54,7 +54,6 @@ async function openArtist(id) {
   renderHead(a, null);
   setHint('');
   const ti = $('#threadInner'); ti.innerHTML = '';
-  ti.appendChild(creationStrip());
   $('#suggest').innerHTML = '';
   const data = await api(`/api/artist/${encodeURIComponent(id)}/chat`);
   if (data.error) return;
@@ -77,10 +76,18 @@ async function openArtist(id) {
 function renderHead(a, st) {
   const av = avatarOf(a);
   const aff = st ? st.affinity : null;
-  $('#convHead').innerHTML = `
+  const tools = HEAD_TOOLS.map((c, i) => `<button class="ch-tool" data-i="${i}" title="${esc(c.title)}"><span class="ch-tool-ic">${c.icon}</span>${esc(c.short)}</button>`).join('');
+  const head = $('#convHead');
+  head.innerHTML = `
     <span class="ch-av">${av ? `<img src="${esc(av)}" alt="">` : '🎭'}</span>
-    <span><span class="ch-name">${esc(a.name || '未命名')}</span><div class="ch-meta">${esc(a.persona || a.positioning || '虚拟艺人')}</div></span>
+    <span class="ch-id"><span class="ch-name">${esc(a.name || '未命名')}</span><div class="ch-meta">${esc(a.persona || a.positioning || '虚拟艺人')}</div></span>
+    <div class="ch-tools">${tools}</div>
     ${aff != null ? `<span class="ch-rel">${esc(stageName(aff))} · ${aff}</span>` : ''}`;
+  head.querySelectorAll('.ch-tool').forEach((b) => b.addEventListener('click', () => {
+    const c = HEAD_TOOLS[+b.dataset.i];
+    if (c.href) { toast('这个重流程在「创作工作室」完成'); window.open(c.href, '_blank'); return; }
+    enterMode(c.act);
+  }));
 }
 
 /* ── 消息渲染 ── */
@@ -105,31 +112,15 @@ function renderSuggest(list) {
   wrap.innerHTML = list.map((s) => `<button class="suggest-chip">${esc(s)}</button>`).join('');
   wrap.querySelectorAll('.suggest-chip').forEach((b) => b.addEventListener('click', () => { $('#input').value = b.textContent; wrap.innerHTML = ''; send(); }));
 }
-/* 对话顶部的创作入口卡（在聊天上方的空白处，发现性更好）*/
-const STRIP = [
-  { act: 'chat',  icon: '💬', title: '聊天陪伴', desc: '和 Ta 对话，关系升温' },
-  { act: 'photo', icon: '📸', title: '写真 / 视频', desc: '锁脸生成写真与短视频' },
-  { act: 'music', icon: '🎵', title: '音乐', desc: '为 Ta 作一首歌' },
-  { href: '/studio.html', icon: '🎬', title: '访谈成片', desc: '五阶段自动合成访谈' },
-  { href: '/studio.html', icon: '🎙️', title: '深度访谈', desc: '真人嘉宾 · 对口型影像' },
-  { href: '/studio.html', icon: '🎞️', title: '短剧', desc: '主演 Ta 的微短剧' },
+/* 对话头部的创作工具条（与 陈恩珠 · 灵魂伴侣100 同一行）*/
+const HEAD_TOOLS = [
+  { act: 'photo', icon: '📸', short: '写真', title: '写真 · 对话内出图' },
+  { act: 'video', icon: '🎬', short: '视频', title: '视频 · 以最新写真为首帧' },
+  { act: 'music', icon: '🎵', short: '音乐', title: '音乐 · 描述即作词作曲' },
+  { href: '/studio.html', icon: '🗞️', short: '访谈', title: '访谈成片（创作工作室）' },
+  { href: '/studio.html', icon: '🎙️', short: '深访', title: '深度访谈（创作工作室）' },
+  { href: '/studio.html', icon: '🎭', short: '短剧', title: '短剧（创作工作室）' },
 ];
-function creationStrip() {
-  const el = document.createElement('div');
-  el.className = 'create-strip';
-  el.innerHTML = '<div class="create-strip-label">想和 Ta 一起做点什么</div><div class="create-strip-grid">'
-    + STRIP.map((c, i) => `<button class="create-card" data-i="${i}">
-        <span class="cc-ic">${c.icon}</span>
-        <span class="cc-tx"><span class="cc-tt">${esc(c.title)}</span><span class="cc-ds">${esc(c.desc)}</span></span>
-      </button>`).join('') + '</div>';
-  el.querySelectorAll('.create-card').forEach((b) => b.addEventListener('click', () => {
-    const c = STRIP[+b.dataset.i];
-    if (c.href) { toast('这个重流程在「创作工作室」完成'); window.open(c.href, '_blank'); return; }
-    if (c.act === 'chat') { $('#input').focus(); return; }
-    enterMode(c.act);
-  }));
-  return el;
-}
 const scrollDown = () => { const t = $('#thread'); if (t) t.scrollTop = t.scrollHeight; };
 const setHint = (h) => { const el = $('#composerHint'); if (el) el.textContent = h || ''; };
 
