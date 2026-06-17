@@ -477,20 +477,23 @@ function initArtistPicker() {
   initTheme();
 }
 
-/* ── 主题切换：制片棚(默认) ↔ 野兽派 ── */
+/* ── 主题切换：制片棚(默认) → 野兽派 → iCloud 循环 ── */
+const THEMES = ['studio', 'fauvist', 'icloud'];
+const THEME_LABEL = { studio: '🌙 制片棚', fauvist: '🎨 野兽派', icloud: '☁️ iCloud' };
 function applyTheme(t) {
-  const fauvist = t === 'fauvist';
-  document.documentElement.dataset.theme = fauvist ? 'fauvist' : '';
+  const theme = THEMES.includes(t) ? t : 'studio';
+  document.documentElement.dataset.theme = theme;
   const btn = $('#topbar-theme-btn');
-  if (btn) btn.textContent = fauvist ? '🌙 制片棚' : '🎨 野兽派';
+  if (btn) { btn.textContent = THEME_LABEL[theme]; btn.title = '切换主题：制片棚 / 野兽派 / iCloud'; }
 }
 function initTheme() {
-  let saved = '';
-  try { saved = localStorage.getItem('ui-theme') || ''; } catch {}
+  let saved = 'studio';
+  try { saved = localStorage.getItem('ui-theme') || 'studio'; } catch {}
   applyTheme(saved);
   const btn = $('#topbar-theme-btn');
   if (btn) btn.addEventListener('click', () => {
-    const next = document.documentElement.dataset.theme === 'fauvist' ? '' : 'fauvist';
+    const cur = document.documentElement.dataset.theme || 'studio';
+    const next = THEMES[(THEMES.indexOf(cur) + 1) % THEMES.length];
     applyTheme(next);
     try { localStorage.setItem('ui-theme', next); } catch {}
   });
