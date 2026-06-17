@@ -116,7 +116,9 @@ button { font-family: inherit; cursor: pointer; }
 @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0;} }
 /* 图像艺术品（在对话里直接出现的作品）*/
 .artifact { margin-top: 8px; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--surface); max-width: 320px; }
-.artifact img { display: block; width: 100%; }
+.artifact img, .artifact video { display: block; width: 100%; }
+.artifact-audio { max-width: 360px; }
+.artifact-audio audio { display: block; width: 100%; padding: 12px 12px 2px; }
 .artifact-cap { padding: 8px 12px; font-size: 12px; color: var(--ink-3); }
 
 /* ── 底部常驻 composer ── */

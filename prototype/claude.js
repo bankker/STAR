@@ -114,6 +114,7 @@ async function send() {
   if (!text || !state.current || state.busy) return;
   input.value = ''; autoGrow(); $('#suggest').innerHTML = '';
   if (state.mode === 'photo') return createPhoto(text);
+  if (state.mode === 'video' || state.mode === 'music') return createMedia(state.mode, text);
   // 聊天（流式）
   addMsg('user', text);
   const ph = addMsg('ai', '', true);
@@ -147,7 +148,7 @@ async function send() {
 
 /* ── 在对话里直接出图：写真作为「艺术品」出现在线程里 ── */
 async function createPhoto(prompt) {
-  exitPhotoMode();
+  exitMode();
   addMsg('user', '📸 写真：' + prompt);
   const ph = addMsg('ai', '', true);
   ph.querySelector('.msg-text').textContent = '正在为你拍这组写真…';
@@ -169,14 +170,71 @@ async function createPhoto(prompt) {
   scrollDown();
 }
 
+/* ── 在对话里出视频 / 音乐（异步任务：提交 → 轮询 → artifact）── */
+async function pollJob(jobId, onProgress) {
+  if (!jobId) return null;
+  for (let i = 0; i < 200; i++) {
+    await new Promise((r) => setTimeout(r, 3000));
+    const d = await api(`/api/jobs/${encodeURIComponent(jobId)}`);
+    const j = d && d.job;
+    if (!j) continue;
+    if (onProgress) onProgress(j);
+    if (j.status === 'done') return (j.result && j.result.files && j.result.files[0] && j.result.files[0].url) || null;
+    if (j.status === 'failed' || j.status === 'interrupted') throw new Error((j.error && j.error.message) || j.error || '任务失败');
+  }
+  throw new Error('生成超时');
+}
+async function createMedia(kind, prompt) {
+  exitMode();
+  addMsg('user', (kind === 'video' ? '🎬 视频：' : '🎵 音乐：') + prompt);
+  const ph = addMsg('ai', '', true);
+  const textEl = ph.querySelector('.msg-text');
+  state.busy = true; $('#send').disabled = true;
+  try {
+    let jobId;
+    if (kind === 'video') {
+      textEl.textContent = '正在以 Ta 最新写真为首帧生成视频…';
+      const r = await api(`/api/artist/${encodeURIComponent(state.current.id)}/video`, { prompt, confirm: true });
+      if (r.error) throw new Error(r.error.message || '提交失败');
+      jobId = r.jobId;
+    } else {
+      textEl.textContent = '正在为你作词作曲…';
+      const bp = await api(`/api/artist/${encodeURIComponent(state.current.id)}/song/blueprint`, { brief: prompt });
+      if (bp.error) throw new Error(bp.error.message || '作曲蓝图失败');
+      const r = await api(`/api/artist/${encodeURIComponent(state.current.id)}/song`, { blueprint: bp.blueprint, confirm: true });
+      if (r.error) throw new Error(r.error.message || '提交失败');
+      jobId = r.jobId;
+    }
+    const url = await pollJob(jobId, (j) => { textEl.textContent = `${kind === 'video' ? '生成视频' : '作曲'}中… ${j.stage || ''} ${j.progress || 0}%`; });
+    textEl.classList.remove('typing');
+    if (url) {
+      textEl.innerHTML = kind === 'video' ? '影像好啦 ✨' : '歌做好啦 ✨';
+      const art = document.createElement('div');
+      art.className = 'artifact' + (kind === 'music' ? ' artifact-audio' : '');
+      art.innerHTML = (kind === 'video'
+        ? `<video src="${esc(url)}" controls playsinline></video>`
+        : `<audio src="${esc(url)}" controls></audio>`)
+        + `<div class="artifact-cap">${kind === 'video' ? '视频' : '歌曲'} · 已存入作品库</div>`;
+      ph.querySelector('.msg-body').appendChild(art);
+    } else { textEl.textContent = '生成没成功，再试一次？'; }
+  } catch (e) { textEl.classList.remove('typing'); textEl.textContent = '没能完成：' + e.message; }
+  state.busy = false; $('#send').disabled = false;
+  scrollDown();
+}
+
 /* ── 创作菜单（composer 的「＋」）── */
 const CREATE = [
   { key: 'photo', icon: '📸', title: '写真', desc: '描述场景，直接在对话里出图', inline: true },
-  { key: 'video', icon: '🎬', title: '视频', desc: '在工作室生成（即将接入对话）', href: '/studio.html' },
-  { key: 'music', icon: '🎵', title: '音乐', desc: '为 Ta 作一首歌', href: '/studio.html' },
-  { key: 'interview', icon: '🎙️', title: '访谈', desc: '深度访谈 · 对口型影像', href: '/studio.html' },
-  { key: 'drama', icon: '🎞️', title: '短剧', desc: '主演 Ta 的微短剧', href: '/studio.html' },
+  { key: 'video', icon: '🎬', title: '视频', desc: '描述运镜，以最新写真为首帧', inline: true },
+  { key: 'music', icon: '🎵', title: '音乐', desc: '描述一首歌，为 Ta 作词作曲', inline: true },
+  { key: 'interview', icon: '🎙️', title: '深度访谈', desc: '真人嘉宾·对口型（在工作室）', href: '/studio.html' },
+  { key: 'drama', icon: '🎞️', title: '短剧', desc: '主演 Ta 的微短剧（在工作室）', href: '/studio.html' },
 ];
+const MODES = {
+  photo: { ph: '描述你想要的写真（场景/风格/情绪），回车生成…', hint: '写真模式 · 描述即可出图，再点「＋」退出' },
+  video: { ph: '描述运镜与动作（如：轻轻转头浅笑），回车生成…', hint: '视频模式 · 以 Ta 最新写真为首帧，再点「＋」退出' },
+  music: { ph: '描述一首歌（主题/情绪/曲风），回车生成…', hint: '音乐模式 · 描述即可作词作曲，再点「＋」退出' },
+};
 function openCreateMenu() {
   const menu = $('#cmenu');
   menu.innerHTML = CREATE.map((c) => `<button class="cmenu-item" data-key="${c.key}">
@@ -184,25 +242,23 @@ function openCreateMenu() {
   </button>`).join('');
   const r = $('#composerPlus').getBoundingClientRect();
   menu.style.left = r.left + 'px';
-  menu.style.top = (r.top - menu.offsetHeight) + 'px';
   menu.hidden = false;
-  // 摆正位置（菜单高度已知后）
   menu.style.top = (r.top - menu.getBoundingClientRect().height - 10) + 'px';
   menu.querySelectorAll('.cmenu-item').forEach((b) => b.addEventListener('click', () => {
     const c = CREATE.find((x) => x.key === b.dataset.key);
     menu.hidden = true;
-    if (c.inline) enterPhotoMode();
-    else { toast('该工具在「创作工作室」中，正在接入对话…'); window.open(c.href, '_blank'); }
+    if (c.inline) enterMode(c.key);
+    else { toast('这个重流程在「创作工作室」完成'); window.open(c.href, '_blank'); }
   }));
 }
-function enterPhotoMode() {
-  state.mode = 'photo';
+function enterMode(key) {
+  state.mode = key;
   $('#composerPlus').classList.add('on');
-  $('#input').placeholder = '描述你想要的写真（场景/风格/情绪），回车生成…';
-  setHint('写真模式 · 直接描述即可出图，再点「＋」可退出');
+  $('#input').placeholder = MODES[key].ph;
+  setHint(MODES[key].hint);
   $('#input').focus();
 }
-function exitPhotoMode() {
+function exitMode() {
   state.mode = 'chat';
   $('#composerPlus').classList.remove('on');
   $('#input').placeholder = '对 Ta 说点什么…';
@@ -219,7 +275,7 @@ function init() {
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
   $('#composerPlus').addEventListener('click', (e) => {
     e.stopPropagation();
-    if (state.mode === 'photo') { exitPhotoMode(); return; }
+    if (state.mode !== 'chat') { exitMode(); return; }
     if ($('#cmenu').hidden) openCreateMenu(); else $('#cmenu').hidden = true;
   });
   document.addEventListener('click', (e) => { const m = $('#cmenu'); if (!m.hidden && !m.contains(e.target) && e.target !== $('#composerPlus')) m.hidden = true; });
