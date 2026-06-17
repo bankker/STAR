@@ -15,7 +15,7 @@ import path from 'node:path';
 import {
   createArtist, listArtists, getArtist, updateArtist, deleteArtist, addPortrait,
 } from '../studio/artists.js';
-import { getConversation, appendTurn, appendAssistant, setConvState, setMemory, trimToRecent, resetConversation } from '../studio/conversations.js';
+import { getConversation, appendTurn, appendAssistant, setConvState, addMilestone, setMemory, trimToRecent, resetConversation } from '../studio/conversations.js';
 import { buildChatMessages, shouldSummarize, buildSummarizeMessages, buildEmotionJudgeMessages, applyEmotionJudge, buildOpeningMessages, buildSuggestionsMessages, parseSuggestions, initialAffinityFor, RECENT_KEEP } from '../studio/companion.js';
 import {
   buildInterviewMessages, buildFinalizeMessages, extractProfileJson, buildPortraitPrompt, buildPhotoPrompt,
@@ -109,15 +109,22 @@ async function maybeSummarize(artistId, artist) {
 }
 
 // 本轮互动后由模型判定真实的好感度增减与心情（plan/qwen-flash 在区快且 JSON 稳）；失败兜底默认 +1。
+const AFFECTION_RE = /(爱你|喜欢你|做我(女|男)?朋友|在一起吧?|想你|亲亲|抱抱|嫁给|娶你|一辈子|余生|宝贝|么么|biu)/;
 async function judgeChatState(artist, userText, aiText, prevState) {
+  let state;
   try {
     const jm = buildEmotionJudgeMessages(artist, userText, aiText, prevState);
     const jr = await execute('plan', { system: jm.system, messages: jm.messages, maxTokens: 100 });
-    return applyEmotionJudge(prevState, jr.text);
+    state = applyEmotionJudge(prevState, jr.text);
   } catch (e) {
     console.error('[chat] 好感度判定失败（用默认）', e.message);
-    return applyEmotionJudge(prevState, '');
+    state = applyEmotionJudge(prevState, '');
   }
+  // 强示爱/告白给一个增幅下限，让恋爱推进有反馈（避免模型一律只 +1）
+  if (AFFECTION_RE.test(String(userText || '')) && state.delta < 3) {
+    state = applyEmotionJudge(prevState, JSON.stringify({ mood: state.mood, delta: 3 }));
+  }
+  return state;
 }
 
 // 每轮给「对方」3 句可点的回复建议（plan/qwen-flash，失败返回空数组不阻断）
@@ -370,7 +377,15 @@ export function registerRoutes(route) {
   route('GET /api/artist/:id/chat', async (req, res, { params }) => {
     if (!getArtist(params.id)) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
     const c = getConversation(params.id);
-    json(res, { messages: c.messages, state: c.state });
+    json(res, { messages: c.messages, state: c.state, memory: c.memory, milestones: c.milestones || [] });
+  });
+
+  // 编辑长期记忆（Ta 记得关于你的事）
+  route('POST /api/artist/:id/chat/memory', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    if (!getArtist(params.id)) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    const c = setMemory(params.id, String(body.memory ?? ''));
+    json(res, { memory: c.memory });
   });
 
   route('POST /api/artist/:id/chat', async (req, res, { params, readJsonBody }) => {
@@ -387,6 +402,7 @@ export function registerRoutes(route) {
         suggestReplies(artist, r.text, conv.state),
       ]);
       appendTurn(params.id, body.message, r.text, state);
+      if (state.stageChanged) addMilestone(params.id, { type: 'stage', stage: state.stage?.name, up: state.stageChanged > 0 });
       await maybeSummarize(params.id, artist);
       json(res, { reply: r.text, state, suggestions, provider: r.provider, model: r.model });
     } catch (e) { sendGatewayError(res, e); }
@@ -408,6 +424,7 @@ export function registerRoutes(route) {
         suggestReplies(artist, r.text, conv.state),
       ]);
       appendTurn(params.id, body.message, r.text, state);
+      if (state.stageChanged) addMilestone(params.id, { type: 'stage', stage: state.stage?.name, up: state.stageChanged > 0 });
       await maybeSummarize(params.id, artist);
       send('done', { reply: r.text, state, suggestions, provider: r.provider, model: r.model });
     } catch (e) {

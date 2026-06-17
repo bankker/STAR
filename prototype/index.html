@@ -385,8 +385,9 @@
 
           <!-- 陪伴设定（恋人向角色卡） -->
           <div id="companion-settings" class="cmodal-overlay hidden">
-            <div class="cmodal" style="max-width:420px;">
+            <div class="cmodal" style="max-width:430px;max-height:86vh;overflow:auto;">
               <div class="cmodal-title">陪伴设定</div>
+              <div id="cs-archive" class="cs-archive"></div>
               <div class="cmodal-msg" style="margin-bottom:14px;">让 Ta 更像你的专属恋人——称呼、初始关系与开场白。</div>
               <div class="field mb-8"><span class="label-upper">Ta 对你的称呼</span><input id="cs-petname" placeholder="如：宝贝 / 笨蛋 / 你的名字" autocomplete="off"></div>
               <div class="field mb-8"><span class="label-upper">你对 Ta 的称呼</span><input id="cs-usercall" placeholder="如：亲爱的 / Ta 的昵称" autocomplete="off"></div>
@@ -399,7 +400,8 @@
                   <option value="恋人">恋人</option>
                 </select>
               </div>
-              <div class="field mb-14"><span class="label-upper">自定义开场白（可空）</span><textarea id="cs-greeting" rows="2" placeholder="留空则由 Ta 按人设自动生成开场白" autocomplete="off"></textarea></div>
+              <div class="field mb-10"><span class="label-upper">自定义开场白（可空）</span><textarea id="cs-greeting" rows="2" placeholder="留空则由 Ta 按人设自动生成开场白" autocomplete="off"></textarea></div>
+              <div class="field mb-14"><span class="label-upper">长期记忆（Ta 记得关于你的事，可编辑）</span><textarea id="cs-memory" rows="3" placeholder="还没有记忆，多聊几句 Ta 就会记住你～" autocomplete="off"></textarea></div>
               <div class="cmodal-actions">
                 <button class="btn btn-secondary" id="cs-cancel">取消</button>
                 <button class="btn btn-primary" id="cs-save">保存</button>

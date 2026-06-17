@@ -877,6 +877,7 @@ function renderCompanionView() {
 /* ── 沉浸模式 / 角色头像 / 旁白渲染 / 建议回复 ── */
 let chatImmersive = false;
 try { chatImmersive = localStorage.getItem('chat-immersive') === '1'; } catch {}
+let companionData = { memory: '', milestones: [], messages: [] };   // 最近一次 /chat 数据，供陪伴设定弹窗用
 function currentArtistAvatar() {
   const a = (state.artists || []).find((x) => x.id === state.currentArtistId);
   return (a && a.portraits && a.portraits[0] && a.portraits[0].url) || '';
@@ -916,6 +917,7 @@ const chatEmptyHtml = () => `<div class="empty-state chat-empty">
 async function loadChat(id) {
   const data = await api(`/api/artist/${encodeURIComponent(id)}/chat`);
   if (data.error) return;
+  companionData = { memory: data.memory || '', milestones: data.milestones || [], messages: data.messages || [], state: data.state || {} };
   const log = $('#chat-log');
   renderChatState(data.state);
   renderSuggestions([]);
@@ -1029,12 +1031,30 @@ async function sendChat() {
 
 /* ── 陪伴设定（恋人向角色卡）── */
 function currentArtist() { return (state.artists || []).find((x) => x.id === state.currentArtistId) || null; }
+function renderCompanionArchive() {
+  const el = $('#cs-archive');
+  if (!el) return;
+  const msgs = companionData.messages || [];
+  const firstTs = msgs.find((m) => m.ts)?.ts;
+  const met = firstTs ? new Date(firstTs).toLocaleDateString() : '今天';
+  const turns = Math.floor(msgs.filter((m) => m.role === 'user').length);
+  const aff = (companionData.state && companionData.state.affinity) || 0;
+  const stage = chatStage(aff).name;
+  const ms = (companionData.milestones || []).slice(-4).reverse();
+  el.innerHTML = `<div class="cs-arch-stats">
+      <span>相识于 <b>${esc(met)}</b></span><span>·</span>
+      <span>聊了 <b>${turns}</b> 句</span><span>·</span>
+      <span>当前 <b>${esc(stage)}</b></span>
+    </div>${ms.length ? `<div class="cs-arch-ms">${ms.map((m) => `<div class="cs-arch-ms-item">${m.up ? '💞' : '💔'} 关系${m.up ? '升级' : '降温'}至 <b>${esc(m.stage || '')}</b> · ${m.at ? esc(new Date(m.at).toLocaleDateString()) : ''}</div>`).join('')}</div>` : ''}`;
+}
 function openCompanionSettings() {
   const a = currentArtist();
   if (!a) { toast('请先选择艺人', 'err'); return; }
   const c = a.companion || {};
   const set = (id, v) => { const el = $(id); if (el) el.value = v || ''; };
   set('#cs-petname', c.petName); set('#cs-usercall', c.userCall); set('#cs-rel', c.relationship); set('#cs-greeting', c.greeting);
+  set('#cs-memory', companionData.memory);
+  renderCompanionArchive();
   const ov = $('#companion-settings'); if (ov) ov.classList.remove('hidden');
 }
 function closeCompanionSettings() { const ov = $('#companion-settings'); if (ov) ov.classList.add('hidden'); }
@@ -1043,11 +1063,16 @@ async function saveCompanionSettings() {
   if (!a) return;
   const val = (id) => { const el = $(id); return el ? el.value.trim() : ''; };
   const companion = { petName: val('#cs-petname'), userCall: val('#cs-usercall'), relationship: val('#cs-rel'), greeting: val('#cs-greeting') };
+  const memEl = $('#cs-memory');
+  const memory = memEl ? memEl.value.trim() : '';
   const btn = $('#cs-save'); if (btn) btn.disabled = true;
   const r = await api(`/api/artist/${encodeURIComponent(a.id)}`, { companion }, 'PUT');
+  // 长期记忆若有改动则一并保存
+  if (memory !== (companionData.memory || '')) await api(`/api/artist/${encodeURIComponent(a.id)}/chat/memory`, { memory });
   if (btn) btn.disabled = false;
   if (r.error) { toast(errText(r.error), 'err'); return; }
   a.companion = companion;   // 本地同步
+  companionData.memory = memory;
   closeCompanionSettings();
   toast('陪伴设定已保存', 'ok');
   loadChat(a.id);            // 重载（称呼即时生效；初始关系/开场白仅新对话生效）

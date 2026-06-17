@@ -15,7 +15,7 @@ export function initConversations(dir) {
 }
 
 function emptyConv(artistId) {
-  return { artistId, schemaVersion: 1, messages: [], memory: '', state: { mood: '平静', affinity: 50 }, updatedAt: null };
+  return { artistId, schemaVersion: 1, messages: [], memory: '', milestones: [], state: { mood: '平静', affinity: 50 }, updatedAt: null };
 }
 
 const fileFor = (artistId) => path.join(convDir, `${artistId}.json`);
@@ -27,7 +27,7 @@ export function getConversation(artistId) {
   if (!fs.existsSync(f)) return base;
   try {
     const c = JSON.parse(fs.readFileSync(f, 'utf8'));
-    return { ...base, ...c, state: { ...base.state, ...(c.state || {}) }, messages: Array.isArray(c.messages) ? c.messages : [] };
+    return { ...base, ...c, state: { ...base.state, ...(c.state || {}) }, messages: Array.isArray(c.messages) ? c.messages : [], milestones: Array.isArray(c.milestones) ? c.milestones : [] };
   } catch { return base; }
 }
 
@@ -55,6 +55,16 @@ export function appendAssistant(artistId, content) {
   if (!SAFE_ID.test(artistId)) throw new Error('非法 artistId');
   const conv = getConversation(artistId);
   conv.messages.push({ role: 'assistant', content: String(content ?? ''), ts: new Date().toISOString() });
+  write(conv);
+  return conv;
+}
+
+// 记录一条关系里程碑（如阶段升级）
+export function addMilestone(artistId, milestone) {
+  if (!SAFE_ID.test(artistId)) throw new Error('非法 artistId');
+  const conv = getConversation(artistId);
+  conv.milestones.push({ ...milestone, at: new Date().toISOString() });
+  if (conv.milestones.length > 50) conv.milestones = conv.milestones.slice(-50);
   write(conv);
   return conv;
 }
