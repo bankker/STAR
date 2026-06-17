@@ -141,6 +141,86 @@
 /* 视图大标题：Apple Large Title 风（偏细、负字距） */
 [data-theme="icloud"] .view-h1 { font-size: 26px; font-weight: 700; letter-spacing: -.022em; }
 
+/* ════════════════════════════════════════════════════════
+   §1e Claude 主题（默认）：温暖编辑感
+   暖米纸画布 + 陶土红强调 + 衬线大标题(拉丁衬线/中文干净无衬线) + 大留白 + 极简边框、零辉光
+   ════════════════════════════════════════════════════════ */
+[data-theme="claude"] {
+  --bg: #f0eee6;          /* Claude 标志暖米纸 */
+  --panel: #ffffff;
+  --panel-2: #f4f2ea;     /* 次级暖纸 */
+  --line: #e7e3d7;        /* 极淡暖描边 */
+  --line-2: #dad5c6;
+  --ink: #29261f;         /* 暖墨·深褐黑 */
+  --ink-2: #6b6657;       /* 暖灰 */
+  --ink-3: #98917f;       /* 浅暖灰 */
+  --brand: #c96442;       /* 陶土红/赤陶 —— Claude 强调色 */
+  --brand-2: #d97757;
+  --accent: #6a9a8a;      /* 低饱和墨绿点缀 */
+  --gold: #c2872f;
+  --pink: #b5546a;
+  --ok: #5a8a5a;
+  --warn: #c2872f;
+  --err: #b5443a;
+  --r: 14px;
+  --r-sm: 9px;
+  --shadow-float: 0 18px 52px rgba(41, 38, 31, .16);
+}
+/* 暖米纸画布，去掉一切暗色辉光 */
+[data-theme="claude"] body {
+  background-color: #f0eee6;
+  background-image: none;
+  line-height: 1.65;
+}
+[data-theme="claude"] ::selection { background: color-mix(in srgb, var(--brand) 26%, transparent); color: var(--ink); }
+/* 大标题：拉丁用衬线(Georgia)，中文回落到干净无衬线(YaHei)，避免 Windows 宋体老旧感 —— 编辑/文学气质 */
+[data-theme="claude"] .view-h1 {
+  font-family: Georgia, "Times New Roman", ui-serif, "Microsoft YaHei", "PingFang SC", sans-serif;
+  font-size: 31px; font-weight: 600; letter-spacing: -.01em; line-height: 1.2; color: var(--ink);
+}
+[data-theme="claude"] .logo-text .main { font-family: Georgia, ui-serif, "Microsoft YaHei", sans-serif; font-weight: 600; }
+/* logo 彩虹块 → 沉静陶土 */
+[data-theme="claude"] .logo-icon { background: var(--brand); }
+/* 顶栏/侧栏：暖纸、极简，覆盖写死的深色底 */
+[data-theme="claude"] .topbar {
+  background: rgba(240, 238, 230, .82);
+  backdrop-filter: saturate(1.4) blur(12px);
+  -webkit-backdrop-filter: saturate(1.4) blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+[data-theme="claude"] .sidebar { background: #ece8de; border-right: 1px solid var(--line); }
+/* 悬停/高亮：暖陶土淡染（非白色叠加） */
+[data-theme="claude"] .nav-item { border-radius: 9px; margin: 1px 8px; }
+[data-theme="claude"] .nav-item:hover { background: rgba(41, 38, 31, .045); }
+[data-theme="claude"] .nav-item.active { background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); }
+[data-theme="claude"] .nav-item.active::before { display: none; }
+[data-theme="claude"] .picker-item:hover,
+[data-theme="claude"] .tile-btn:hover,
+[data-theme="claude"] .gp-close:hover { background: rgba(41, 38, 31, .05); }
+/* 卡片：纯白、极淡描边、柔投影、更大留白 */
+[data-theme="claude"] .panel,
+[data-theme="claude"] .card,
+[data-theme="claude"] .stat-card {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 16px; padding: 22px;
+  box-shadow: 0 1px 2px rgba(41, 38, 31, .03), 0 10px 30px -20px rgba(41, 38, 31, .14);
+}
+/* 主按钮：陶土实色、柔和、不发光 */
+[data-theme="claude"] .btn { border-radius: 9px; }
+[data-theme="claude"] .btn-primary { background: var(--brand); color: #fff; box-shadow: none; }
+[data-theme="claude"] .btn-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--brand) 88%, #000); box-shadow: none; }
+[data-theme="claude"] .btn-secondary:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); background: color-mix(in srgb, var(--brand) 7%, transparent); }
+/* 输入：暖纸底、聚焦陶土环 */
+[data-theme="claude"] input,
+[data-theme="claude"] textarea,
+[data-theme="claude"] select { background: #fbfaf6; border-color: var(--line-2); }
+[data-theme="claude"] input:focus,
+[data-theme="claude"] textarea:focus,
+[data-theme="claude"] select:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 16%, transparent); }
+/* 对话气泡：用户=陶土，AI=暖纸 */
+[data-theme="claude"] .bubble.me { background: var(--brand); }
+[data-theme="claude"] .bubble.ai { background: var(--panel-2); border-color: var(--line); }
+
 /* 顶栏主题切换按钮 */
 .topbar-theme-btn {
   display: inline-flex; align-items: center; gap: 6px;

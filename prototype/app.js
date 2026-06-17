@@ -477,25 +477,25 @@ function initArtistPicker() {
   initTheme();
 }
 
-/* ── 主题切换：制片棚(默认) → 野兽派 → iCloud 循环 ── */
-const THEMES = ['studio', 'fauvist', 'icloud'];
-const THEME_LABEL = { studio: '🌙 制片棚', fauvist: '🎨 野兽派', icloud: '☁️ iCloud' };
+/* ── 主题切换：Claude(默认) → 制片棚 → iCloud → 野兽派 循环 ── */
+const THEMES = ['claude', 'studio', 'icloud', 'fauvist'];
+const THEME_LABEL = { claude: '🪶 Claude', studio: '🌙 制片棚', icloud: '☁️ iCloud', fauvist: '🎨 野兽派' };
 function applyTheme(t) {
-  const theme = THEMES.includes(t) ? t : 'studio';
+  const theme = THEMES.includes(t) ? t : 'claude';
   document.documentElement.dataset.theme = theme;
   const btn = $('#topbar-theme-btn');
-  if (btn) { btn.textContent = THEME_LABEL[theme]; btn.title = '切换主题：制片棚 / 野兽派 / iCloud'; }
+  if (btn) { btn.textContent = THEME_LABEL[theme]; btn.title = '切换主题：Claude / 制片棚 / iCloud / 野兽派'; }
 }
 function initTheme() {
-  let saved = 'studio';
-  try { saved = localStorage.getItem('ui-theme') || 'studio'; } catch {}
+  let saved = 'claude';   // 新设计语言默认 Claude；换 key 让旧偏好重置到新默认
+  try { saved = localStorage.getItem('ui-theme2') || 'claude'; } catch {}
   applyTheme(saved);
   const btn = $('#topbar-theme-btn');
   if (btn) btn.addEventListener('click', () => {
-    const cur = document.documentElement.dataset.theme || 'studio';
+    const cur = document.documentElement.dataset.theme || 'claude';
     const next = THEMES[(THEMES.indexOf(cur) + 1) % THEMES.length];
     applyTheme(next);
-    try { localStorage.setItem('ui-theme', next); } catch {}
+    try { localStorage.setItem('ui-theme2', next); } catch {}
   });
 }
 
