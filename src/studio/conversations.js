@@ -59,6 +59,15 @@ export function appendAssistant(artistId, content) {
   return conv;
 }
 
+// 设置对话状态（如按初始关系设定播种好感度）
+export function setConvState(artistId, st) {
+  if (!SAFE_ID.test(artistId)) throw new Error('非法 artistId');
+  const conv = getConversation(artistId);
+  conv.state = { mood: st?.mood ?? conv.state.mood, affinity: st?.affinity ?? conv.state.affinity };
+  write(conv);
+  return conv;
+}
+
 export function setMemory(artistId, memory) {
   if (!SAFE_ID.test(artistId)) throw new Error('非法 artistId');
   const conv = getConversation(artistId);

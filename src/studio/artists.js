@@ -33,6 +33,13 @@ export function validateProfile(profile) {
     },
     visualIdentity: STR(profile.visualIdentity),
     musicStyle: STR(profile.musicStyle),
+    // 陪伴设定（恋人向）：Ta 对你的称呼 / 你对 Ta 的称呼 / 初始关系 / 自定义开场白
+    companion: {
+      petName: STR(profile.companion?.petName),
+      userCall: STR(profile.companion?.userCall),
+      relationship: STR(profile.companion?.relationship),
+      greeting: STR(profile.companion?.greeting),
+    },
     portraits: Array.isArray(profile.portraits)
       ? profile.portraits.filter((p) => p && typeof p.url === 'string')
           .map((p) => ({ url: p.url, prompt: STR(p.prompt), createdAt: p.createdAt || new Date().toISOString() }))

@@ -15,8 +15,8 @@ import path from 'node:path';
 import {
   createArtist, listArtists, getArtist, updateArtist, deleteArtist, addPortrait,
 } from '../studio/artists.js';
-import { getConversation, appendTurn, appendAssistant, setMemory, trimToRecent, resetConversation } from '../studio/conversations.js';
-import { buildChatMessages, shouldSummarize, buildSummarizeMessages, buildEmotionJudgeMessages, applyEmotionJudge, buildOpeningMessages, buildSuggestionsMessages, parseSuggestions, RECENT_KEEP } from '../studio/companion.js';
+import { getConversation, appendTurn, appendAssistant, setConvState, setMemory, trimToRecent, resetConversation } from '../studio/conversations.js';
+import { buildChatMessages, shouldSummarize, buildSummarizeMessages, buildEmotionJudgeMessages, applyEmotionJudge, buildOpeningMessages, buildSuggestionsMessages, parseSuggestions, initialAffinityFor, RECENT_KEEP } from '../studio/companion.js';
 import {
   buildInterviewMessages, buildFinalizeMessages, extractProfileJson, buildPortraitPrompt, buildPhotoPrompt,
 } from '../studio/artist-create.js';
@@ -421,12 +421,18 @@ export function registerRoutes(route) {
     const body = await readJsonBody();
     const artist = getArtist(params.id);
     if (!artist) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
-    const conv = getConversation(params.id);
+    let conv = getConversation(params.id);
     if (conv.messages.length) return json(res, { opening: null, state: conv.state });
+    // 首次进入：按「初始关系」设定播种好感度（恋人=80、暧昧=62…）
+    const rel = artist.companion?.relationship;
+    if (rel) conv = setConvState(params.id, { affinity: initialAffinityFor(rel) });
     try {
-      const { system, messages } = buildOpeningMessages(artist, conv, { immersive: body.immersive });
-      const r = await execute('chat', { system, messages, maxTokens: 200 });
-      const opening = (r.text || '').trim();
+      let opening = (artist.companion?.greeting || '').trim();   // 有自定义开场白就直接用
+      if (!opening) {
+        const { system, messages } = buildOpeningMessages(artist, conv, { immersive: body.immersive });
+        const r = await execute('chat', { system, messages, maxTokens: 200 });
+        opening = (r.text || '').trim();
+      }
       appendAssistant(params.id, opening);
       const suggestions = await suggestReplies(artist, opening, conv.state);
       json(res, { opening, suggestions, state: conv.state });

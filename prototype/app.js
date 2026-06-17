@@ -1027,6 +1027,32 @@ async function sendChat() {
   }
 }
 
+/* ── 陪伴设定（恋人向角色卡）── */
+function currentArtist() { return (state.artists || []).find((x) => x.id === state.currentArtistId) || null; }
+function openCompanionSettings() {
+  const a = currentArtist();
+  if (!a) { toast('请先选择艺人', 'err'); return; }
+  const c = a.companion || {};
+  const set = (id, v) => { const el = $(id); if (el) el.value = v || ''; };
+  set('#cs-petname', c.petName); set('#cs-usercall', c.userCall); set('#cs-rel', c.relationship); set('#cs-greeting', c.greeting);
+  const ov = $('#companion-settings'); if (ov) ov.classList.remove('hidden');
+}
+function closeCompanionSettings() { const ov = $('#companion-settings'); if (ov) ov.classList.add('hidden'); }
+async function saveCompanionSettings() {
+  const a = currentArtist();
+  if (!a) return;
+  const val = (id) => { const el = $(id); return el ? el.value.trim() : ''; };
+  const companion = { petName: val('#cs-petname'), userCall: val('#cs-usercall'), relationship: val('#cs-rel'), greeting: val('#cs-greeting') };
+  const btn = $('#cs-save'); if (btn) btn.disabled = true;
+  const r = await api(`/api/artist/${encodeURIComponent(a.id)}`, { companion }, 'PUT');
+  if (btn) btn.disabled = false;
+  if (r.error) { toast(errText(r.error), 'err'); return; }
+  a.companion = companion;   // 本地同步
+  closeCompanionSettings();
+  toast('陪伴设定已保存', 'ok');
+  loadChat(a.id);            // 重载（称呼即时生效；初始关系/开场白仅新对话生效）
+}
+
 function initChatView() {
   const sendBtn = $('#chat-send2');
   if (sendBtn) sendBtn.addEventListener('click', sendChat);
@@ -1035,6 +1061,12 @@ function initChatView() {
   const modeBtn = $('#chat-mode-btn');
   if (modeBtn) modeBtn.addEventListener('click', () => setChatMode(!chatImmersive));
   setChatMode(chatImmersive);   // 初始化按钮文案
+  const setBtn = $('#chat-settings-btn');
+  if (setBtn) setBtn.addEventListener('click', openCompanionSettings);
+  const csSave = $('#cs-save'); if (csSave) csSave.addEventListener('click', saveCompanionSettings);
+  const csCancel = $('#cs-cancel'); if (csCancel) csCancel.addEventListener('click', closeCompanionSettings);
+  const csOv = $('#companion-settings');
+  if (csOv) csOv.addEventListener('mousedown', (e) => { if (e.target === csOv) closeCompanionSettings(); });
 }
 
 /* ── Legacy debug card handlers (hidden, keep backend wiring) ── */

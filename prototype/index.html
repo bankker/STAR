@@ -371,6 +371,7 @@
               <span class="state-val" id="companion-affinity">0</span>
             </div>
             <button class="chat-mode-btn" id="chat-mode-btn" type="button" title="切换 聊天 / 沉浸 模式">💬 聊天</button>
+            <button class="chat-mode-btn" id="chat-settings-btn" type="button" title="陪伴设定">⚙ 陪伴</button>
           </div>
 
           <div class="panel chat-pane">
@@ -379,6 +380,30 @@
             <div class="chat-input-row">
               <input id="chat-msg" placeholder="对 ta 说点什么…" autocomplete="off">
               <button class="btn btn-primary" id="chat-send2">发送</button>
+            </div>
+          </div>
+
+          <!-- 陪伴设定（恋人向角色卡） -->
+          <div id="companion-settings" class="cmodal-overlay hidden">
+            <div class="cmodal" style="max-width:420px;">
+              <div class="cmodal-title">陪伴设定</div>
+              <div class="cmodal-msg" style="margin-bottom:14px;">让 Ta 更像你的专属恋人——称呼、初始关系与开场白。</div>
+              <div class="field mb-8"><span class="label-upper">Ta 对你的称呼</span><input id="cs-petname" placeholder="如：宝贝 / 笨蛋 / 你的名字" autocomplete="off"></div>
+              <div class="field mb-8"><span class="label-upper">你对 Ta 的称呼</span><input id="cs-usercall" placeholder="如：亲爱的 / Ta 的昵称" autocomplete="off"></div>
+              <div class="field mb-8"><span class="label-upper">初始关系（仅新对话生效）</span>
+                <select id="cs-rel">
+                  <option value="">默认（朋友 · 50）</option>
+                  <option value="初识">初识</option>
+                  <option value="朋友">朋友</option>
+                  <option value="暧昧">暧昧</option>
+                  <option value="恋人">恋人</option>
+                </select>
+              </div>
+              <div class="field mb-14"><span class="label-upper">自定义开场白（可空）</span><textarea id="cs-greeting" rows="2" placeholder="留空则由 Ta 按人设自动生成开场白" autocomplete="off"></textarea></div>
+              <div class="cmodal-actions">
+                <button class="btn btn-secondary" id="cs-cancel">取消</button>
+                <button class="btn btn-primary" id="cs-save">保存</button>
+              </div>
             </div>
           </div>
         </div>

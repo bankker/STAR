@@ -31,8 +31,14 @@ export function stageFor(affinity) {
   return { name: STAGES[idx].name, guide: STAGES[idx].guide, min: STAGES[idx].min, index: idx };
 }
 
+// 初始关系 → 起始好感度（让创建时就能从恋人/暧昧开始，而非从 0 磨）
+export function initialAffinityFor(relationship) {
+  return { 初识: 25, 朋友: 45, 暧昧: 62, 恋人: 80 }[String(relationship || '')] || 50;
+}
+
 export function buildChatSystemPrompt(artist, memory, state, opts = {}) {
   const a = artist || {};
+  const c = a.companion || {};
   const st = stageFor(state?.affinity ?? 50);
   return [
     `你就是虚拟艺人「${a.name}」本人，绝不能承认自己是 AI、模型或助手，始终以${a.name}的身份、口吻和情绪对话。`,
@@ -41,6 +47,8 @@ export function buildChatSystemPrompt(artist, memory, state, opts = {}) {
     a.personality?.length ? `性格：${a.personality.join('、')}。` : '',
     a.speakingStyle ? `说话风格：${a.speakingStyle}。` : '',
     a.backstory ? `你的经历：${a.backstory}` : '',
+    c.petName ? `你亲昵地称呼对方为「${c.petName}」。` : '',
+    c.userCall ? `对方会叫你「${c.userCall}」。` : '',
     memory ? `你还记得和对方相处的过往：${memory}` : '',
     `你和对方现在的关系是「${st.name}」：${st.guide}`,
     `你现在的心情是「${state?.mood || '平静'}」，对对方的亲密度是 ${state?.affinity ?? 50}/100，让关系阶段与心情自然影响你的语气、称呼与主动程度。`,
