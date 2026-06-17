@@ -1239,6 +1239,12 @@ select option { background: var(--panel-2); color: var(--ink); }
 .cmodal-msg { font-size: 13.5px; color: var(--ink-2); line-height: 1.6; margin-bottom: 18px; }
 .cmodal-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .cmodal-actions .btn { padding: 8px 18px; }
+
+/* 媒体加载失败兜底（文件已删/缺失）：不再显示破图，给出占位 */
+.media-tile-img-wrap.media-broken { display: flex; align-items: center; justify-content: center; }
+.media-tile-img-wrap.media-broken::after {
+  content: '⚠ 文件缺失'; color: var(--ink-3); font-size: 12px; font-weight: 600;
+}
 .seg-btn:hover:not(.active) {
   color: var(--ink-2);
   background: rgba(255,255,255,.04);

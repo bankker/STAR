@@ -1219,9 +1219,12 @@ function openLightboxFromList(list, id) {
   openLightbox(items, idx);
 }
 
+const VIDEO_EXT_RE = /\.(mp4|webm|mov|m4v)$/i;
+const AUDIO_EXT_RE = /\.(mp3|wav|m4a|aac|ogg|flac)$/i;
 function mediaTileHtml(asset) {
-  if (asset.type === 'video') return videoTileHtml(asset);
   if (asset.type === 'drama') return dramaTileHtml(asset);
+  // 按真实文件类型渲染（防止 mp4/mp3 等被塞进 <img> 显示为破图）
+  if (asset.type === 'video' || VIDEO_EXT_RE.test(asset.url || '')) return videoTileHtml(asset);
   const url = esc(asset.url);
   const id = esc(asset.id);
   const shot = esc(asset.shot || '');
@@ -1229,7 +1232,7 @@ function mediaTileHtml(asset) {
   const isFav = asset.favorite;
   return `<div class="media-tile" data-asset-id="${id}">
     <div class="media-tile-img-wrap">
-      <img src="${url}" alt="" loading="lazy">
+      <img src="${url}" alt="" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('media-broken')">
       <span class="media-tile-lock lock-badge">⬡ 锁脸</span>
       <div class="media-tile-actions">
         <button class="tile-btn tile-max" data-id="${id}" title="放大浏览">⛶</button>
@@ -1249,7 +1252,7 @@ function videoTileHtml(asset) {
   const isFav = asset.favorite;
   return `<div class="media-tile media-tile-video" data-asset-id="${id}">
     <div class="media-tile-img-wrap media-tile-video-wrap">
-      <video src="${url}" controls preload="metadata" class="video-tile-player"></video>
+      <video src="${url}" controls preload="metadata" class="video-tile-player" onerror="this.style.display='none';this.parentElement.classList.add('media-broken')"></video>
       <span class="media-tile-lock lock-badge lock-badge-video">⬡ 锁脸</span>
       <div class="media-tile-actions">
         <button class="tile-btn tile-max" data-id="${id}" title="放大浏览">⛶</button>
@@ -1257,7 +1260,7 @@ function videoTileHtml(asset) {
         <button class="tile-btn tile-del" data-id="${id}" title="删除">🗑</button>
       </div>
     </div>
-    <div class="media-tile-meta">🎬 视频${dur ? ' · ' + dur : ''}</div>
+    <div class="media-tile-meta">🎬 ${asset.title ? esc(asset.title) : '视频'}${dur ? ' · ' + dur : ''}</div>
   </div>`;
 }
 
@@ -1269,7 +1272,7 @@ function dramaTileHtml(asset) {
   const isFav = asset.favorite;
   return `<div class="media-tile media-tile-video" data-asset-id="${id}">
     <div class="media-tile-img-wrap media-tile-video-wrap">
-      <video src="${url}" controls preload="metadata" class="video-tile-player"></video>
+      <video src="${url}" controls preload="metadata" class="video-tile-player" onerror="this.style.display='none';this.parentElement.classList.add('media-broken')"></video>
       <span class="media-tile-lock lock-badge lock-badge-video">🎞️ 短剧</span>
       <div class="media-tile-actions">
         <button class="tile-btn tile-max" data-id="${id}" title="放大浏览">⛶</button>
@@ -1312,10 +1315,12 @@ function renderGallery(assets) {
   const grid = $('#photo-gallery-grid');
   if (!grid) return;
 
-  let list = assets;
-  if (photoState.filter === 'favorite') list = assets.filter((a) => a.favorite);
-  else if (photoState.filter === 'photo') list = assets.filter((a) => a.type !== 'video');
-  else if (photoState.filter === 'video') list = assets.filter((a) => a.type === 'video');
+  // 写真/视频画廊只展示图像与视频；纯音频(如访谈录音)归访谈视图，不在此画廊
+  const isVid = (a) => a.type === 'video' || a.type === 'drama' || VIDEO_EXT_RE.test(a.url || '');
+  let list = assets.filter((a) => !AUDIO_EXT_RE.test(a.url || ''));
+  if (photoState.filter === 'favorite') list = list.filter((a) => a.favorite);
+  else if (photoState.filter === 'photo') list = list.filter((a) => !isVid(a));
+  else if (photoState.filter === 'video') list = list.filter(isVid);
 
   const emptyTitles = { favorite: '还没有收藏', photo: '还没有写真', video: '还没有视频' };
   const emptyDescs = { favorite: '点击★收藏任意写真或视频。', photo: '左侧设置参数后点生成写真。', video: '左侧填写运镜后点生成视频。' };
