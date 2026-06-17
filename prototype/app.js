@@ -51,6 +51,7 @@ const state = {
 
 /* ── View Router ── */
 const VIEW_TITLES = {
+  'workspace': '工作台',
   'artist-creation': '艺人创设',
   'dashboard': '仪表盘',
   'companion': '对话陪伴',
@@ -83,6 +84,7 @@ function switchView(viewId) {
   state.currentView = viewId;
 
   // trigger view-specific data loads
+  if (viewId === 'workspace') renderWorkspace();
   if (viewId === 'health') renderHealth();
   if (viewId === 'cost') { renderUsage(); renderCostJobs(); }
   if (viewId === 'settings') { renderKeys(); renderRoutes(); }
@@ -448,6 +450,87 @@ function renderArtistPicker(artists) {
   }
 }
 
+/* ── 工作台：以艺人为中心的单一工作区（新框架核心）── */
+const WS_ACTIONS = [
+  { view: 'companion',   icon: '💬', label: '聊天陪伴', desc: '和 Ta 对话，关系升温' },
+  { view: 'photo-video', icon: '📸', label: '写真 / 视频', desc: '锁脸生成写真与短视频' },
+  { view: 'music',       icon: '🎵', label: '音乐', desc: '为 Ta 作一首歌' },
+  { view: 'interview',   icon: '🎬', label: '访谈成片', desc: '五阶段自动合成访谈' },
+  { view: 'deepiv',      icon: '🎙️', label: '深度访谈', desc: '真人嘉宾 · 对口型影像' },
+  { view: 'drama',       icon: '🎞️', label: '短剧', desc: '主演 Ta 的微短剧' },
+];
+
+function selectArtist(id) {
+  if (!id) return;
+  state.currentArtistId = id;
+  renderArtistPicker(state.artists || []);
+  switchView('workspace');
+}
+
+function renderSidebarArtists() {
+  const wrap = $('#sidebar-artist-list');
+  if (!wrap) return;
+  const arts = state.artists || [];
+  if (!arts.length) { wrap.innerHTML = '<div class="sidebar-artist-empty">还没有艺人</div>'; return; }
+  wrap.innerHTML = arts.map((a) => {
+    const cover = a.portraits && a.portraits[0];
+    const av = cover ? `<img src="${esc(cover.url)}" alt="">` : '<span class="sa-ph">🎭</span>';
+    const active = (a.id === state.currentArtistId && state.currentView === 'workspace') ? ' active' : '';
+    return `<button class="sidebar-artist${active}" data-id="${esc(a.id)}">
+      <span class="sa-av">${av}</span>
+      <span class="sa-info"><span class="sa-name">${esc(a.name || '未命名')}</span><span class="sa-ps">${esc(a.persona || a.positioning || '虚拟艺人')}</span></span>
+    </button>`;
+  }).join('');
+  wrap.querySelectorAll('.sidebar-artist').forEach((b) => b.addEventListener('click', () => selectArtist(b.dataset.id)));
+}
+
+async function renderWorkspace() {
+  const empty = $('#workspace-empty');
+  const main = $('#workspace-main');
+  const a = (state.artists || []).find((x) => x.id === state.currentArtistId) || (state.artists || [])[0];
+  if (!a) {
+    if (empty) empty.classList.remove('hidden');
+    if (main) main.classList.add('hidden');
+    renderSidebarArtists();
+    return;
+  }
+  state.currentArtistId = a.id;
+  if (empty) empty.classList.add('hidden');
+  if (main) main.classList.remove('hidden');
+  const av = $('#ws-avatar');
+  const cover = a.portraits && a.portraits[0];
+  if (av) av.innerHTML = cover ? `<img src="${esc(cover.url)}" alt="">` : '🎭';
+  const nm = $('#ws-name'); if (nm) nm.textContent = a.name || '未命名';
+  const meta = $('#ws-meta');
+  if (meta) meta.textContent = [a.persona, a.positioning].filter(Boolean).join(' · ') || '虚拟艺人';
+  const actions = $('#ws-actions');
+  if (actions) {
+    actions.innerHTML = WS_ACTIONS.map((x) => `<button class="ws-action" data-view="${esc(x.view)}">
+      <span class="ws-action-icon">${x.icon}</span>
+      <span class="ws-action-body"><span class="ws-action-label">${x.label}</span><span class="ws-action-desc">${x.desc}</span></span>
+    </button>`).join('');
+    actions.querySelectorAll('.ws-action').forEach((b) => b.addEventListener('click', () => switchView(b.dataset.view)));
+  }
+  renderSidebarArtists();
+  loadWorkspaceFeed(a.id);
+}
+
+async function loadWorkspaceFeed(id) {
+  const feed = $('#workspace-feed');
+  const countEl = $('#ws-feed-count');
+  if (!feed) return;
+  const data = await api(`/api/artist/${encodeURIComponent(id)}/gallery`);
+  if (data.error) { feed.innerHTML = ''; return; }
+  const assets = (data.assets || []).filter((x) => !AUDIO_EXT_RE.test(x.url || ''));
+  if (countEl) countEl.textContent = assets.length ? `· ${assets.length}` : '';
+  if (!assets.length) {
+    feed.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="icon">🎨</div><div class="title">还没有作品</div><div class="desc">从上方挑一件想做的事，开始创作吧。</div></div>`;
+    return;
+  }
+  feed.innerHTML = assets.map(mediaTileHtml).join('');
+  feed.querySelectorAll('.tile-max').forEach((b) => b.addEventListener('click', () => openLightboxFromList(assets, b.dataset.id)));
+}
+
 function openArtistPicker() {
   $('#artist-picker-dropdown').classList.remove('hidden');
 }
@@ -550,6 +633,7 @@ async function renderArtists() {
   if (data.error || !Array.isArray(data.artists)) return;
   state.artists = data.artists;
   renderArtistPicker(state.artists);
+  renderSidebarArtists();
 
   const list = $('#artist-list');
   if (!list) return;
@@ -4101,6 +4185,12 @@ function boot() {
   const healthRefresh = $('#health-refresh');
   if (healthRefresh) healthRefresh.addEventListener('click', () => renderHealth(true));
 
+  // 新建艺人入口（侧栏 + 工作台空态）
+  const sbNew = $('#sidebar-new-artist');
+  if (sbNew) sbNew.addEventListener('click', () => switchView('artist-creation'));
+  const wsCreate = $('#workspace-create-btn');
+  if (wsCreate) wsCreate.addEventListener('click', () => switchView('artist-creation'));
+
   // Initial data loads
   renderHealth();
   renderUsage();
@@ -4108,8 +4198,8 @@ function boot() {
   setInterval(() => renderUsage(), 30000);
   setInterval(() => renderJobs(), 3000);
 
-  // Start on S1
-  switchView('artist-creation');
+  // 默认进入「工作台」（以艺人为中心）；renderArtists 先把艺人载入再切
+  renderArtists().then(() => switchView('workspace'));
 }
 
 window.addEventListener('DOMContentLoaded', boot);

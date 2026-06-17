@@ -20,66 +20,20 @@
     </div>
 
     <div class="sidebar-nav">
-      <!-- 工作台 -->
-      <div class="nav-group-label">工作台</div>
-      <div class="nav-item active" data-view="artist-creation">
-        <span class="nav-icon">🎭</span>
-        <span class="nav-label">艺人创设</span>
-        <span class="nav-tag s1">S1</span>
-      </div>
-      <div class="nav-item" data-view="dashboard">
-        <span class="nav-icon">⊞</span>
-        <span class="nav-label">仪表盘</span>
-      </div>
+      <!-- 主轴：以艺人为中心，艺人列表即主导航（Claude 式会话列表） -->
+      <button class="sidebar-new" id="sidebar-new-artist">
+        <span class="sidebar-new-plus">＋</span> 新建艺人
+      </button>
+      <div class="nav-group-label">我的艺人</div>
+      <div id="sidebar-artist-list" class="sidebar-artist-list"></div>
 
-      <!-- 生产线 -->
-      <div class="nav-group-label">生产线</div>
-      <div class="nav-item" data-view="companion">
-        <span class="nav-icon">💬</span>
-        <span class="nav-label">对话陪伴</span>
-      </div>
-      <div class="nav-item" data-view="photo-video">
-        <span class="nav-icon">📸</span>
-        <span class="nav-label">写真/视频</span>
-      </div>
-      <div class="nav-item" data-view="music">
-        <span class="nav-icon">🎵</span>
-        <span class="nav-label">音乐工坊</span>
-      </div>
-      <div class="nav-item" data-view="interview">
-        <span class="nav-icon">🎬</span>
-        <span class="nav-label">访谈成片</span>
-      </div>
-      <div class="nav-item" data-view="drama">
-        <span class="nav-icon">🎞️</span>
-        <span class="nav-label">短剧工坊</span>
-        <span class="nav-tag">S6</span>
-      </div>
-      <div class="nav-item" data-view="deepiv">
-        <span class="nav-icon">🎙️</span>
-        <span class="nav-label">深度访谈</span>
-        <span class="nav-tag">S7</span>
-      </div>
-
-      <!-- 系统 -->
-      <div class="nav-group-label">系统</div>
-      <div class="nav-item" data-view="health">
-        <span class="nav-icon">⚡</span>
-        <span class="nav-label">能力健康</span>
-        <span class="nav-tag m1">M1</span>
-      </div>
-      <div class="nav-item" data-view="cost">
-        <span class="nav-icon">💰</span>
-        <span class="nav-label">成本账本</span>
-      </div>
-      <div class="nav-item" data-view="settings">
-        <span class="nav-icon">⚙️</span>
-        <span class="nav-label">设置</span>
-      </div>
-      <div class="nav-item" data-view="design-system">
-        <span class="nav-icon">🎨</span>
-        <span class="nav-label">设计系统</span>
-      </div>
+      <!-- 系统（次级） -->
+      <div class="nav-group-label" style="margin-top:14px;">工作室</div>
+      <div class="nav-item" data-view="dashboard"><span class="nav-icon">⊞</span><span class="nav-label">仪表盘</span></div>
+      <div class="nav-item" data-view="health"><span class="nav-icon">⚡</span><span class="nav-label">能力健康</span></div>
+      <div class="nav-item" data-view="cost"><span class="nav-icon">💰</span><span class="nav-label">成本账本</span></div>
+      <div class="nav-item" data-view="settings"><span class="nav-icon">⚙️</span><span class="nav-label">设置</span></div>
+      <div class="nav-item" data-view="design-system"><span class="nav-icon">🎨</span><span class="nav-label">设计系统</span></div>
     </div>
 
     <!-- Provider status bar -->
@@ -138,8 +92,31 @@
     <!-- ═══════ VIEWS ═══════ -->
     <div class="view-area">
 
+      <!-- ══ VIEW: 工作台（以艺人为中心的单一工作区）══ -->
+      <div id="view-workspace" class="view hidden">
+        <div id="workspace-empty" class="ws-empty hidden">
+          <div class="ws-empty-mark">✶</div>
+          <div class="view-h1" style="justify-content:center;">还没有你的虚拟艺人</div>
+          <p style="text-align:center;max-width:440px;">在左侧「新建艺人」，通过一段对话把 Ta 创设出来——之后，聊天、写真、音乐、访谈、短剧，都在 Ta 的工作台里完成。</p>
+          <button class="btn btn-primary" id="workspace-create-btn">＋ 创设第一位艺人</button>
+        </div>
+        <div id="workspace-main" class="hidden">
+          <div class="ws-hero">
+            <div class="ws-hero-avatar" id="ws-avatar"></div>
+            <div class="ws-hero-info">
+              <h1 class="ws-hero-name" id="ws-name">—</h1>
+              <div class="ws-hero-meta" id="ws-meta"></div>
+            </div>
+          </div>
+          <div class="ws-section-label">想和 Ta 一起做点什么</div>
+          <div class="ws-actions" id="ws-actions"></div>
+          <div class="ws-section-label ws-feed-label">作品 <span id="ws-feed-count" class="ws-feed-count"></span></div>
+          <div class="ws-feed media-tile-grid" id="workspace-feed"></div>
+        </div>
+      </div>
+
       <!-- ══ VIEW: 艺人创设 (S1) ══ -->
-      <div id="view-artist-creation" class="view">
+      <div id="view-artist-creation" class="view hidden">
         <div class="view-h1">
           艺人创设
           <span class="pill s1">S1</span>
