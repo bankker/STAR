@@ -8,7 +8,7 @@
 </head>
 <body>
   <div class="app">
-    <!-- 左侧：艺人列表（会话列表） -->
+    <!-- 左侧细栏：艺人列表（会话列表） -->
     <aside class="rail">
       <div class="rail-top">
         <div class="brand">✶ Star</div>
@@ -16,9 +16,6 @@
       </div>
       <div class="rail-label">艺人</div>
       <div class="artist-list" id="artistList"></div>
-      <div class="rail-foot">
-        <a href="/studio.html" class="rail-foot-link">⚙ 创作工作室（完整工具）→</a>
-      </div>
     </aside>
 
     <!-- 主区：对话即界面 -->
@@ -27,7 +24,7 @@
         <div class="conv-empty-inner">
           <div class="conv-empty-mark">✶</div>
           <h1>和你的虚拟艺人对话</h1>
-          <p>在左侧选择一位艺人开始；或「新建艺人」，通过一段对话把 Ta 创设出来。聊天、写真——都在这一条对话里完成。</p>
+          <p>在左侧选择一位艺人开始；或「新建艺人」，通过一段对话把 Ta 创设出来。聊天、写真、视频、音乐——都在这一条对话里完成。</p>
         </div>
       </div>
 
@@ -46,11 +43,11 @@
       </div>
     </main>
 
-    <!-- 右栏：点工具条在这里出对应内容（类 Claude Code / Codex 布局） -->
+    <!-- 右栏：常驻详情 + 操作台（类 Claude Code / Codex）。资料/写真/视频/音乐/访谈/深访/短剧 都在这里 -->
     <aside class="rpanel" id="rpanel" hidden>
       <header class="rpanel-head">
-        <span class="rpanel-title" id="rpanelTitle">作品</span>
-        <button class="rpanel-close" id="rpanelClose" title="关闭">✕</button>
+        <button class="rpanel-back" id="rpanelBack" hidden>‹ 资料</button>
+        <span class="rpanel-title" id="rpanelTitle">资料</span>
       </header>
       <div class="rpanel-body" id="rpanelBody"></div>
     </aside>
