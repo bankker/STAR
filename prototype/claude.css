@@ -257,6 +257,16 @@ button { font-family: inherit; cursor: pointer; }
 .op-soon p { margin: 0; font-size: 13px; color: var(--ink-2); line-height: 1.6; }
 .op-soon .badge { display: inline-block; font-size: 11px; font-weight: 700; color: var(--brand); background: color-mix(in srgb, var(--brand) 11%, transparent); padding: 3px 10px; border-radius: 999px; margin-bottom: 10px; }
 
+/* 资产视图 */
+.asset-filters { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 16px; }
+.asset-fchip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink-2); font-size: 12.5px; font-weight: 600; padding: 6px 13px; border-radius: 999px; transition: border-color .15s, color .15s, background .15s; }
+.asset-fchip:hover { border-color: var(--brand); color: var(--brand); }
+.asset-fchip.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+.asset-fn { font-size: 11px; opacity: .75; }
+.asset-fchip.on .asset-fn { opacity: .85; }
+.asset-media { position: relative; }
+.asset-badge { position: absolute; left: 7px; top: 7px; font-size: 10px; font-weight: 700; color: #fff; background: rgba(20,18,14,.62); padding: 2px 8px; border-radius: 999px; backdrop-filter: blur(3px); pointer-events: none; }
+
 /* 成本确认条 */
 .op-confirm { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: color-mix(in srgb, var(--brand) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent); border-radius: 12px; padding: 10px 14px; margin-top: 10px; font-size: 13px; color: var(--ink); }
 .op-confirm-btns { margin-left: auto; display: flex; gap: 8px; }

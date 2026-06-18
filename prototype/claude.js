@@ -130,8 +130,9 @@ const HEAD_TOOLS = [
   { panel: 'music', icon: '🎵', short: '音乐', title: '音乐' },
   { panel: 'deepiv', icon: '🎙️', short: '深访', title: '深度访谈' },
   { panel: 'drama', icon: '🎭', short: '短剧', title: '短剧' },
+  { panel: 'assets', icon: '🗂️', short: '资产', title: '资产 · 全部作品' },
 ];
-const PANEL_TITLE = { profile: '资料', photo: '写真', video: '视频', music: '音乐', deepiv: '深度访谈', drama: '短剧', create: '新建艺人' };
+const PANEL_TITLE = { profile: '资料', photo: '写真', video: '视频', music: '音乐', deepiv: '深度访谈', drama: '短剧', assets: '资产', create: '新建艺人' };
 
 function markActiveTool(kind) {
   document.querySelectorAll('.ch-tool').forEach((b) => b.classList.toggle('on', HEAD_TOOLS[+b.dataset.i].panel === kind));
@@ -153,6 +154,7 @@ async function renderPanel() {
   if (k === 'photo' || k === 'video' || k === 'music') return renderCreator(body, k);
   if (k === 'deepiv') return renderDeepiv(body);
   if (k === 'drama') return renderDrama(body);
+  if (k === 'assets') return renderAssets(body);
 }
 
 /* 拉取并缓存画廊 */
@@ -220,7 +222,8 @@ async function renderProfile(body) {
 
 /* —— 写真/视频/音乐/访谈：右栏操作台 —— */
 const CREATORS = {
-  photo: { intro: '描述场景、风格与情绪，为 Ta 拍一组写真。', ph: '如：黄昏咖啡馆，暖光，浅景深，胶片质感…', match: (a) => a.type === 'photo' || isImg(a.url), aspect: true },
+  // 只显示真正的「写真」：/photo 出的图无 title；嘉宾形象/主播形象/短剧选角等同为 photo 但都带 title，排除
+  photo: { intro: '描述场景、风格与情绪，为 Ta 拍一组写真。', ph: '如：黄昏咖啡馆，暖光，浅景深，胶片质感…', match: (a) => a.type === 'photo' && !a.title, aspect: true },
   video: { intro: '以 Ta 最新写真为首帧生成短视频，描述运镜与动作。', ph: '如：轻轻转头，对镜头微笑，发丝随风…', match: (a) => a.type === 'video' || isVid(a.url) && a.type !== 'interview' && a.type !== 'drama', wide: true },
   music: { intro: '描述一首歌的主题、情绪与曲风，为 Ta 作词作曲。', ph: '如：城市夜晚，慵懒爵士，关于久别重逢…', match: (a) => a.type === 'song' || isAud(a.url) },
 };
@@ -758,6 +761,51 @@ async function renderDrama(body) {
   const items = galleryBy((a) => a.type === 'drama');
   grid.className = 'op-grid';
   grid.innerHTML = items.length ? items.map((a) => opTile(a, true)).join('') : '<div class="op-empty"><span class="e-mark">🎭</span>还没有短剧成片</div>';
+}
+
+/* —— 资产：全部生成内容 —— */
+const ASSET_FILTERS = [
+  { key: 'all', label: '全部', match: () => true },
+  { key: 'photo', label: '图片', match: (a) => a.type === 'photo' || isImg(a.url) },
+  { key: 'video', label: '视频', match: (a) => a.type === 'video' || (isVid(a.url) && a.type !== 'interview' && a.type !== 'drama') },
+  { key: 'song', label: '音乐', match: (a) => a.type === 'song' || isAud(a.url) },
+  { key: 'interview', label: '访谈', match: (a) => a.type === 'interview' },
+  { key: 'drama', label: '短剧', match: (a) => a.type === 'drama' },
+];
+const TYPE_BADGE = { photo: '图片', video: '视频', song: '音乐', interview: '访谈', drama: '短剧' };
+let _assetFilter = 'all';
+async function renderAssets(body) {
+  body.innerHTML = `<div class="rp-col">
+    <p class="op-intro">这位艺人生成的所有内容——写真、视频、音乐、访谈、短剧、形象照都在这里。</p>
+    <div class="asset-filters" id="assetFilters"></div>
+    <div id="assetGrid"></div>
+  </div>`;
+  await loadGallery();
+  const fwrap = $('#assetFilters');
+  fwrap.innerHTML = ASSET_FILTERS.map((f) => {
+    const n = state.gallery.filter(f.match).length;
+    return `<button class="asset-fchip${f.key === _assetFilter ? ' on' : ''}" data-k="${f.key}">${f.label}<span class="asset-fn">${n}</span></button>`;
+  }).join('');
+  fwrap.querySelectorAll('.asset-fchip').forEach((b) => b.addEventListener('click', () => { _assetFilter = b.dataset.k; renderAssets(body); }));
+  paintAssetGrid();
+}
+function paintAssetGrid() {
+  const grid = $('#assetGrid'); if (!grid) return;
+  const f = ASSET_FILTERS.find((x) => x.key === _assetFilter) || ASSET_FILTERS[0];
+  const items = state.gallery.filter(f.match);
+  if (!items.length) { grid.innerHTML = '<div class="op-empty"><span class="e-mark">🗂️</span>还没有这一类作品</div>'; return; }
+  grid.className = 'op-grid';
+  grid.innerHTML = items.map(assetTile).join('');
+}
+function assetTile(a) {
+  const u = esc(a.url);
+  const cap = esc(a.title || a.prompt || '');
+  const badge = TYPE_BADGE[a.type] || (isVid(a.url) ? '视频' : isAud(a.url) ? '音乐' : '图片');
+  let media;
+  if (isVid(a.url)) media = `<video src="${u}" controls preload="metadata"></video>`;
+  else if (isAud(a.url)) media = `<audio src="${u}" controls preload="none"></audio>`;
+  else media = `<img src="${u}" alt="" loading="lazy">`;
+  return `<div class="op-tile"><div class="asset-media">${media}<span class="asset-badge">${esc(badge)}</span></div>${cap ? `<div class="op-tile-cap">${cap}</div>` : ''}</div>`;
 }
 
 /* —— 新建艺人（右栏表单，POST /api/artist）—— */
