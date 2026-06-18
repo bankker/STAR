@@ -16,7 +16,7 @@ function toast(msg) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
 }
 
-const state = { artists: [], current: null, mode: 'chat', busy: false };
+const state = { artists: [], current: null, mode: 'chat', busy: false, panel: null };
 
 const STAGES = [[0, '陌生'], [20, '初识'], [40, '朋友'], [58, '暧昧'], [75, '恋人'], [92, '灵魂伴侣']];
 const stageName = (a) => { let n = '陌生'; STAGES.forEach(([m, s]) => { if ((a || 0) >= m) n = s; }); return n; };
@@ -49,6 +49,7 @@ async function openArtist(id) {
   const a = state.artists.find((x) => x.id === id);
   if (!a) return;
   state.current = a; state.mode = 'chat';
+  closePanel();
   $('#convEmpty').hidden = true; $('#conv').hidden = false;
   loadArtists();
   renderHead(a, null);
@@ -84,10 +85,9 @@ function renderHead(a, st) {
     <div class="ch-tools">${tools}</div>
     ${aff != null ? `<span class="ch-rel">${esc(stageName(aff))} · ${aff}</span>` : ''}`;
   head.querySelectorAll('.ch-tool').forEach((b) => b.addEventListener('click', () => {
-    const c = HEAD_TOOLS[+b.dataset.i];
-    if (c.href) { toast('这个重流程在「创作工作室」完成'); window.open(c.href, '_blank'); return; }
-    enterMode(c.act);
+    openPanel(HEAD_TOOLS[+b.dataset.i].panel);
   }));
+  if (state.panel && !$('#rpanel').hidden) markActiveTool(state.panel);
 }
 
 /* ── 消息渲染 ── */
@@ -112,15 +112,56 @@ function renderSuggest(list) {
   wrap.innerHTML = list.map((s) => `<button class="suggest-chip">${esc(s)}</button>`).join('');
   wrap.querySelectorAll('.suggest-chip').forEach((b) => b.addEventListener('click', () => { $('#input').value = b.textContent; wrap.innerHTML = ''; send(); }));
 }
-/* 对话头部的创作工具条（与 陈恩珠 · 灵魂伴侣100 同一行）*/
+/* 对话头部的工具条（点击在右栏打开对应内容）*/
 const HEAD_TOOLS = [
-  { act: 'photo', icon: '📸', short: '写真', title: '写真 · 对话内出图' },
-  { act: 'video', icon: '🎬', short: '视频', title: '视频 · 以最新写真为首帧' },
-  { act: 'music', icon: '🎵', short: '音乐', title: '音乐 · 描述即作词作曲' },
-  { href: '/studio.html', icon: '🗞️', short: '访谈', title: '访谈成片（创作工作室）' },
-  { href: '/studio.html', icon: '🎙️', short: '深访', title: '深度访谈（创作工作室）' },
-  { href: '/studio.html', icon: '🎭', short: '短剧', title: '短剧（创作工作室）' },
+  { panel: 'photo', icon: '📸', short: '写真', title: '写真' },
+  { panel: 'video', icon: '🎬', short: '视频', title: '视频' },
+  { panel: 'music', icon: '🎵', short: '音乐', title: '音乐' },
+  { panel: 'interview', icon: '🗞️', short: '访谈', title: '访谈成片' },
+  { panel: 'deepiv', icon: '🎙️', short: '深访', title: '深度访谈' },
+  { panel: 'drama', icon: '🎭', short: '短剧', title: '短剧' },
 ];
+/* 右栏内容配置：inline=可在对话里直接生成；href=去工作室 */
+const PANELS = {
+  photo: { label: '写真', inline: 'photo', match: (a) => a.type === 'photo' || /\.(png|jpe?g|webp)$/i.test(a.url || '') },
+  video: { label: '视频', inline: 'video', match: (a) => a.type === 'video' || /\.(mp4|webm|mov)$/i.test(a.url || '') },
+  music: { label: '音乐', inline: 'music', match: (a) => a.type === 'song' || /\.(mp3|wav|m4a)$/i.test(a.url || '') },
+  interview: { label: '访谈成片', href: '/studio.html', match: (a) => a.type === 'interview' && /\.(mp4|webm)$/i.test(a.url || '') },
+  deepiv: { label: '深度访谈', href: '/studio.html', match: (a) => a.type === 'interview' },
+  drama: { label: '短剧', href: '/studio.html', match: (a) => a.type === 'drama' },
+};
+function markActiveTool(kind) {
+  document.querySelectorAll('.ch-tool').forEach((b) => {
+    b.classList.toggle('on', kind != null && HEAD_TOOLS[+b.dataset.i].panel === kind);
+  });
+}
+async function openPanel(kind) {
+  const cfg = PANELS[kind]; if (!cfg || !state.current) return;
+  state.panel = kind;
+  $('#rpanel').hidden = false;
+  markActiveTool(kind);
+  $('#rpanelTitle').textContent = cfg.label;
+  const body = $('#rpanelBody');
+  body.innerHTML = '<div class="rpanel-empty">加载中…</div>';
+  const data = await api(`/api/artist/${encodeURIComponent(state.current.id)}/gallery`);
+  const assets = ((data && data.assets) || []).filter(cfg.match);
+  let html = cfg.inline
+    ? `<button class="rpanel-gen" id="rpanelGen">✦ 在对话里生成${cfg.label}</button>`
+    : `<a class="rpanel-link" href="${cfg.href}" target="_blank">去创作工作室制作 →</a>`;
+  html += assets.length
+    ? '<div class="rpanel-grid">' + assets.map(panelTile).join('') + '</div>'
+    : `<div class="rpanel-empty">还没有${cfg.label}作品</div>`;
+  body.innerHTML = html;
+  const gen = $('#rpanelGen');
+  if (gen) gen.addEventListener('click', () => enterMode(cfg.inline));
+}
+function panelTile(a) {
+  const u = esc(a.url);
+  if (/\.(mp4|webm|mov)$/i.test(a.url || '')) return `<div class="rpanel-tile"><video src="${u}" controls preload="metadata"></video></div>`;
+  if (/\.(mp3|wav|m4a)$/i.test(a.url || '')) return `<div class="rpanel-tile rpanel-tile-audio"><audio src="${u}" controls preload="none"></audio></div>`;
+  return `<div class="rpanel-tile"><img src="${u}" alt="" loading="lazy"></div>`;
+}
+function closePanel() { state.panel = null; $('#rpanel').hidden = true; markActiveTool(null); }
 const scrollDown = () => { const t = $('#thread'); if (t) t.scrollTop = t.scrollHeight; };
 const setHint = (h) => { const el = $('#composerHint'); if (el) el.textContent = h || ''; };
 
@@ -286,6 +327,7 @@ function exitMode() {
 function autoGrow() { const t = $('#input'); t.style.height = 'auto'; t.style.height = Math.min(180, t.scrollHeight) + 'px'; }
 function init() {
   $('#newArtist').addEventListener('click', () => { window.location.href = '/studio.html'; });
+  $('#rpanelClose').addEventListener('click', closePanel);
   $('#send').addEventListener('click', send);
   const input = $('#input');
   input.addEventListener('input', autoGrow);
