@@ -54,7 +54,7 @@ async function openArtist(id) {
   const a = state.artists.find((x) => x.id === id);
   if (!a) return;
   state.current = a; state.mode = 'chat'; state.chat = null; state.gallery = [];
-  exitMode();
+  exitMode(); resetDeep();
   $('#convEmpty').hidden = true; $('#conv').hidden = false;
   $('#rpanel').hidden = false;
   setPanel('profile');
@@ -128,11 +128,10 @@ const HEAD_TOOLS = [
   { panel: 'photo', icon: '📸', short: '写真', title: '写真' },
   { panel: 'video', icon: '🎬', short: '视频', title: '视频' },
   { panel: 'music', icon: '🎵', short: '音乐', title: '音乐' },
-  { panel: 'interview', icon: '🗞️', short: '访谈', title: '访谈成片' },
   { panel: 'deepiv', icon: '🎙️', short: '深访', title: '深度访谈' },
   { panel: 'drama', icon: '🎭', short: '短剧', title: '短剧' },
 ];
-const PANEL_TITLE = { profile: '资料', photo: '写真', video: '视频', music: '音乐', interview: '访谈成片', deepiv: '深度访谈', drama: '短剧', create: '新建艺人' };
+const PANEL_TITLE = { profile: '资料', photo: '写真', video: '视频', music: '音乐', deepiv: '深度访谈', drama: '短剧', create: '新建艺人' };
 
 function markActiveTool(kind) {
   document.querySelectorAll('.ch-tool').forEach((b) => b.classList.toggle('on', HEAD_TOOLS[+b.dataset.i].panel === kind));
@@ -151,7 +150,7 @@ async function renderPanel() {
   if (k === 'create') return renderCreate(body);
   if (!state.current) { body.innerHTML = '<div class="rp-col"><div class="op-empty">先选择一位艺人</div></div>'; return; }
   if (k === 'profile') return renderProfile(body);
-  if (k === 'photo' || k === 'video' || k === 'music' || k === 'interview') return renderCreator(body, k);
+  if (k === 'photo' || k === 'video' || k === 'music') return renderCreator(body, k);
   if (k === 'deepiv') return renderDeepiv(body);
   if (k === 'drama') return renderDrama(body);
 }
@@ -224,7 +223,6 @@ const CREATORS = {
   photo: { intro: '描述场景、风格与情绪，为 Ta 拍一组写真。', ph: '如：黄昏咖啡馆，暖光，浅景深，胶片质感…', match: (a) => a.type === 'photo' || isImg(a.url), aspect: true },
   video: { intro: '以 Ta 最新写真为首帧生成短视频，描述运镜与动作。', ph: '如：轻轻转头，对镜头微笑，发丝随风…', match: (a) => a.type === 'video' || isVid(a.url) && a.type !== 'interview' && a.type !== 'drama', wide: true },
   music: { intro: '描述一首歌的主题、情绪与曲风，为 Ta 作词作曲。', ph: '如：城市夜晚，慵懒爵士，关于久别重逢…', match: (a) => a.type === 'song' || isAud(a.url) },
-  interview: { intro: '一键生成一档访谈节目（企划→脚本→配音合成）。需先有一张写真作画面。', ph: '访谈主题，如：新专辑背后的故事…', match: (a) => a.type === 'interview' && isVid(a.url), wide: true },
 };
 async function renderCreator(body, kind) {
   const cfg = CREATORS[kind];
@@ -300,8 +298,6 @@ async function runCreate(kind) {
       if (r.error) throw new Error(r.error.message || '提交失败');
       await pollJob(r.jobId, (j) => setStatus(`作曲中… ${j.stage || ''} ${j.progress || 0}%`, true));
       setStatus('歌做好啦 ✨', false);
-    } else if (kind === 'interview') {
-      await runInterview(prompt);
     }
     input.value = '';
     await loadGallery();
@@ -313,42 +309,440 @@ async function runCreate(kind) {
   }
 }
 
-/* 访谈成片：plan → script → compose(SSE) */
-async function runInterview(topic) {
-  const hasPhoto = state.gallery.some((a) => a.type === 'photo');
-  if (!hasPhoto) { const g = await loadGallery(); if (!g.some((a) => a.type === 'photo')) throw new Error('请先到「写真」生成一张作为画面'); }
-  const id = encodeURIComponent(state.current.id);
-  setStatus('企划访谈提纲…', true);
-  const pr = await api(`/api/artist/${id}/interview/plan`, { topic });
-  if (pr.error) throw new Error(pr.error.message || '企划失败');
-  setStatus('撰写访谈脚本…', true);
-  const sr = await api(`/api/artist/${id}/interview/script`, { plan: pr.plan });
-  if (sr.error || !(sr.dialogue && sr.dialogue.length)) throw new Error((sr.error && sr.error.message) || '脚本失败');
-  setStatus('配音与合成…', true);
-  await sseStream(`/api/artist/${id}/interview/compose`, { dialogue: sr.dialogue.slice(0, 30) }, (ev, p) => {
-    if (ev === 'stage') setStatus(`${p.msg || '合成中'}… ${p.progress || 0}%`, true);
-    else if (ev === 'error') throw new Error(p.message || '合成失败');
+/* ══════════════════════════════════════════
+   深度访谈：全流程在右栏（嘉宾名录 → 实时访谈室 → 成片）
+   ══════════════════════════════════════════ */
+const SHARP_META = {
+  1: { label: '温和', desc: '友善正面、轻松随和，给足舒适空间，回避敏感与争议话题。' },
+  2: { label: '平和', desc: '常规专业、礼貌中性，稳妥推进，偶有浅层追问。' },
+  3: { label: '适中', desc: '有深度、适度追问，专业而平衡，敢于点到争议但不纠缠。' },
+  4: { label: '犀利', desc: '直接、不回避争议与矛盾，敢于当面质疑、追问、点出问题与回避。' },
+  5: { label: '尖锐', desc: '咄咄逼人、直戳痛点、穷追不舍，逼问真相、不接受空泛或回避的回答。' },
+};
+const deep = { sub: 'setup', session: null, guestId: null, recording: false, busy: false, ending: false, sharpness: 3 };
+function resetDeep() { cleanupRec(); deep.sub = 'setup'; deep.session = null; deep.guestId = null; deep.recording = false; deep.busy = false; deep.ending = false; deep.sharpness = 3; }
+const deepBase = () => `/api/artist/${encodeURIComponent(state.current.id)}`;
+const sessBase = () => `${deepBase()}/interview2/${encodeURIComponent(deep.session.id)}`;
+const guestPortraitUrl = (g) => { const p = g && g.portrait; return (p && p.current >= 0 && p.versions && p.versions[p.current]) ? p.versions[p.current].url : ''; };
+
+/* —— 麦克风 —— */
+let _rec = null, _recChunks = [], _recStream = null;
+const micSupported = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+async function startRec() {
+  if (!micSupported()) { toast('当前环境不支持麦克风录音'); return false; }
+  try { _recStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch (e) { toast('无法访问麦克风，请在浏览器允许权限'); return false; }
+  _recChunks = []; _rec = new MediaRecorder(_recStream);
+  _rec.ondataavailable = (ev) => { if (ev.data && ev.data.size) _recChunks.push(ev.data); };
+  _rec.start(); return true;
+}
+function stopRec() {
+  return new Promise((resolve) => {
+    if (!_rec) return resolve(null);
+    const rec = _rec, stream = _recStream;
+    rec.onstop = () => {
+      stream.getTracks().forEach((t) => t.stop());
+      const blob = new Blob(_recChunks, { type: rec.mimeType || 'audio/webm' });
+      const fr = new FileReader(); fr.onload = () => resolve(fr.result); fr.readAsDataURL(blob);
+    };
+    _rec = null; _recStream = null; rec.stop();
   });
-  setStatus('访谈成片啦 ✨', false);
+}
+function cleanupRec() {
+  try { if (_recStream) _recStream.getTracks().forEach((t) => t.stop()); } catch {}
+  try { if (_rec && _rec.state !== 'inactive') { _rec.onstop = null; _rec.stop(); } } catch {}
+  _rec = null; _recStream = null; _recChunks = [];
+  if (typeof deep !== 'undefined') deep.recording = false;
+}
+let _clip = null;
+function playClip(url) { try { if (_clip) _clip.pause(); } catch {} _clip = new Audio(url); _clip.play().catch(() => {}); return _clip; }
+function fileToDataUrl(input) {
+  return new Promise((res) => { const f = input.files && input.files[0]; if (!f) return res(null); const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsDataURL(f); });
+}
+async function deepSSE(url, body, cb) {
+  await sseStream(url, body, (ev, p) => {
+    if (ev === 'stage' && cb.onStage) cb.onStage(p);
+    else if (ev === 'done' && cb.onDone) cb.onDone(p);
+    else if (ev === 'error' && cb.onError) cb.onError(p);
+  });
+}
+/* 成本确认：把确认条渲染进 targetEl，返回 Promise<bool> */
+function inlineConfirm(targetEl, text) {
+  return new Promise((resolve) => {
+    targetEl.innerHTML = `<div class="op-confirm"><span>${esc(text)}</span><div class="op-confirm-btns"><button class="op-confirm-no">取消</button><button class="op-confirm-yes">确认生成</button></div></div>`;
+    targetEl.querySelector('.op-confirm-yes').onclick = () => { targetEl.innerHTML = ''; resolve(true); };
+    targetEl.querySelector('.op-confirm-no').onclick = () => { targetEl.innerHTML = ''; resolve(false); };
+  });
+}
+const usd = (n) => (typeof n === 'number' ? `约 $${n.toFixed(3)}` : '');
+
+/* —— 视图入口 —— */
+async function renderDeepiv(body) {
+  if (deep.sub === 'room' && deep.session) return renderDeepRoom(body);
+  return renderDeepSetup(body);
 }
 
-/* —— 深访 / 短剧：作品列表 + 原生制作台占位 —— */
-async function renderDeepiv(body) {
+/* —— 嘉宾名录 / 犀利度 / 历史 —— */
+async function renderDeepSetup(body) {
+  deep.sub = 'setup';
   body.innerHTML = `<div class="rp-col">
-    <div class="op-soon">
-      <span class="badge">原生制作台 · 即将上线</span>
-      <div class="op-soon-h">深度访谈 · 真人嘉宾 · 对口型</div>
-      <p>实时麦克风访谈室、嘉宾管理与逐轮对口型影像，正在原生重写进这块面板。这一版先把历史成片放在下面随时回看。</p>
+    <p class="op-intro">登记一位真人嘉宾，选好提问犀利度，开始一场实时访谈，最后出对口型影像。</p>
+    <div class="op-form">
+      <div class="cr-field"><label>嘉宾姓名 *</label><input id="dpName" type="text" placeholder="如：李教授"></div>
+      <div class="op-row" style="margin-top:0">
+        <div class="cr-field" style="flex:1;margin:0"><label>头衔</label><input id="dpTitle" type="text" placeholder="如：经济学家"></div>
+        <div class="cr-field" style="flex:1;margin:0"><label>机构</label><input id="dpCompany" type="text" placeholder="如：某某大学"></div>
+      </div>
+      <div class="cr-field" style="margin-top:14px"><label>人物简介</label><textarea id="dpPersona" rows="2" placeholder="选填：观点、经历、争议点…"></textarea></div>
+      <button class="op-gen" id="dpCreate" style="margin-left:0">＋ 添加嘉宾</button>
+      <div class="op-status" id="dpStatus"></div>
     </div>
-    <div class="op-sub">访谈记录与对口型影像</div>
-    <div id="opGrid"></div>
+
+    <div class="op-sub">提问犀利度</div>
+    <div class="dp-sharp" id="dpSharp"></div>
+    <div class="dp-sharp-desc" id="dpSharpDesc"></div>
+
+    <div class="op-sub">嘉宾</div>
+    <div id="dpGuests"></div>
+
+    <div class="op-sub">历史访谈</div>
+    <div id="dpSessions"></div>
   </div>`;
-  await loadGallery();
-  const grid = $('#opGrid');
-  const items = galleryBy((a) => a.type === 'interview');
-  grid.className = 'op-grid';
-  grid.innerHTML = items.length ? items.map((a) => opTile(a, true)).join('') : '<div class="op-empty"><span class="e-mark">🎙️</span>还没有深度访谈作品</div>';
+  $('#dpCreate').addEventListener('click', createGuest);
+  // 犀利度
+  const sharpWrap = $('#dpSharp');
+  sharpWrap.innerHTML = [1, 2, 3, 4, 5].map((n) => `<button class="dp-sharp-btn" data-l="${n}">${n}·${SHARP_META[n].label}</button>`).join('');
+  sharpWrap.querySelectorAll('.dp-sharp-btn').forEach((b) => b.addEventListener('click', () => setSharpness(+b.dataset.l)));
+  setSharpness(deep.sharpness);
+  loadGuests();
+  loadSessions();
 }
+function setSharpness(level) {
+  const n = (level >= 1 && level <= 5) ? level : 3;
+  deep.sharpness = n;
+  const wrap = $('#dpSharp'); if (wrap) wrap.querySelectorAll('.dp-sharp-btn').forEach((b) => b.classList.toggle('on', +b.dataset.l === n));
+  const d = $('#dpSharpDesc'); if (d) d.textContent = SHARP_META[n].desc;
+}
+async function createGuest() {
+  const name = ($('#dpName').value || '').trim();
+  if (!name) { $('#dpName').focus(); return; }
+  const btn = $('#dpCreate'); btn.disabled = true; deepStatus('添加中…', true);
+  const r = await api(`${deepBase()}/guests`, { name, title: $('#dpTitle').value.trim(), company: $('#dpCompany').value.trim(), persona: $('#dpPersona').value.trim() });
+  btn.disabled = false;
+  if (r.error) { deepStatus((r.error.message) || '添加失败', false, true); return; }
+  deepStatus('');
+  ['#dpName', '#dpTitle', '#dpCompany', '#dpPersona'].forEach((s) => { $(s).value = ''; });
+  toast('嘉宾已添加'); loadGuests();
+}
+const deepStatus = (msg, busy, err) => { const el = $('#dpStatus'); if (!el) return; el.className = 'op-status' + (err ? ' err' : ''); el.innerHTML = (busy ? '<span class="spinner"></span>' : '') + esc(msg || ''); };
+async function loadGuests() {
+  const grid = $('#dpGuests'); if (!grid) return;
+  const data = await api(`${deepBase()}/guests`);
+  const guests = (data && data.guests) || [];
+  if (!guests.length) { grid.innerHTML = '<div class="op-empty"><span class="e-mark">🎙️</span>还没有嘉宾，上面登记一位</div>'; return; }
+  grid.innerHTML = guests.map((g) => {
+    const url = guestPortraitUrl(g);
+    const meta = [g.title, g.company].filter(Boolean).map(esc).join(' · ');
+    return `<div class="dp-guest" data-gid="${esc(g.id)}">
+      <div class="dp-guest-av">${url ? `<img src="${esc(url)}" alt="" loading="lazy">` : '👤'}</div>
+      <div class="dp-guest-body">
+        <div class="dp-guest-name">${esc(g.name || '嘉宾')}</div>
+        ${meta ? `<div class="dp-guest-meta">${meta}</div>` : ''}
+        ${g.persona ? `<div class="dp-guest-persona">${esc(g.persona)}</div>` : ''}
+        <div class="dp-guest-actions">
+          <button class="dp-mini ai" data-gid="${esc(g.id)}">✦ AI 形象</button>
+          <button class="dp-mini up" data-gid="${esc(g.id)}">⤒ 上传</button>
+          <input type="file" class="dp-file" data-gid="${esc(g.id)}" accept="image/*" hidden>
+          <button class="dp-mini start" data-gid="${esc(g.id)}">▶ 开始访谈</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  grid.querySelectorAll('.dp-mini.ai').forEach((b) => b.addEventListener('click', () => guestPortraitAi(b.dataset.gid, b)));
+  grid.querySelectorAll('.dp-mini.up').forEach((b) => b.addEventListener('click', () => grid.querySelector(`.dp-file[data-gid="${b.dataset.gid}"]`).click()));
+  grid.querySelectorAll('.dp-file').forEach((inp) => inp.addEventListener('change', () => guestPortraitUpload(inp.dataset.gid, inp)));
+  grid.querySelectorAll('.dp-mini.start').forEach((b) => b.addEventListener('click', () => startInterview(b.dataset.gid, b)));
+}
+async function guestPortraitAi(gid, btn) {
+  btn.disabled = true; toast('正在生成 AI 形象…');
+  const r = await api(`${deepBase()}/guest/${encodeURIComponent(gid)}/portrait`, { mode: 'ai' });
+  btn.disabled = false;
+  if (r.error) { toast(r.error.message || '生成失败'); return; }
+  toast('AI 形象已生成'); loadGuests();
+}
+async function guestPortraitUpload(gid, input) {
+  const dataUrl = await fileToDataUrl(input); input.value = '';
+  if (!dataUrl) { toast('未选择图片'); return; }
+  toast('正在上传形象…');
+  const r = await api(`${deepBase()}/guest/${encodeURIComponent(gid)}/portrait`, { mode: 'upload', dataUrl });
+  if (r.error) { toast(r.error.message || '上传失败'); return; }
+  toast('形象已上传'); loadGuests();
+}
+async function loadSessions() {
+  const wrap = $('#dpSessions'); if (!wrap) return;
+  const [sData, gData] = await Promise.all([api(`${deepBase()}/interviews`), api(`${deepBase()}/guests`)]);
+  const sessions = (sData && sData.sessions) || [];
+  if (!sessions.length) { wrap.innerHTML = '<div class="op-empty"><span class="e-mark">🗂️</span>还没有访谈记录</div>'; return; }
+  const nameById = {}; ((gData && gData.guests) || []).forEach((g) => { nameById[g.id] = g.name; });
+  wrap.innerHTML = sessions.map((s) => {
+    const when = s.createdAt ? new Date(s.createdAt).toLocaleString() : '';
+    const chips = [];
+    if ((s.turns || []).length) chips.push('<span class="dp-chip">文字稿</span>');
+    if (s.recordUrl) chips.push('<span class="dp-chip s1">语音</span>');
+    if (s.videoUrl) chips.push('<span class="dp-chip ok">对口型</span>');
+    return `<button class="dp-session" data-sid="${esc(s.id)}">
+      <div><div class="dp-session-name">${esc(nameById[s.guestId] || '嘉宾')}</div><div class="dp-session-date">${esc(when)}</div></div>
+      <div class="dp-session-chips">${chips.join('')}</div>
+    </button>`;
+  }).join('');
+  wrap.querySelectorAll('.dp-session').forEach((b) => b.addEventListener('click', () => openSession(b.dataset.sid)));
+}
+async function openSession(sid) {
+  const r = await api(`${deepBase()}/interview2/${encodeURIComponent(sid)}`);
+  if (r.error) { toast(r.error.message || '打开失败'); return; }
+  deep.session = r.session || r; deep.guestId = deep.session.guestId; deep.sub = 'room';
+  renderPanel();
+}
+async function startInterview(gid, btn) {
+  btn.disabled = true;
+  toast(`正在以「${SHARP_META[deep.sharpness].label}」犀利度生成访谈提纲…`);
+  const r = await api(`${deepBase()}/interview2`, { guestId: gid, sharpness: deep.sharpness });
+  btn.disabled = false;
+  if (r.error) { toast(r.error.message || '建会话失败'); return; }
+  deep.session = r.session; deep.guestId = gid; deep.sub = 'room'; deep.ending = false;
+  renderPanel();
+}
+
+/* —— 实时访谈室 —— */
+async function renderDeepRoom(body) {
+  const s = deep.session;
+  const done = s.status === 'done';
+  body.innerHTML = `<div class="rp-col">
+    <button class="dp-back" id="dpBack">‹ 返回名录</button>
+    <div class="dp-room-head">
+      <div class="dp-room-title" id="dpRoomTitle">访谈室</div>
+      <div class="dp-room-meta" id="dpRoomMeta"></div>
+      <div class="dp-room-pills">
+        <span class="dp-chip ${done ? 'ok' : 's2'}" id="dpStatusPill">${done ? '已结束' : '访谈中'}</span>
+        <span class="dp-chip">犀利度 ${esc((SHARP_META[s.sharpness] || SHARP_META[3]).label)}</span>
+      </div>
+    </div>
+    <details class="dp-outline"${done ? '' : ' open'}>
+      <summary>访谈提纲</summary>
+      <div class="dp-outline-open" id="dpOutlineOpen"></div>
+      <ol id="dpOutlineQs"></ol>
+    </details>
+    <div class="dp-transcript" id="dpTranscript"></div>
+    <div class="op-status" id="dpRoomMsg"></div>
+    <div class="dp-mic-notice" id="dpMicNotice" hidden>当前环境不支持麦克风录音，无法语音作答。</div>
+    <div class="dp-controls" id="dpControls">
+      <button class="dp-ctl" id="dpAsk">主持追问</button>
+      <button class="dp-ctl rec" id="dpRec"><span id="dpRecLabel">🎤 回答</span></button>
+      <button class="dp-ctl end" id="dpEnd">结束访谈</button>
+    </div>
+    <div class="dp-finish" id="dpFinish" hidden></div>
+  </div>`;
+  $('#dpBack').addEventListener('click', () => { cleanupRec(); deep.sub = 'setup'; deep.session = null; renderPanel(); });
+  $('#dpAsk').addEventListener('click', askNext);
+  $('#dpRec').addEventListener('click', toggleRecord);
+  $('#dpEnd').addEventListener('click', endInterview);
+  // mic guard
+  if (!micSupported()) { $('#dpMicNotice').hidden = false; $('#dpRec').disabled = true; }
+  // guest name
+  if (deep.guestId) api(`${deepBase()}/guest/${encodeURIComponent(deep.guestId)}`).then((r) => {
+    if (r.error || !r.guest) return; const g = r.guest;
+    $('#dpRoomTitle').textContent = `访谈室 · ${g.name || '嘉宾'}`;
+    $('#dpRoomMeta').textContent = [g.title, g.company].filter(Boolean).join(' · ') || (g.persona || '');
+  });
+  renderOutline(s);
+  renderTranscript(s);
+  if (done) { $('#dpControls').querySelectorAll('button').forEach((b) => b.disabled = true); $('#dpFinish').hidden = false; renderFinish(s); }
+  else if ((s.turns || []).length === 0) askNext();
+}
+function renderOutline(s) {
+  const o = s.outline || { opening: '', questions: [] };
+  if ($('#dpOutlineOpen')) $('#dpOutlineOpen').textContent = o.opening || '';
+  if ($('#dpOutlineQs')) $('#dpOutlineQs').innerHTML = (o.questions || []).map((q) => `<li>${esc(q)}</li>`).join('');
+}
+function renderTranscript(s) {
+  const wrap = $('#dpTranscript'); if (!wrap) return;
+  const turns = (s && s.turns) || [];
+  if (!turns.length) { wrap.innerHTML = '<div class="dp-transcript-empty">访谈即将开始，主持人会先说开场白。</div>'; return; }
+  wrap.innerHTML = turns.map((t) => {
+    const host = t.speaker === 'host';
+    const play = t.audioUrl ? `<button class="dp-bubble-play" data-url="${esc(t.audioUrl)}" title="播放">▶</button>` : '';
+    return `<div class="dp-bubble-row ${host ? 'host' : 'guest'}"><div class="dp-bubble">
+      <div class="dp-bubble-who">${host ? '主持' : '嘉宾'}${play}</div>
+      <div class="dp-bubble-text">${esc(t.text || '')}</div>
+    </div></div>`;
+  }).join('');
+  wrap.querySelectorAll('.dp-bubble-play').forEach((b) => b.addEventListener('click', () => playClip(b.dataset.url)));
+  wrap.scrollTop = wrap.scrollHeight;
+}
+function setRoomBusy(busy) {
+  deep.busy = busy;
+  ['#dpAsk', '#dpEnd'].forEach((s) => { const b = $(s); if (b) b.disabled = busy; });
+  const rec = $('#dpRec'); if (rec) rec.disabled = busy || !micSupported();
+}
+const roomMsg = (msg, busy, err) => { const el = $('#dpRoomMsg'); if (!el) return; el.className = 'op-status' + (err ? ' err' : ''); el.innerHTML = (busy ? '<span class="spinner"></span>' : '') + esc(msg || ''); };
+async function askNext() {
+  const s = deep.session; if (!s || deep.busy || deep.recording) return;
+  setRoomBusy(true); roomMsg('主持人思考中…', true);
+  const r = await api(`${sessBase()}/ask`, {});
+  setRoomBusy(false);
+  if (r.error) { roomMsg(r.error.message || '提问失败', false, true); return; }
+  roomMsg('');
+  if (r.turn) { s.turns = s.turns || []; s.turns.push(r.turn); renderTranscript(s); if (r.turn.audioUrl) playClip(r.turn.audioUrl); }
+}
+async function toggleRecord() {
+  const s = deep.session; if (!s || deep.busy) return;
+  if (!deep.recording) { const ok = await startRec(); if (!ok) return; deep.recording = true; setRecUI(true); return; }
+  deep.recording = false; setRecUI(false); setRoomBusy(true); roomMsg('识别语音中…', true);
+  const dataUrl = await stopRec();
+  if (!dataUrl) { setRoomBusy(false); roomMsg(''); toast('录音失败，请重试'); return; }
+  const r = await api(`${sessBase()}/answer`, { audio: dataUrl });
+  setRoomBusy(false);
+  if (r.error) { roomMsg(r.error.message || '识别失败', false, true); return; }
+  roomMsg('');
+  if (r.turn) { s.turns = s.turns || []; s.turns.push(r.turn); renderTranscript(s); }
+  if (deep.ending) await finalizeClosing(); else await askNext();
+}
+function setRecUI(recording) {
+  const btn = $('#dpRec'), label = $('#dpRecLabel');
+  if (btn) btn.classList.toggle('on', recording);
+  if (label) label.textContent = recording ? '⏹ 停止并提交' : '🎤 回答';
+}
+async function endInterview() {
+  const s = deep.session; if (!s) return;
+  if (deep.recording) { toast('请先停止录音'); return; }
+  if (deep.busy) return;
+  const turns = s.turns || [];
+  const pending = turns.length > 0 && turns[turns.length - 1].speaker === 'host';
+  if (pending && !deep.ending) {
+    deep.ending = true; roomMsg('请对当前问题作最后回答（🎤），随后主持人致结束语并结束。');
+    $('#dpEnd').textContent = '跳过回答 · 直接结束'; return;
+  }
+  await finalizeClosing();
+}
+async function finalizeClosing() {
+  const s = deep.session; if (!s) return;
+  setRoomBusy(true); roomMsg('主持人致结束语…', true);
+  const r = await api(`${sessBase()}/end`, {});
+  setRoomBusy(false); deep.ending = false;
+  if ($('#dpEnd')) $('#dpEnd').textContent = '结束访谈';
+  if (r.error) { roomMsg(r.error.message || '结束失败', false, true); return; }
+  deep.session = r.session;
+  if (r.turn) { renderTranscript(r.session); if (r.turn.audioUrl) playClip(r.turn.audioUrl); }
+  roomMsg('');
+  $('#dpStatusPill').textContent = '已结束'; $('#dpStatusPill').className = 'dp-chip ok';
+  $('#dpControls').querySelectorAll('button').forEach((b) => b.disabled = true);
+  $('#dpFinish').hidden = false; renderFinish(r.session);
+  toast('访谈已结束');
+}
+
+/* —— 成片区：双方形象 / 语音记录 / 对口型影像 —— */
+async function refetchSession() {
+  const r = await api(`${sessBase()}`);
+  if (r.error) return deep.session;
+  deep.session = r.session || r; return deep.session;
+}
+function renderFinish(s) {
+  const wrap = $('#dpFinish'); if (!wrap) return;
+  const looksReady = !!(s.hostLook && s.guestLook);
+  wrap.innerHTML = `
+    <div class="dp-fin-block">
+      <div class="dp-fin-h">① 双方主播形象</div>
+      <div class="dp-looks" id="dpLooks"></div>
+      <button class="op-gen" id="dpLooksBtn" style="margin-left:0">${looksReady ? '↻ 重新生成双方形象' : '✦ 生成双方主播形象'}</button>
+      <div class="op-status" id="dpLooksMsg"></div>
+    </div>
+    <div class="dp-fin-block">
+      <div class="dp-fin-h">② 语音对谈记录</div>
+      <div class="op-row" style="margin-top:0">
+        <span class="dp-fin-label">嘉宾配音</span>
+        <div class="op-seg" id="dpGuestAudio"><button data-v="ai" class="on">AI 重配</button><button data-v="original">原声</button></div>
+        <button class="op-gen" id="dpRecordBtn">✦ 生成语音记录</button>
+      </div>
+      <div class="op-status" id="dpRecordMsg"></div>
+      <div id="dpRecordPlayer"></div>
+    </div>
+    <div class="dp-fin-block">
+      <div class="dp-fin-h">③ 对口型影像</div>
+      <div class="dp-fin-hint" id="dpVideoHint">${looksReady ? '双方形象已就绪，需先生成语音记录，再出对口型影像。' : '需先生成并确认双方主播形象。'}</div>
+      <button class="op-gen" id="dpVideoBtn" style="margin-left:0"${looksReady ? '' : ' disabled'}>✦ 生成对口型影像</button>
+      <div class="op-status" id="dpVideoMsg"></div>
+      <div id="dpVideoPlayer"></div>
+    </div>`;
+  renderLooks(s);
+  if (s.recordUrl) $('#dpRecordPlayer').innerHTML = `<audio src="${esc(s.recordUrl)}" controls class="dp-audio"></audio>`;
+  if (s.videoUrl) $('#dpVideoPlayer').innerHTML = `<video src="${esc(s.videoUrl)}" controls playsinline class="dp-video"></video>`;
+  $('#dpLooksBtn').addEventListener('click', genLooks);
+  $('#dpRecordBtn').addEventListener('click', genRecord);
+  $('#dpVideoBtn').addEventListener('click', genVideo);
+  $('#dpGuestAudio').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { $('#dpGuestAudio').querySelectorAll('button').forEach((x) => x.classList.remove('on')); b.classList.add('on'); }));
+}
+function renderLooks(s) {
+  const wrap = $('#dpLooks'); if (!wrap) return;
+  if (s.hostLook && s.guestLook) {
+    wrap.innerHTML = `<div class="dp-look"><img src="${esc(s.hostLook)}" alt=""><span>主持人</span></div><div class="dp-look"><img src="${esc(s.guestLook)}" alt=""><span>嘉宾</span></div>`;
+  } else wrap.innerHTML = '';
+}
+async function genLooks() {
+  const path = `${sessBase()}/looks`;
+  const btn = $('#dpLooksBtn'); const msg = $('#dpLooksMsg');
+  btn.disabled = true;
+  const est = await api(path, {});
+  btn.disabled = false;
+  if (est.error && est.error.code === 'confirm_required') {
+    const ok = await inlineConfirm(msg, `生成双方主播形象（${usd(est.error.estimate && est.error.estimate.estimatedUsd)}）`);
+    if (!ok) return;
+  } else if (est.error) { setMsg(msg, est.error.message || '生成失败', false, true); return; }
+  btn.disabled = true; setMsg(msg, '正在生成双方主播形象…', true);
+  let lastErr = null;
+  await deepSSE(path, { confirm: true }, {
+    onStage: (p) => setMsg(msg, `${p.msg || '生成中'}… ${p.progress || 0}%`, true),
+    onDone: async (p) => { deep.session = (p && p.session) || await refetchSession(); renderLooks(deep.session); setMsg(msg, '双方主播形象已生成 ✨', false); $('#dpVideoHint').textContent = '双方形象已就绪，需先生成语音记录，再出对口型影像。'; toast('双方主播形象已生成'); },
+    onError: (p) => { lastErr = p; },
+  });
+  btn.disabled = false;
+  if (lastErr) setMsg(msg, lastErr.message || '形象生成失败', false, true);
+}
+async function genRecord() {
+  const path = `${sessBase()}/record`;
+  const btn = $('#dpRecordBtn'); const msg = $('#dpRecordMsg');
+  const guestAudio = ($('#dpGuestAudio .on') || {}).dataset?.v || 'ai';
+  btn.disabled = true; setMsg(msg, '正在合成语音…', true);
+  let lastErr = null;
+  await deepSSE(path, { guestAudio }, {
+    onStage: (p) => setMsg(msg, `${p.msg || '合成中'}… ${p.progress || 0}%`, true),
+    onDone: async (p) => { const sess = await refetchSession(); const url = (sess && sess.recordUrl) || (p && p.url); if (url) $('#dpRecordPlayer').innerHTML = `<audio src="${esc(url)}" controls class="dp-audio"></audio>`; setMsg(msg, '语音记录已生成 ✨', false); toast('语音对谈记录已生成'); },
+    onError: (p) => { lastErr = p; },
+  });
+  btn.disabled = false;
+  if (lastErr) setMsg(msg, lastErr.message || '生成失败', false, true);
+}
+async function genVideo() {
+  const path = `${sessBase()}/video`;
+  const btn = $('#dpVideoBtn'); const msg = $('#dpVideoMsg');
+  btn.disabled = true;
+  const est = await api(path, {});
+  btn.disabled = false;
+  if (est.error && est.error.code === 'confirm_required') {
+    const ok = await inlineConfirm(msg, `对口型出片，逐轮生成（${usd(est.error.estimate && est.error.estimate.estimatedUsd)}）`);
+    if (!ok) return;
+  } else if (est.error) { setMsg(msg, est.error.message || '生成失败', false, true); return; }
+  btn.disabled = true; setMsg(msg, '正在生成对口型影像…', true);
+  let lastErr = null;
+  await deepSSE(path, { confirm: true }, {
+    onStage: (p) => setMsg(msg, `${p.msg || '生成中'}… ${p.progress || 0}%`, true),
+    onDone: async (p) => { const sess = await refetchSession(); const url = (sess && sess.videoUrl) || (p && p.url); if (url) $('#dpVideoPlayer').innerHTML = `<video src="${esc(url)}" controls playsinline class="dp-video"></video>`; setMsg(msg, '对口型影像已生成 ✨', false); toast('对口型影像已生成'); },
+    onError: (p) => { lastErr = p; },
+  });
+  btn.disabled = false;
+  if (lastErr) setMsg(msg, lastErr.message || '影像生成失败', false, true);
+}
+const setMsg = (el, msg, busy, err) => { if (!el) return; el.className = 'op-status' + (err ? ' err' : ''); el.innerHTML = (busy ? '<span class="spinner"></span>' : '') + esc(msg || ''); };
+
 async function renderDrama(body) {
   body.innerHTML = `<div class="rp-col">
     <div class="op-soon">
