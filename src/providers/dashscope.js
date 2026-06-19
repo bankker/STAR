@@ -26,28 +26,63 @@ const adapter = {
   },
 
   async invoke(capability, request, ctx) {
-    if (TEXT_CAPS.has(capability)) return invokeText(request, ctx);
-    if (capability === 'image-edit') return invokeImageEdit(request, ctx);
-    if (capability === 'tts') return invokeTts(request, ctx);
-    if (capability === 'asr') return invokeAsr(request, ctx);
-    if (capability === 'image') return invokeImage(request, ctx);
-    if (capability === 'video') return invokeVideo(request, ctx);
-    if (capability === 'lipsync') return invokeLipsync(request, ctx);
-    if (capability === 'music') return invokeMusic(request, ctx);
-    throw gatewayError('bad_request', `dashscope 暂未实现能力 ${capability}`, { providerId: 'dashscope' });
+    return dispatchInvoke(capability, request, ctx);
+  },
+
+  // 真·流式：文本能力走 compatible-mode SSE 增量；非文本能力退回一次性后整体 emit
+  async invokeStream(capability, request, ctx, emit) {
+    if (TEXT_CAPS.has(capability)) return invokeTextStream(request, ctx, emit);
+    const r = await dispatchInvoke(capability, request, ctx);
+    if (r.text) emit(r.text);
+    return r;
   },
 };
 
+function dispatchInvoke(capability, request, ctx) {
+  if (TEXT_CAPS.has(capability)) return invokeText(request, ctx);
+  if (capability === 'image-edit') return invokeImageEdit(request, ctx);
+  if (capability === 'tts') return invokeTts(request, ctx);
+  if (capability === 'asr') return invokeAsr(request, ctx);
+  if (capability === 'image') return invokeImage(request, ctx);
+  if (capability === 'video') return invokeVideo(request, ctx);
+  if (capability === 'lipsync') return invokeLipsync(request, ctx);
+  if (capability === 'music') return invokeMusic(request, ctx);
+  throw gatewayError('bad_request', `dashscope 暂未实现能力 ${capability}`, { providerId: 'dashscope' });
+}
+
+const textBody = (request) => ({
+  model: request.model,
+  messages: request.system ? [{ role: 'system', content: request.system }, ...request.messages] : request.messages,
+  max_tokens: request.maxTokens || 2048,
+});
+
 async function invokeText(request, ctx) {
-  const messages = request.system ? [{ role: 'system', content: request.system }, ...request.messages] : request.messages;
   const data = await ctx.fetchJson(`${BASE}/compatible-mode/v1/chat/completions`, {
     headers: auth(ctx.env),
-    body: { model: request.model, messages, max_tokens: request.maxTokens || 2048 },
+    body: textBody(request),
     timeoutMs: 60000,   // 文本 60s 封顶，避免默认 120s 死等
   });
   const text = data.choices?.[0]?.message?.content || '';
   if (!text) throw gatewayError('provider_error', 'DashScope 返回空内容', { providerId: 'dashscope' });
   return { text, usage: { inputTokens: data.usage?.prompt_tokens || 0, outputTokens: data.usage?.completion_tokens || 0 } };
+}
+
+async function invokeTextStream(request, ctx, emit) {
+  let text = '';
+  let usage = {};
+  await ctx.fetchStream(`${BASE}/compatible-mode/v1/chat/completions`, {
+    headers: auth(ctx.env),
+    body: { ...textBody(request), stream: true, stream_options: { include_usage: true } },
+    timeoutMs: 60000,
+  }, (data) => {
+    if (data === '[DONE]') return;
+    let j; try { j = JSON.parse(data); } catch { return; }
+    const delta = j.choices?.[0]?.delta?.content;
+    if (delta) { text += delta; emit(delta); }
+    if (j.usage) usage = { inputTokens: j.usage.prompt_tokens || 0, outputTokens: j.usage.completion_tokens || 0 };
+  });
+  if (!text) throw gatewayError('provider_error', 'DashScope 流式返回空内容', { providerId: 'dashscope' });
+  return { text, usage };
 }
 
 const MULTIMODAL = `${BASE}/api/v1/services/aigc/multimodal-generation/generation`;
