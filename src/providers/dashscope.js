@@ -145,7 +145,8 @@ async function invokeImage(request, ctx) {
   const size = SIZE_BY_ASPECT[request.aspect] || '1024*1024';
   const submit = await ctx.fetchJson(T2I_SUBMIT, {
     headers: { ...auth(ctx.env), 'X-DashScope-Async': 'enable' }, timeoutMs: 30000,
-    body: { model: request.model, input: { prompt: request.prompt, negative_prompt: [DEFAULT_NEG, request.negativePrompt].filter(Boolean).join(', ') }, parameters: { size, n, prompt_extend: true } },
+    // prompt_extend 默认开（智能扩写美化）；但指定具体外形时要关掉，否则改写会把「银色短发」等具体设定洗掉
+    body: { model: request.model, input: { prompt: request.prompt, negative_prompt: [DEFAULT_NEG, request.negativePrompt].filter(Boolean).join(', ') }, parameters: { size, n, prompt_extend: request.promptExtend !== false } },
   });
   const taskId = submit.output?.task_id;
   if (!taskId) throw gatewayError('provider_error', `万相未返回 task_id: ${JSON.stringify(submit).slice(0, 200)}`, { providerId: 'dashscope' });

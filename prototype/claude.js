@@ -190,7 +190,8 @@ async function renderProfile(body) {
       </div>
     </div>
     <div class="look-edit" id="profLookForm" hidden>
-      <input id="profLookStyle" type="text" placeholder="选填：风格/场景，如 影棚柔光、纯色背景、清新外景…">
+      <input id="profLookStyle" type="text" placeholder="新外形描述，如：齐耳银色短发、清冷妆感、米色西装…">
+      <div class="look-edit-note">填写即<b>替换 Ta 的「外形」设定</b>（后续写真/视频也会用新外形）；留空＝按现有外形重出一张。</div>
       <div class="look-edit-row">
         <button class="op-gen" id="profLookGen" style="margin-left:0">✦ 生成新定妆照</button>
         <button class="profile-btn" id="profLookCancel" style="flex:0 0 auto;min-width:0">取消</button>
@@ -237,8 +238,8 @@ async function regenPortrait() {
   if (!state.current) return;
   const msg = $('#profLookMsg'); const btn = $('#profLookGen');
   const stylePrompt = ($('#profLookStyle').value || '').trim();
-  btn.disabled = true; setMsg(msg, '正在生成新定妆照…（约 20 秒）', true);
-  const r = await api(`/api/artist/${encodeURIComponent(state.current.id)}/portrait`, { stylePrompt, makePrimary: true });
+  btn.disabled = true; setMsg(msg, stylePrompt ? '正在按新外形生成定妆照…（约 20 秒）' : '正在重出定妆照…（约 20 秒）', true);
+  const r = await api(`/api/artist/${encodeURIComponent(state.current.id)}/portrait`, { stylePrompt, makePrimary: true, overrideLook: !!stylePrompt });
   if (r.error || !(r.artist && r.artist.portraits)) { setMsg(msg, (r.error && r.error.message) || '出图失败', false, true); btn.disabled = false; return; }
   state.current = r.artist;
   const idx = state.artists.findIndex((a) => a.id === r.artist.id); if (idx >= 0) state.artists[idx] = r.artist;

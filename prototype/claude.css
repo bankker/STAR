@@ -207,6 +207,8 @@ button { font-family: inherit; cursor: pointer; }
 .look-edit { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-top: 12px; }
 .look-edit input { width: 100%; border: 1px solid var(--line-2); border-radius: 11px; background: var(--surface); font-size: 14px; color: var(--ink); padding: 10px 12px; outline: none; }
 .look-edit input:focus { border-color: color-mix(in srgb, var(--brand) 55%, var(--line-2)); }
+.look-edit-note { font-size: 11.5px; color: var(--ink-3); line-height: 1.5; margin-top: 8px; }
+.look-edit-note b { color: var(--brand); font-weight: 700; }
 .look-edit-row { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
 .profile-persona { font-family: var(--serif); font-size: 17px; line-height: 1.62; color: var(--ink); margin: 20px 2px 4px; }
 .profile-section { margin-top: 22px; }
