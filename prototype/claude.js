@@ -18,7 +18,7 @@ function toast(msg) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
 }
 
-const state = { artists: [], current: null, mode: 'chat', busy: false, panel: 'profile', chat: null, gallery: [] };
+const state = { artists: [], current: null, mode: 'chat', busy: false, panel: 'profile', chat: null, gallery: [], creating: false, create: null, createMsgs: [] };
 
 const STAGES = [[0, '陌生'], [20, '初识'], [40, '朋友'], [58, '暧昧'], [75, '恋人'], [92, '灵魂伴侣']];
 const stageName = (a) => { let n = '陌生'; STAGES.forEach(([m, s]) => { if ((a || 0) >= m) n = s; }); return n; };
@@ -53,7 +53,7 @@ async function loadArtists() {
 async function openArtist(id) {
   const a = state.artists.find((x) => x.id === id);
   if (!a) return;
-  state.current = a; state.mode = 'chat'; state.chat = null; state.gallery = [];
+  state.current = a; state.mode = 'chat'; state.chat = null; state.gallery = []; state.creating = false;
   exitMode(); resetDeep();
   $('#convEmpty').hidden = true; $('#conv').hidden = false;
   $('#rpanel').hidden = false;
@@ -808,44 +808,163 @@ function assetTile(a) {
   return `<div class="op-tile"><div class="asset-media">${media}<span class="asset-badge">${esc(badge)}</span></div>${cap ? `<div class="op-tile-cap">${cap}</div>` : ''}</div>`;
 }
 
-/* —— 新建艺人（右栏表单，POST /api/artist）—— */
-function renderCreate(body) {
-  body.innerHTML = `<div class="rp-col">
-    <p class="op-intro">填几项关键设定就能把 Ta 创设出来；之后可以继续在对话里养成。带 * 为必填。</p>
-    <div class="cr-field"><label>艺名 *</label><input id="crName" type="text" placeholder="如：陈恩珠"></div>
-    <div class="cr-field"><label>性别</label><input id="crGender" type="text" placeholder="如：女 / 男"></div>
-    <div class="cr-field"><label>一句话人设</label><input id="crPersona" type="text" placeholder="如：清新邻家、灵动会发光的女孩"></div>
-    <div class="cr-field"><label>定位</label><input id="crPos" type="text" placeholder="如：唱跳偶像 / 治愈系歌手"></div>
-    <div class="cr-field"><label>性格标签（逗号分隔）</label><input id="crTags" type="text" placeholder="如：温柔, 俏皮, 倔强"></div>
-    <div class="cr-field"><label>背景故事</label><textarea id="crBack" rows="3" placeholder="选填：Ta 的来历、梦想、小秘密…"></textarea></div>
-    <div class="profile-actions">
-      <button class="profile-btn primary" id="crSubmit">✦ 创建艺人</button>
-      <button class="profile-btn" id="crCancel">取消</button>
-    </div>
-    <div class="op-status" id="opStatus"></div>
-  </div>`;
-  $('#crCancel').addEventListener('click', () => { if (state.current) setPanel('profile'); else { $('#rpanel').hidden = true; } });
-  $('#crSubmit').addEventListener('click', createArtist);
-  $('#crName').focus();
+/* ══════════════════════════════════════════
+   新建艺人：左栏对话「和星探捏人」，右栏看艺人成形 + 定妆照
+   ══════════════════════════════════════════ */
+const CREATE_OPENING = '我们一起来捏一位虚拟艺人吧 ✨ 先说说，你想要一位什么气质的 Ta？比如「清冷御姐」「元气邻家少女」「痞帅少年」——也可以直接报个艺名或人设方向。';
+function startCreate() {
+  state.creating = true; state.current = null; state.mode = 'chat'; state.chat = null; state.gallery = [];
+  resetDeep();
+  state.create = { phase: 'chat', draft: null, artistId: null, artist: null };
+  state.createMsgs = [{ role: 'assistant', content: CREATE_OPENING }];
+  loadArtists();
+  $('#convEmpty').hidden = true; $('#conv').hidden = false;
+  renderCreateHead();
+  const ti = $('#threadInner'); ti.innerHTML = ''; $('#suggest').innerHTML = '';
+  addMsg('ai', CREATE_OPENING);
+  $('#input').placeholder = '描述你想要的艺人…';
+  $('#rpanel').hidden = false; setPanel('create');
+  $('#input').focus();
 }
-async function createArtist() {
-  const name = $('#crName').value.trim();
-  if (!name) { $('#crName').focus(); setStatus('请先填艺名', false, true); return; }
-  const profile = {
-    name,
-    gender: $('#crGender').value.trim(),
-    persona: $('#crPersona').value.trim(),
-    positioning: $('#crPos').value.trim(),
-    personality: $('#crTags').value.split(/[,，]/).map((s) => s.trim()).filter(Boolean),
-    backstory: $('#crBack').value.trim(),
-  };
-  const btn = $('#crSubmit'); btn.disabled = true; setStatus('创建中…', true);
-  const r = await api('/api/artist', { profile });
-  btn.disabled = false;
-  if (r.error || !r.id) { setStatus((r.error && r.error.message) || '创建失败', false, true); return; }
-  toast('已创建 ' + name);
+function renderCreateHead() {
+  $('#convHead').innerHTML = `<button class="ch-id" id="chId" title="新建艺人">
+    <span class="ch-av">✶</span>
+    <span class="ch-idtext"><span class="ch-name">新建艺人</span><span class="ch-meta">和星探聊聊，捏一位你的虚拟艺人</span></span>
+  </button>`;
+  $('#chId').addEventListener('click', () => setPanel('create'));
+}
+async function sendCreate(text) {
+  addMsg('user', text);
+  state.createMsgs.push({ role: 'user', content: text });
+  const ph = addMsg('ai', '', true);
+  const textEl = ph.querySelector('.msg-text');
+  state.busy = true; $('#send').disabled = true;
+  let acc = '';
+  try {
+    await sseStream('/api/artist/interview/stream', { messages: state.createMsgs }, (ev, p) => {
+      if (ev === 'token') { acc += p.t; textEl.textContent = acc; scrollDown(); }
+      else if (ev === 'done') { textEl.classList.remove('typing'); textEl.innerHTML = renderActs(p.reply || acc); state.createMsgs.push({ role: 'assistant', content: p.reply || acc }); scrollDown(); }
+      else if (ev === 'error') { textEl.classList.remove('typing'); textEl.textContent = p.message || '出错了'; }
+    });
+    if (!acc && !textEl.textContent) { textEl.classList.remove('typing'); textEl.textContent = '（没有回复）'; }
+  } catch (e) { textEl.classList.remove('typing'); textEl.textContent = '连接失败：' + e.message; }
+  state.busy = false; $('#send').disabled = false;
+  if (state.panel === 'create' && state.create.phase === 'chat') renderPanel();   // 解锁「生成档案」
+}
+
+/* 右栏：三态——构思中 / 档案草稿 / 已创建（生成定妆照）*/
+function renderCreate(body) {
+  const c = state.create || { phase: 'chat' };
+  if (c.phase === 'created') return renderCreatedPanel(body);
+  if (c.phase === 'draft') return renderDraftPanel(body);
+  return renderCreateChatPanel(body);
+}
+function renderCreateChatPanel(body) {
+  const canFinalize = state.createMsgs.filter((m) => m.role === 'user').length >= 1;
+  body.innerHTML = `<div class="rp-col">
+    <div class="op-soon">
+      <span class="badge">构思中</span>
+      <div class="op-soon-h">和左边的星探聊聊你想要的 Ta</div>
+      <p>气质人设、性别、音乐与内容风格、外貌、艺名想法……聊到差不多了，点下面让 AI 把 Ta 的档案生成出来，你还能复核。</p>
+    </div>
+    <button class="op-gen" id="crFinalize" style="margin-left:0"${canFinalize ? '' : ' disabled'}>✦ 根据对话生成档案</button>
+    <div class="op-status" id="crMsg">${canFinalize ? '' : '先和星探聊几句…'}</div>
+  </div>`;
+  const b = $('#crFinalize'); if (b) b.addEventListener('click', finalizeCreate);
+}
+async function finalizeCreate() {
+  const msg = $('#crMsg'); const btn = $('#crFinalize');
+  if (btn) btn.disabled = true; setMsg(msg, '正在生成档案…', true);
+  const r = await api('/api/artist/finalize', { transcript: state.createMsgs });
+  if (r.error || !r.draft) { setMsg(msg, (r.error && r.error.message) || '生成档案失败', false, true); if (btn) btn.disabled = false; return; }
+  state.create.draft = r.draft; state.create.phase = 'draft';
+  renderPanel();
+}
+function draftAttr(k, v) { return v ? `<div class="attr"><div class="attr-k">${esc(k)}</div><div class="attr-v">${esc(v)}</div></div>` : ''; }
+function renderDraftPanel(body) {
+  const d = state.create.draft || {};
+  const tags = (d.personality || []).map((t) => `<span class="tag">${esc(t)}</span>`).join('');
+  body.innerHTML = `<div class="rp-col">
+    <p class="op-intro">这是星探为你拟的档案草稿，满意就创建；想改可以「继续聊」再生成。</p>
+    <div class="draft-card">
+      <div class="draft-name">${esc(d.name || '未命名')}</div>
+      <div class="profile-hero-line" style="margin-top:8px">
+        ${d.gender ? `<span class="tag">${esc(d.gender)}</span>` : ''}
+        ${d.positioning ? `<span class="tag">${esc(d.positioning)}</span>` : ''}
+      </div>
+      ${d.persona ? `<div class="profile-persona" style="margin:14px 0 4px">${esc(d.persona)}</div>` : ''}
+      ${tags ? `<div class="tagrow" style="margin-top:10px">${tags}</div>` : ''}
+      <div class="profile-section" style="margin-top:16px">
+        ${draftAttr('核心魅力', d.coreAppeal)}
+        ${draftAttr('说话风格', d.speakingStyle)}
+        ${draftAttr('声音', d.voiceProfile && d.voiceProfile.description)}
+        ${draftAttr('外形', d.visualIdentity)}
+        ${draftAttr('音乐', d.musicStyle)}
+        ${d.backstory ? `<div class="attr" style="margin-top:11px"><div class="attr-k">背景</div><div class="attr-v">${esc(d.backstory)}</div></div>` : ''}
+      </div>
+    </div>
+    <div class="profile-actions">
+      <button class="profile-btn primary" id="crCreate">✦ 创建这位艺人</button>
+      <button class="profile-btn" id="crBack">继续聊</button>
+    </div>
+    <div class="op-status" id="crMsg"></div>
+  </div>`;
+  $('#crCreate').addEventListener('click', doCreateFromDraft);
+  $('#crBack').addEventListener('click', () => { state.create.phase = 'chat'; renderPanel(); });
+}
+async function doCreateFromDraft() {
+  const msg = $('#crMsg'); const btn = $('#crCreate');
+  btn.disabled = true; setMsg(msg, '创建中…', true);
+  const r = await api('/api/artist', { profile: state.create.draft });
+  if (r.error || !r.id) { setMsg(msg, (r.error && r.error.message) || '创建失败', false, true); btn.disabled = false; return; }
+  state.create.phase = 'created'; state.create.artistId = r.id; state.create.artist = r.artist;
   await loadArtists();
-  openArtist(r.id);
+  const closing = `🎉 ${r.artist.name} 诞生啦！右边可以给 Ta 拍一张定妆照，或直接进入工作台开始相处。`;
+  state.createMsgs.push({ role: 'assistant', content: closing });
+  addMsg('ai', closing);
+  toast('已创建 ' + r.artist.name);
+  renderPanel();
+}
+function renderCreatedPanel(body) {
+  const a = state.create.artist || {};
+  const av = avatarOf(a);
+  body.innerHTML = `<div class="rp-col">
+    <div class="profile-hero">
+      ${av ? `<img src="${esc(av)}" alt="">` : '<div class="profile-hero-ph">🎭</div>'}
+      <div class="profile-hero-grad"></div>
+      <div class="profile-hero-cap"><div class="profile-hero-name">${esc(a.name || '')}</div>
+        <div class="profile-hero-line">${a.positioning ? `<span class="profile-chip">${esc(a.positioning)}</span>` : ''}</div></div>
+    </div>
+    ${a.persona ? `<div class="profile-persona">${esc(a.persona)}</div>` : ''}
+    <div class="op-form" style="margin-top:16px">
+      <div class="dp-fin-h">✦ 定妆照</div>
+      <div class="dp-fin-hint">为 Ta 生成第一张正式形象照（也会成为头像）。</div>
+      <input id="crLookStyle" type="text" placeholder="选填：风格/场景，如 影棚柔光、纯色背景…" style="width:100%;border:1px solid var(--line-2);border-radius:11px;background:var(--surface);font-size:14px;color:var(--ink);padding:10px 12px;outline:none">
+      <button class="op-gen" id="crPortraitBtn" style="margin-left:0;margin-top:12px">✦ 生成定妆照</button>
+      <div class="op-status" id="crPortraitMsg"></div>
+      <div id="crPortraitArea"></div>
+    </div>
+    <div class="profile-actions">
+      <button class="profile-btn primary" id="crEnter">进入 Ta 的工作台 →</button>
+    </div>
+  </div>`;
+  $('#crPortraitBtn').addEventListener('click', genCreatePortrait);
+  $('#crEnter').addEventListener('click', () => { const id = state.create.artistId; state.creating = false; openArtist(id); });
+}
+async function genCreatePortrait() {
+  const msg = $('#crPortraitMsg'); const btn = $('#crPortraitBtn');
+  const stylePrompt = ($('#crLookStyle').value || '').trim();
+  btn.disabled = true; setMsg(msg, '正在拍定妆照…', true);
+  const r = await api(`/api/artist/${encodeURIComponent(state.create.artistId)}/portrait`, { stylePrompt });
+  btn.disabled = false;
+  if (r.error || !(r.portrait && r.portrait.url)) { setMsg(msg, (r.error && r.error.message) || '出图失败', false, true); return; }
+  setMsg(msg, '定妆照好啦 ✨', false);
+  state.create.artist = r.artist || state.create.artist;
+  $('#crPortraitArea').innerHTML = `<div class="op-tile" style="margin-top:12px"><img src="${esc(r.portrait.url)}" alt=""></div>`;
+  // 同步 hero 头像
+  const heroImg = document.querySelector('.profile-hero');
+  if (heroImg) heroImg.innerHTML = `<img src="${esc(r.portrait.url)}" alt=""><div class="profile-hero-grad"></div><div class="profile-hero-cap"><div class="profile-hero-name">${esc(state.create.artist.name || '')}</div></div>`;
+  loadArtists();
 }
 
 /* ── 异步任务轮询 / SSE 工具 ── */
@@ -884,8 +1003,10 @@ async function sseStream(url, body, onEvent) {
 async function send() {
   const input = $('#input');
   const text = input.value.trim();
-  if (!text || !state.current || state.busy) return;
+  if (!text || state.busy) return;
   input.value = ''; autoGrow(); $('#suggest').innerHTML = '';
+  if (state.creating) return sendCreate(text);
+  if (!state.current) return;
   if (state.mode === 'photo') return createPhotoInline(text);
   if (state.mode === 'video' || state.mode === 'music') return createMediaInline(state.mode, text);
   addMsg('user', text);
@@ -1023,10 +1144,7 @@ const setHint = (h) => { const el = $('#composerHint'); if (el) el.textContent =
 /* ── 初始化 ── */
 function autoGrow() { const t = $('#input'); t.style.height = 'auto'; t.style.height = Math.min(180, t.scrollHeight) + 'px'; }
 function init() {
-  $('#newArtist').addEventListener('click', () => {
-    $('#convEmpty').hidden = state.current ? true : false;
-    setPanel('create');
-  });
+  $('#newArtist').addEventListener('click', startCreate);
   $('#rpanelBack').addEventListener('click', () => setPanel('profile'));
   $('#send').addEventListener('click', send);
   const input = $('#input');
