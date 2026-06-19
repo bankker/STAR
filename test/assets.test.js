@@ -34,9 +34,16 @@ test('非法 artistId 抛错', () => {
 });
 
 test('buildPhotoPrompt 注入视觉档案与景别', () => {
-  const p = buildPhotoPrompt({ visualIdentity: '银发冷色调' }, { shot: '近景', stylePrompt: '霓虹' });
+  const { prompt: p } = buildPhotoPrompt({ visualIdentity: '银发冷色调' }, { shot: '近景', stylePrompt: '霓虹' });
   assert.match(p, /银发冷色调/);
   assert.match(p, /近景|特写/);
   assert.match(p, /霓虹/);
   assert.match(p, /SFW/);
+});
+
+test('buildPhotoPrompt 外形里的「不要X」进负向、不进正向（修复总出扇子）', () => {
+  const { prompt, negative } = buildPhotoPrompt({ visualIdentity: '邻家女孩，不要带扇子', persona: '清新', positioning: '歌手' });
+  assert.doesNotMatch(prompt, /扇子/);   // 正向不再出现被否定物
+  assert.match(prompt, /邻家女孩/);       // 非否定部分保留
+  assert.match(negative, /扇子/);         // 否定物进负向
 });

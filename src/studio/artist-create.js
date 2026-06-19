@@ -50,19 +50,38 @@ export function extractProfileJson(text) {
   catch { throw new Error('响应中 JSON 解析失败'); }
 }
 
+// 把外形描述里的「否定子句」拆到负向提示词——图像模型无法理解「不要X」，写在正向里反而会画出 X（扇子等）。
+// 否定子句（不要带扇子/没有刘海/去掉眼镜…）→ 提取被否定物（扇子/刘海/眼镜）进 negative；其余留在 positive。
+const LOOK_NEG_RE = /^(?:不要|不想要|不带|不需要|不能|没有|别|去掉|去除|避免|拒绝|不出现|不可以|不准|不许|禁止|不再|no|without)\s*(?:再)?\s*(?:带|戴|有|出现|穿|拿|拿着|带着|包含|包括|配|附带)?\s*/i;
+export function splitLook(text) {
+  const t = (text || '').trim();
+  const pos = [], neg = [];
+  if (t) for (const raw of t.split(/[，,、。.;；\n]+/)) {
+    const c = raw.trim(); if (!c) continue;
+    if (LOOK_NEG_RE.test(c)) { const x = c.replace(LOOK_NEG_RE, '').trim(); if (x) neg.push(x); }
+    else pos.push(c);
+  }
+  return { positive: pos.join('，'), negative: neg.join(', ') };
+}
+
 // 定妆照专用：强制头肩特写大头照（不出全身），背景虚化、棚拍布光
 const PORTRAIT_QUALITY = '精致立体的五官，皮肤质感真实细腻有光泽，专业棚拍柔光布光，85mm 人像镜头浅景深、背景虚化，高级感氛围，电影级精修调色，超高清';
 const PORTRAIT_FRAME = '头肩特写大头照，镜头只拍头部到肩膀的近距离正脸肖像，脸部居中占据画面主体，杂志封面式肖像构图';
-// opts.overrideLook 非空时，用它作为外形描述（覆盖档案 visualIdentity），并放在最前、加强权重，让「换定妆照」的提示词真正改变外形
+// 返回 { prompt, negative }。opts.overrideLook 非空时，用它作为外形描述（覆盖档案 visualIdentity），放最前加强权重
 export function buildPortraitPrompt(artist, stylePrompt, opts = {}) {
   const look = (opts.overrideLook || '').trim();
   if (look) {
-    // 外形放最前并强调，避免被框架/美学词稀释；具体外形（发型/发色/妆容等）务必如实呈现
-    return [`一位${look}的虚拟人物，外形特征严格按描述呈现：${look}`, PORTRAIT_FRAME, PORTRAIT_QUALITY, 'SFW'].join('，');
+    const lk = splitLook(look);
+    const t = lk.positive || look;
+    return { prompt: [`一位${t}的虚拟人物，外形特征严格按描述呈现：${t}`, PORTRAIT_FRAME, PORTRAIT_QUALITY, 'SFW'].join('，'), negative: lk.negative };
   }
-  const base = (artist.visualIdentity || '').trim() || `${artist.persona || ''} ${artist.positioning || ''} 虚拟艺人`.trim();
-  const style = (stylePrompt || '').trim();
-  return [PORTRAIT_FRAME, base, style, PORTRAIT_QUALITY, '虚拟人物，SFW'].filter(Boolean).join('，');
+  const vi = splitLook(artist.visualIdentity);
+  const st = splitLook(stylePrompt);
+  const base = vi.positive || `${artist.persona || ''} ${artist.positioning || ''} 虚拟艺人`.trim();
+  return {
+    prompt: [PORTRAIT_FRAME, base, st.positive, PORTRAIT_QUALITY, '虚拟人物，SFW'].filter(Boolean).join('，'),
+    negative: [vi.negative, st.negative].filter(Boolean).join(', '),
+  };
 }
 
 const SHOT_WORD = { 近景: '近景特写', 中景: '半身中景', 全景: '全身全景' };
@@ -70,9 +89,14 @@ const SHOT_WORD = { 近景: '近景特写', 中景: '半身中景', 全景: '全
 // 美学/摄影质量后缀：精致五官 + 真实皮肤质感 + 专业布光 + 人像镜头 + 电影级调色，整体更耐看
 const QUALITY_SUFFIX = '超高清写真大片，精致立体的五官，五官端正比例协调，干净通透的皮肤质感与自然细腻的光泽，专业棚拍柔光布光，85mm 人像镜头浅景深，高级感氛围，电影级精修调色，写实细节丰富';
 
+// 返回 { prompt, negative }
 export function buildPhotoPrompt(artist, opts = {}) {
-  const base = (artist?.visualIdentity || '').trim() || `${artist?.persona || ''} ${artist?.positioning || ''} 虚拟艺人`.trim();
+  const vi = splitLook(artist?.visualIdentity);
+  const st = splitLook(opts.stylePrompt);
+  const base = vi.positive || `${artist?.persona || ''} ${artist?.positioning || ''} 虚拟艺人`.trim();
   const shot = SHOT_WORD[opts.shot] || opts.shot || '';
-  const style = (opts.stylePrompt || '').trim();
-  return [base, shot, style, QUALITY_SUFFIX, '虚拟人物，SFW'].filter(Boolean).join('，');
+  return {
+    prompt: [base, shot, st.positive, QUALITY_SUFFIX, '虚拟人物，SFW'].filter(Boolean).join('，'),
+    negative: [vi.negative, st.negative].filter(Boolean).join(', '),
+  };
 }

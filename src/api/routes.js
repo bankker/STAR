@@ -367,9 +367,9 @@ export function registerRoutes(route) {
     try {
       // overrideLook：把输入作为新外形（覆盖 visualIdentity 出图，并写回档案「外形」设定，使其对后续写真/视频也生效）
       const look = body.overrideLook ? String(body.stylePrompt || '').trim() : '';
-      const prompt = buildPortraitPrompt(artist, body.stylePrompt, { overrideLook: look });
-      // 指定新外形时关掉智能扩写，确保「银色短发」等具体外形被如实采纳
-      const r = await execute('image', { prompt, refImages: [], aspect: '3:4', promptExtend: !look, negativePrompt: '全身, 全身照, 站姿全身, 远景, 大长腿, 露出双腿, 半身以下' });
+      const { prompt, negative } = buildPortraitPrompt(artist, body.stylePrompt, { overrideLook: look });
+      // 指定新外形时关掉智能扩写，确保「银色短发」等具体外形被如实采纳；外形里的否定项并入负向词
+      const r = await execute('image', { prompt, refImages: [], aspect: '3:4', promptExtend: !look, negativePrompt: ['全身, 全身照, 站姿全身, 远景, 大长腿, 露出双腿, 半身以下', negative].filter(Boolean).join(', ') });
       const url = r.files?.[0]?.url;
       if (!url) return jsonError(res, 'provider_error', '图像生成未返回文件');
       // makePrimary：把新定妆照置为头像（portraits[0]）——用于「换定妆照」
@@ -471,8 +471,8 @@ export function registerRoutes(route) {
     const artist = getArtist(params.id);
     if (!artist) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
     try {
-      const prompt = buildPhotoPrompt(artist, { shot: body.shot, stylePrompt: body.stylePrompt });
-      const r = await execute('image', { prompt, aspect: body.aspect || '3:4', count: Number(body.count) || 1 });
+      const { prompt, negative } = buildPhotoPrompt(artist, { shot: body.shot, stylePrompt: body.stylePrompt });
+      const r = await execute('image', { prompt, aspect: body.aspect || '3:4', count: Number(body.count) || 1, negativePrompt: negative });
       const items = (r.files || []).map((f) => ({ type: 'photo', url: f.url, prompt, shot: body.shot || '', aspect: body.aspect || '3:4' }));
       const g = addAssets(params.id, items);
       json(res, { assets: g.assets.slice(0, items.length), provider: r.provider, model: r.model });

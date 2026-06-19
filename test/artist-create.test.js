@@ -38,11 +38,11 @@ test('extractProfileJson 容忍围栏与多余文字', () => {
 });
 
 test('buildPortraitPrompt 以视觉档案为主，追加风格与安全词', () => {
-  const p = buildPortraitPrompt({ visualIdentity: '银发冷色调，未来感' }, '霓虹背景');
+  const { prompt: p } = buildPortraitPrompt({ visualIdentity: '银发冷色调，未来感' }, '霓虹背景');
   assert.match(p, /银发冷色调/);
   assert.match(p, /霓虹背景/);
   assert.match(p, /SFW/);
-  const p2 = buildPortraitPrompt({ persona: '元气', positioning: '综艺偶像' }, '');
+  const { prompt: p2 } = buildPortraitPrompt({ persona: '元气', positioning: '综艺偶像' }, '');
   assert.match(p2, /元气|综艺偶像/);
 });
 
