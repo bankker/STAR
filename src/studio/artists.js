@@ -97,12 +97,14 @@ export function deleteArtist(id) {
   return true;
 }
 
-export function addPortrait(id, portrait) {
+export function addPortrait(id, portrait, opts = {}) {
   const arr = readArtists();
   const i = arr.findIndex((a) => a.id === id);
   if (i === -1) return null;
   arr[i].portraits = arr[i].portraits || [];
-  arr[i].portraits.push({ url: portrait.url, prompt: STR(portrait.prompt), createdAt: new Date().toISOString() });
+  const entry = { url: portrait.url, prompt: STR(portrait.prompt), createdAt: new Date().toISOString() };
+  // primary：放到队首，使其成为头像/定妆照（portraits[0]）；否则追加
+  if (opts.primary) arr[i].portraits.unshift(entry); else arr[i].portraits.push(entry);
   arr[i].updatedAt = new Date().toISOString();
   writeArtists(arr);
   return arr[i];

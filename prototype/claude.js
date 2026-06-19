@@ -179,6 +179,7 @@ async function renderProfile(body) {
     <div class="profile-hero">
       ${av ? `<img src="${esc(av)}" alt="">` : '<div class="profile-hero-ph">🎭</div>'}
       <div class="profile-hero-grad"></div>
+      <button class="hero-edit" id="profEditLook" title="换定妆照">✦ 换定妆照</button>
       <div class="profile-hero-cap">
         <div class="profile-hero-name">${esc(a.name || '未命名')}</div>
         <div class="profile-hero-line">
@@ -187,6 +188,14 @@ async function renderProfile(body) {
           ${a.positioning ? `<span class="profile-chip">${esc(a.positioning)}</span>` : ''}
         </div>
       </div>
+    </div>
+    <div class="look-edit" id="profLookForm" hidden>
+      <input id="profLookStyle" type="text" placeholder="选填：风格/场景，如 影棚柔光、纯色背景、清新外景…">
+      <div class="look-edit-row">
+        <button class="op-gen" id="profLookGen" style="margin-left:0">✦ 生成新定妆照</button>
+        <button class="profile-btn" id="profLookCancel" style="flex:0 0 auto;min-width:0">取消</button>
+      </div>
+      <div class="op-status" id="profLookMsg"></div>
     </div>
     ${a.persona ? `<div class="profile-persona">${esc(a.persona)}</div>` : ''}
     ${tags ? `<div class="profile-section"><div class="profile-section-h">性格</div><div class="tagrow">${tags}</div></div>` : ''}
@@ -211,6 +220,10 @@ async function renderProfile(body) {
     </div>
   </div>`;
   body.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => setPanel(b.dataset.go)));
+  // 换定妆照
+  $('#profEditLook').addEventListener('click', () => { const f = $('#profLookForm'); f.hidden = !f.hidden; if (!f.hidden) $('#profLookStyle').focus(); });
+  $('#profLookCancel').addEventListener('click', () => { $('#profLookForm').hidden = true; });
+  $('#profLookGen').addEventListener('click', regenPortrait);
   // 最近作品（异步填充，不阻塞资料渲染）
   const g = await loadGallery();
   const recent = g.filter((x) => isImg(x.url) || isVid(x.url)).slice(0, 8);
@@ -218,6 +231,20 @@ async function renderProfile(body) {
     $('#recentWrap').hidden = false;
     $('#recentStrip').innerHTML = recent.map((x) => `<div class="rs">${isVid(x.url) ? `<video src="${esc(x.url)}" muted></video>` : `<img src="${esc(x.url)}" alt="" loading="lazy">`}</div>`).join('');
   }
+}
+/* 换定妆照：重新生成并置为头像（portraits[0]）*/
+async function regenPortrait() {
+  if (!state.current) return;
+  const msg = $('#profLookMsg'); const btn = $('#profLookGen');
+  const stylePrompt = ($('#profLookStyle').value || '').trim();
+  btn.disabled = true; setMsg(msg, '正在生成新定妆照…（约 20 秒）', true);
+  const r = await api(`/api/artist/${encodeURIComponent(state.current.id)}/portrait`, { stylePrompt, makePrimary: true });
+  if (r.error || !(r.artist && r.artist.portraits)) { setMsg(msg, (r.error && r.error.message) || '出图失败', false, true); btn.disabled = false; return; }
+  state.current = r.artist;
+  const idx = state.artists.findIndex((a) => a.id === r.artist.id); if (idx >= 0) state.artists[idx] = r.artist;
+  toast('定妆照已更新 ✨');
+  loadArtists(); renderHead(state.current, state.chat);
+  if (state.panel === 'profile') renderPanel();   // 重渲染：hero 用新头像
 }
 
 /* —— 写真/视频/音乐/访谈：右栏操作台 —— */
@@ -955,7 +982,7 @@ async function genCreatePortrait() {
   const msg = $('#crPortraitMsg'); const btn = $('#crPortraitBtn');
   const stylePrompt = ($('#crLookStyle').value || '').trim();
   btn.disabled = true; setMsg(msg, '正在拍定妆照…', true);
-  const r = await api(`/api/artist/${encodeURIComponent(state.create.artistId)}/portrait`, { stylePrompt });
+  const r = await api(`/api/artist/${encodeURIComponent(state.create.artistId)}/portrait`, { stylePrompt, makePrimary: true });
   btn.disabled = false;
   if (r.error || !(r.portrait && r.portrait.url)) { setMsg(msg, (r.error && r.error.message) || '出图失败', false, true); return; }
   setMsg(msg, '定妆照好啦 ✨', false);

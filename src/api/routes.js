@@ -369,8 +369,9 @@ export function registerRoutes(route) {
       const r = await execute('image', { prompt, refImages: [], aspect: '3:4', negativePrompt: '全身, 全身照, 站姿全身, 远景, 大长腿, 露出双腿, 半身以下' });
       const url = r.files?.[0]?.url;
       if (!url) return jsonError(res, 'provider_error', '图像生成未返回文件');
-      const updated = addPortrait(params.id, { url, prompt });
-      json(res, { portrait: updated.portraits[updated.portraits.length - 1], artist: updated });
+      // makePrimary：把新定妆照置为头像（portraits[0]）——用于「换定妆照」
+      const updated = addPortrait(params.id, { url, prompt }, { primary: body.makePrimary === true });
+      json(res, { portrait: { url, prompt }, artist: updated });
     } catch (e) { sendGatewayError(res, e); }
   });
 
