@@ -366,7 +366,7 @@ export function registerRoutes(route) {
     if (!artist) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
     try {
       const prompt = buildPortraitPrompt(artist, body.stylePrompt);
-      const r = await execute('image', { prompt, refImages: [], aspect: '3:4' });
+      const r = await execute('image', { prompt, refImages: [], aspect: '3:4', negativePrompt: '全身, 全身照, 站姿全身, 远景, 大长腿, 露出双腿, 半身以下' });
       const url = r.files?.[0]?.url;
       if (!url) return jsonError(res, 'provider_error', '图像生成未返回文件');
       const updated = addPortrait(params.id, { url, prompt });

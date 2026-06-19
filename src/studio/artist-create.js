@@ -50,11 +50,13 @@ export function extractProfileJson(text) {
   catch { throw new Error('响应中 JSON 解析失败'); }
 }
 
+// 定妆照专用：强制头肩特写大头照（不出全身），背景虚化、棚拍布光
+const PORTRAIT_QUALITY = '精致立体的五官，皮肤质感真实细腻有光泽，专业棚拍柔光布光，85mm 人像镜头浅景深、背景虚化，高级感氛围，电影级精修调色，超高清';
 export function buildPortraitPrompt(artist, stylePrompt) {
   const base = (artist.visualIdentity || '').trim()
     || `${artist.persona || ''} ${artist.positioning || ''} 虚拟艺人`.trim();
   const style = (stylePrompt || '').trim();
-  return [base, style, QUALITY_SUFFIX, '人像特写定妆照，虚拟人物，SFW'].filter(Boolean).join('，');
+  return ['头肩特写大头照，镜头只拍头部到肩膀的近距离正脸肖像，脸部居中占据画面主体，杂志封面式肖像构图', base, style, PORTRAIT_QUALITY, '虚拟人物，SFW'].filter(Boolean).join('，');
 }
 
 const SHOT_WORD = { 近景: '近景特写', 中景: '半身中景', 全景: '全身全景' };
