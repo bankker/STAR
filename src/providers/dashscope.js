@@ -108,7 +108,10 @@ const TASKS = `${BASE}/api/v1/tasks`;
 const IMG_POLL_MS = 4000;
 const IMG_MAX_MS = 4 * 60 * 1000;
 const imgSleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const SIZE_BY_ASPECT = { '1:1': '1024*1024', '3:4': '768*1024', '9:16': '720*1280', '16:9': '1280*720' };
+// 万相 t2i 边长范围 [768,1440]——拉满分辨率出更多细节（保持各比例）
+const SIZE_BY_ASPECT = { '1:1': '1328*1328', '3:4': '1080*1440', '9:16': '810*1440', '16:9': '1440*810' };
+// 默认负向词：压崩脸/多指/塑料感/阴间光，写真更耐看
+const DEFAULT_NEG = '畸形, 多余的手指, 缺手指, 手部畸形, 五官扭曲, 不对称的脸, 歪脸, 死鱼眼, 模糊, 失焦, 低分辨率, 低质量, 噪点, 塑料感皮肤, 过度磨皮, 蜡像感, 阴间打光, 多余的肢体, 水印, 文字, logo, 丑陋';
 
 // 轮询万相图像 TASKS/{id}，成功后下载所有结果图落盘。submit 已发起、taskId 必有。
 async function pollImageTask(taskId, ctx, failLabel) {
@@ -142,7 +145,7 @@ async function invokeImage(request, ctx) {
   const size = SIZE_BY_ASPECT[request.aspect] || '1024*1024';
   const submit = await ctx.fetchJson(T2I_SUBMIT, {
     headers: { ...auth(ctx.env), 'X-DashScope-Async': 'enable' }, timeoutMs: 30000,
-    body: { model: request.model, input: { prompt: request.prompt }, parameters: { size, n } },
+    body: { model: request.model, input: { prompt: request.prompt, negative_prompt: request.negativePrompt || DEFAULT_NEG }, parameters: { size, n, prompt_extend: true } },
   });
   const taskId = submit.output?.task_id;
   if (!taskId) throw gatewayError('provider_error', `万相未返回 task_id: ${JSON.stringify(submit).slice(0, 200)}`, { providerId: 'dashscope' });

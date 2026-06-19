@@ -54,14 +54,17 @@ export function buildPortraitPrompt(artist, stylePrompt) {
   const base = (artist.visualIdentity || '').trim()
     || `${artist.persona || ''} ${artist.positioning || ''} 虚拟艺人`.trim();
   const style = (stylePrompt || '').trim();
-  return [base, style, '高质量定妆照，人像特写，虚拟人物，SFW'].filter(Boolean).join('，');
+  return [base, style, QUALITY_SUFFIX, '人像特写定妆照，虚拟人物，SFW'].filter(Boolean).join('，');
 }
 
 const SHOT_WORD = { 近景: '近景特写', 中景: '半身中景', 全景: '全身全景' };
+
+// 美学/摄影质量后缀：精致五官 + 真实皮肤质感 + 专业布光 + 人像镜头 + 电影级调色，整体更耐看
+const QUALITY_SUFFIX = '超高清写真大片，精致立体的五官，五官端正比例协调，干净通透的皮肤质感与自然细腻的光泽，专业棚拍柔光布光，85mm 人像镜头浅景深，高级感氛围，电影级精修调色，写实细节丰富';
 
 export function buildPhotoPrompt(artist, opts = {}) {
   const base = (artist?.visualIdentity || '').trim() || `${artist?.persona || ''} ${artist?.positioning || ''} 虚拟艺人`.trim();
   const shot = SHOT_WORD[opts.shot] || opts.shot || '';
   const style = (opts.stylePrompt || '').trim();
-  return [base, shot, style, '高质量写真，虚拟人物，SFW'].filter(Boolean).join('，');
+  return [base, shot, style, QUALITY_SUFFIX, '虚拟人物，SFW'].filter(Boolean).join('，');
 }
