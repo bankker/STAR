@@ -84,6 +84,7 @@ export function newStory(player = {}) {
       resources: { supply: 70, politics: 30, intel: 10 },
     },
     map: structuredClone(SEED_SECTOR),
+    env: { name: '', image: '' }, // 当前所在环境（插画按环境生成，同环境内不变）
     cast: [], fleets: [], log: [], flags: {}, pendingEvent: null,
   };
 }
@@ -116,11 +117,13 @@ export function buildAppraiseMessages(artist) {
 export function buildEventMessages(story, focusArtistId) {
   const system = '你是「银河史诗×恋爱养成」互动游戏的编剧。世界观：新帝国 vs 自由同盟，中立费沙。'
     + '玩家是第一人称、不露脸的指挥官。全程 SFW 情感向。生成"当前回合的一个场景"，'
-    + '只输出 JSON：{"scene":"场景一句话","speakerArtistId":"角色ID","lines":["台词1","台词2"],'
+    + '只输出 JSON：{"location":"本场景所在环境名（如 旗舰舰桥/费沙港口/要塞战术室）","scene":"场景一句话",'
+    + '"speakerArtistId":"角色ID","lines":["台词1","台词2"],'
     + '"choices":[{"text":"选项文案","effects":{"affinity":{"角色ID":8},"resource":{"politics":5},"flag":{"名":true}}}]}。'
-    + '2-3 个选项，effects 字段可缺省。';
+    + '2-3 个选项，effects 字段可缺省。**多数情况下应停留在当前环境（沿用当前环境名作为 location）；仅当剧情确实转移到新地点时才更换 location。**';
   const roster = (story.cast || []).map((c) => `${c.name || c.artistId}(ID=${c.artistId},好感${c.affinity ?? 0},${c.role || ''})`).join('、') || '（暂无角色）';
-  const ctx = `回合 ${story.turn}，玩家阵营 ${story.player?.faction}。在场角色：${roster}。` + (focusArtistId ? `请聚焦角色 ID=${focusArtistId}。` : '');
+  const ctx = `回合 ${story.turn}，玩家阵营 ${story.player?.faction}。当前环境：${story.env?.name || '（开局，尚未抵达任何地点）'}。在场角色：${roster}。`
+    + (focusArtistId ? `请聚焦角色 ID=${focusArtistId}。` : '');
   return { system, messages: [{ role: 'user', content: ctx }] };
 }
 
@@ -141,10 +144,11 @@ export function seedRoles(artists, playerFaction) {
   }));
 }
 
-// ── 场景/战役图像提示词（文生图 16:9 背景）────────────────────────────
-export function buildSceneImagePrompt(scene) {
-  const base = String(scene || '星舰舰桥，星海背景').slice(0, 120);
-  return `${base}。科幻太空歌剧风格的电影级2D场景插画，星舰内部或幽蓝星云背景，氛围光影，宽幅构图，无文字，高质量数字绘画`;
+// ── 环境/战役图像提示词（文生图 16:9 背景）────────────────────────────
+// 注意：画"环境"而非具体剧情，且不含人物（角色立绘另行叠加），以便同环境内复用、不必每事件重绘。
+export function buildSceneImagePrompt(location) {
+  const base = String(location || '星舰舰桥').slice(0, 60);
+  return `${base}，科幻太空歌剧风格的环境场景插画，电影级光影氛围，宽幅构图，空镜无人物，无文字，高质量数字绘画`;
 }
 export function buildBattleImagePrompt(ctx = {}) {
   return `星海舰队大会战，${ctx.terrain || '星云'}星域，宏大的太空战列舰交火，激光火炮与爆炸光芒，电影级科幻概念插画，2D数字绘画，史诗氛围，无文字`;

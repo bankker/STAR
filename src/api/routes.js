@@ -248,15 +248,29 @@ export function registerRoutes(route) {
       const r = await execute('content', { system, messages, maxTokens: 600 });
       const ev = parseJsonLoose(r.text);
       if (!ev || !Array.isArray(ev.choices) || !ev.choices.length) return jsonError(res, 'internal', '事件生成失败，请重试');
-      // 生成场景背景图（best-effort；失败则纯文字）
-      try {
-        const ir = await execute('image', { prompt: buildSceneImagePrompt(ev.scene), aspect: '16:9' });
-        ev.sceneImage = ir.files?.[0]?.url || '';
-      } catch {}
       s.pendingEvent = ev;
       saveStory(s);
-      json(res, { event: ev });
+      // 插画不在此生成：location 与当前环境一致则前端复用现图；变化时前端走 /warp
+      json(res, { event: ev, env: s.env });
     } catch (e) { sendGatewayError(res, e); }
+  });
+
+  // 环境转移：仅当抵达新环境（或尚无环境图）时生成一张环境插画（前端配「曲速引擎驱动中」过场）
+  route('POST /api/stories/:id/warp', async (req, res, { params, readJsonBody }) => {
+    const s = getStory(params.id);
+    if (!s) return jsonError(res, 'not_found', `无此存档 ${params.id}`);
+    const body = await readJsonBody();
+    const location = String(body?.location || '').trim() || s.env?.name || '星舰舰桥';
+    let image = s.env?.image || '';
+    if (location !== s.env?.name || !image) {
+      try {
+        const ir = await execute('image', { prompt: buildSceneImagePrompt(location), aspect: '16:9' });
+        image = ir.files?.[0]?.url || image;
+      } catch {}
+    }
+    s.env = { name: location, image };
+    saveStory(s);
+    json(res, { env: s.env });
   });
 
   // 选择当前事件的一个选项 → 施加效果

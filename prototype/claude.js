@@ -1264,12 +1264,14 @@ function renderStory() {
 function avatarHtml(c, cls) { return c?.portraitUrl ? `<span class="st-av ${cls || ''}"><img src="${esc(c.portraitUrl)}" alt=""/></span>` : `<span class="st-av ${cls || ''}">${esc((c?.name || '✦')[0])}</span>`; }
 function renderEventTab(s) {
   const ev = s.pendingEvent;
-  if (!ev) return `<div class="st-scene-empty"><p>星海静默。推进剧情，看看谁来找你。</p><button class="st-btn-primary" onclick="storyGenEvent()">推进剧情（生成事件＋场景图）</button></div>`;
+  if (!ev) return `<div class="st-scene-empty"><p>星海静默。推进剧情，看看谁来找你。</p><button class="st-btn-primary" onclick="storyGenEvent()">推进剧情</button></div>`;
   const sp = (s.cast || []).find((c) => c.artistId === ev.speakerArtistId);
-  const bg = ev.sceneImage ? `style="background-image:url('${esc(ev.sceneImage)}')"` : '';
+  const envImg = s.env?.image || '';
+  const bg = envImg ? `style="background-image:url('${esc(envImg)}')"` : '';
   const portrait = sp?.portraitUrl ? `<img class="st-portrait" src="${esc(sp.portraitUrl)}" alt=""/>` : '';
+  const envTag = s.env?.name ? `<div class="st-env-tag">◷ ${esc(s.env.name)}</div>` : '';
   return `<div class="st-vn">
-    <div class="st-vn-stage ${ev.sceneImage ? 'has-bg' : ''}" ${bg}>${portrait}<div class="st-scene-cap">${esc(ev.scene || '')}</div></div>
+    <div class="st-vn-stage ${envImg ? 'has-bg' : ''}" ${bg}>${envTag}${portrait}<div class="st-scene-cap">${esc(ev.scene || '')}</div></div>
     <div class="st-dialogue">
       <div class="st-speaker">${avatarHtml(sp)}${esc(sp?.name || '旁白')}${sp ? ` · 好感 ${sp.affinity || 0}` : ''}</div>
       ${(ev.lines || []).map((l) => `<p class="st-line">${esc(l)}</p>`).join('')}
@@ -1311,10 +1313,20 @@ function renderMapTab(s) {
   return `<div class="st-map"><svg viewBox="0 0 560 220">${lane}${node}</svg><div class="st-map-legend">蓝＝同盟 · 橙＝帝国 · 灰＝中立（攻占敌方星系扩大补给）</div></div>`;
 }
 async function storyGenEvent(first) {
-  storyLoading('生成' + (first ? '序章' : '剧情') + '场景与插画…（约 10-15 秒）');
+  storyLoading((first ? '序章生成中' : '推进剧情中') + '…');
   const r = await api(`/api/stories/${storyState.id}/event`, {});
   if (r.error) { toast(r.error.message || '生成失败'); return renderStory(); }
-  storyState.story.pendingEvent = r.event; storyState.tab = 'event'; renderStory();
+  const ev = r.event;
+  if (r.env) storyState.story.env = r.env;
+  const curEnv = storyState.story.env?.name || '';
+  const loc = ev.location || curEnv || '旗舰舰桥';
+  // 仅当转移到新环境（或尚无环境图）才重绘背景，配「曲速引擎驱动中」过场
+  if (loc !== curEnv || !storyState.story.env?.image) {
+    storyLoading('曲速引擎驱动中…抵达「' + loc + '」');
+    const wr = await api(`/api/stories/${storyState.id}/warp`, { location: loc });
+    if (wr.env) storyState.story.env = wr.env;
+  }
+  storyState.story.pendingEvent = ev; storyState.tab = 'event'; renderStory();
 }
 async function storyChoose(i) { const r = await api(`/api/stories/${storyState.id}/choose`, { choiceIndex: i }); if (r.story) { storyState.story = r.story; renderStory(); } }
 async function storyAddCast(artistId) { toast('评定中…'); const r = await api(`/api/stories/${storyState.id}/cast`, { artistId, role: '参谋' }); if (r.story) { storyState.story = r.story; renderStory(); } else toast('选角失败'); }
