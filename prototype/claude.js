@@ -1200,8 +1200,121 @@ function openUserMenu(me) {
   m.querySelector('[data-act="logout"]').onclick = () => { location.href = '/logout'; };
 }
 
+/* ── 故事模式（银河史诗 × 恋爱养成）── */
+const FACTION_COLOR = { '自由同盟': '#67a0e8', '新帝国': '#d98a5a', '中立': '#9a93b8' };
+const STORY_TACTICS = [
+  { k: '突击', d: '正面强攻 · 吃统率 · 克包抄' },
+  { k: '包抄', d: '机动迂回 · 吃谋略 · 克诱敌' },
+  { k: '诱敌', d: '佯退设陷 · 吃谋略魅力 · 克突击' },
+];
+const affStage = (v) => (v >= 80 ? '交心' : v >= 50 ? '信赖' : v >= 20 ? '相识' : '陌生');
+let storyState = { id: null, story: null, tab: 'event', battleResult: null, battleSystem: null };
+
+async function openStoryHome() {
+  const v = $('#storyView'); v.hidden = false; v.innerHTML = '<div class="st-loading">载入星海…</div>';
+  const r = await api('/api/stories');
+  const list = r.stories || [];
+  v.innerHTML = `<div class="st-home"><button class="st-close" onclick="closeStory()">✕</button>
+    <div class="st-home-inner">
+      <div class="st-logo">✦ 故事 · 银河史诗</div>
+      <div class="st-sub">以你的虚拟艺人为主演，崛起于星海乱世。</div>
+      <div class="st-list">${list.map((s) => `<button class="st-card" onclick="openStory('${s.id}')">
+        <div class="st-card-name">${esc(s.name)}</div>
+        <div class="st-card-meta">${esc(s.era)} · 第 ${s.turn} 回合 · ${esc(s.faction || '')} · ${s.castCount} 名角色</div></button>`).join('') || '<div class="st-empty">还没有存档，开一局新的。</div>'}</div>
+      <div class="st-new">
+        <input id="stName" placeholder="指挥官名（如 杨威利）"/>
+        <select id="stFaction"><option value="自由同盟">自由同盟</option><option value="新帝国">新帝国</option></select>
+        <button class="st-btn-primary" onclick="newStoryGame()">开新局 →</button>
+      </div></div></div>`;
+}
+async function newStoryGame() {
+  const name = ($('#stName').value || '').trim() || '指挥官';
+  const faction = $('#stFaction').value;
+  const r = await api('/api/stories', { player: { name, faction } });
+  if (r.story) openStory(r.story.id);
+}
+async function openStory(id) {
+  const r = await api(`/api/stories/${id}`);
+  if (!r.story) return toast('读取失败');
+  storyState = { id, story: r.story, tab: 'event', battleResult: null, battleSystem: null };
+  $('#storyView').hidden = false;
+  renderStory();
+}
+function closeStory() { $('#storyView').hidden = true; }
+function setStoryTab(t) { storyState.tab = t; renderStory(); }
+
+function renderStory() {
+  const s = storyState.story; if (!s) return;
+  const res = s.player.resources;
+  const hud = `<div class="st-hud">
+    <span class="st-era">${esc(s.era)} · 第 ${s.turn} 回合</span>
+    <span class="st-chip" style="--fc:${FACTION_COLOR[s.player.faction] || '#888'}">${esc(s.player.faction)}</span>
+    <span class="st-res">补给 ${res.supply} · 政治 ${res.politics} · 情报 ${res.intel} · 行动点 ${s.player.actionPoints}</span>
+    <button class="st-endturn" onclick="storyEndTurn()">结束回合 →</button>
+    <button class="st-close" onclick="closeStory()">✕</button></div>`;
+  const tabs = { event: '事件', council: '议事厅', battle: '战役', map: '星图' };
+  const nav = `<div class="st-tabs">${Object.entries(tabs).map(([t, n]) => `<button class="${storyState.tab === t ? 'on' : ''}" onclick="setStoryTab('${t}')">${n}</button>`).join('')}</div>`;
+  const body = { event: renderEventTab, council: renderCouncilTab, battle: renderBattleTab, map: renderMapTab }[storyState.tab](s);
+  $('#storyView').innerHTML = `<div class="st-game">${hud}${nav}<div class="st-body">${body}</div></div>`;
+}
+function renderEventTab(s) {
+  const ev = s.pendingEvent;
+  if (!ev) return `<div class="st-scene-empty"><p>星海静默。推进剧情，看看谁来找你。</p><button class="st-btn-primary" onclick="storyGenEvent()">推进剧情（生成事件）</button></div>`;
+  const sp = (s.cast || []).find((c) => c.artistId === ev.speakerArtistId);
+  return `<div class="st-scene"><div class="st-scene-bg">${esc(ev.scene || '')}</div>
+    <div class="st-dialogue">
+      <div class="st-speaker"><span class="st-av">${esc((sp?.name || '✦')[0])}</span>${esc(sp?.name || '旁白')}</div>
+      ${(ev.lines || []).map((l) => `<p class="st-line">${esc(l)}</p>`).join('')}
+      <div class="st-choices">${(ev.choices || []).map((c, i) => `<button onclick="storyChoose(${i})">${esc(c.text)}</button>`).join('')}</div>
+    </div></div>`;
+}
+function renderCouncilTab(s) {
+  const inCast = new Set((s.cast || []).map((c) => c.artistId));
+  const roster = (s.cast || []).map((c) => `<div class="st-member">
+    <span class="st-av big">${esc((c.name || '?')[0])}</span>
+    <div class="st-member-main"><div class="st-member-name">${esc(c.name || c.artistId)} <span class="st-role">${esc(c.role || '')} · ${esc(c.faction || '')}</span></div>
+      <div class="st-aff"><div class="st-aff-bar"><i style="width:${c.affinity || 0}%"></i></div><span>好感 ${c.affinity || 0} · ${affStage(c.affinity || 0)}</span></div>
+      <div class="st-stats">统率 ${c.stats?.统率 ?? '-'} · 谋略 ${c.stats?.谋略 ?? '-'} · 政务 ${c.stats?.政务 ?? '-'} · 魅力 ${c.stats?.魅力 ?? '-'} · 忠诚 ${c.stats?.忠诚 ?? '-'}</div>
+    </div></div>`).join('') || '<div class="st-empty">还没有角色。从下面把艺人选入剧本。</div>';
+  const avail = (state.artists || []).filter((a) => !inCast.has(a.id));
+  const pick = avail.length ? `<div class="st-pick"><div class="st-pick-label">选艺人入局（LLM 依其人设评定数值）</div>${avail.map((a) => `<button onclick="storyAddCast('${a.id}')">＋ ${esc(a.name)}</button>`).join('')}</div>` : '';
+  return `<div class="st-council">${roster}${pick}</div>`;
+}
+function renderBattleTab(s) {
+  const enemy = (s.map?.systems || []).filter((x) => x.faction !== s.player.faction);
+  const sel = storyState.battleSystem || enemy[0]?.id || '';
+  const r = storyState.battleResult;
+  return `<div class="st-battle">
+    <div class="st-battle-pick">目标星系：<select onchange="storyState.battleSystem=this.value">${enemy.map((x) => `<option value="${x.id}" ${x.id === sel ? 'selected' : ''}>${esc(x.name)}（${esc(x.terrain)}·${esc(x.faction)}）</option>`).join('')}</select></div>
+    <div class="st-cards">${STORY_TACTICS.map((t) => `<button class="st-card-tac" onclick="storyBattle('${t.k}')"><b>${t.k}</b><span>${esc(t.d)}</span></button>`).join('')}</div>
+    ${r ? `<div class="st-result ${r.result.winner === 'attacker' ? 'win' : 'lose'}">
+      <div class="st-result-h">${r.result.winner === 'attacker' ? '我军取胜' : '我军失利'} · 我方 ${esc(r.result.myTactic)} vs 敌方 ${esc(r.result.foeTactic)} @ ${esc(r.result.system)}</div>
+      <p class="st-narration">${esc(r.narration || '')}</p>
+      <div class="st-result-meta">战力 ${r.result.powerA} : ${r.result.powerD} · 损失 我 ${r.result.casualties.attacker}% / 敌 ${r.result.casualties.defender}%</div>
+    </div>` : '<div class="st-hint">选一张战法卡发起会战。克制：突击＞包抄＞诱敌＞突击；地形与统率影响胜负。</div>'}
+  </div>`;
+}
+function renderMapTab(s) {
+  const sys = s.map?.systems || []; const lanes = s.map?.lanes || [];
+  const pos = { s1: [80, 60], s2: [260, 40], s3: [170, 140], s4: [430, 150], s5: [310, 160], s6: [490, 70] };
+  const lane = lanes.map(([a, b]) => { const p = pos[a], q = pos[b]; return p && q ? `<line x1="${p[0]}" y1="${p[1]}" x2="${q[0]}" y2="${q[1]}" stroke="#3a3550" stroke-width="1.5"/>` : ''; }).join('');
+  const node = sys.map((x) => { const p = pos[x.id] || [0, 0]; const c = FACTION_COLOR[x.faction] || '#888'; return `<g><circle cx="${p[0]}" cy="${p[1]}" r="13" fill="${c}" opacity="0.85"/><text x="${p[0]}" y="${p[1] + 27}" fill="#cfc9e6" font-size="11" text-anchor="middle">${esc(x.name)}</text></g>`; }).join('');
+  return `<div class="st-map"><svg viewBox="0 0 560 220">${lane}${node}</svg><div class="st-map-legend">蓝＝同盟 · 橙＝帝国 · 灰＝中立（攻占敌方星系扩大补给）</div></div>`;
+}
+async function storyGenEvent() { const r = await api(`/api/stories/${storyState.id}/event`, {}); if (r.error) return toast(r.error.message || '生成失败'); storyState.story.pendingEvent = r.event; renderStory(); }
+async function storyChoose(i) { const r = await api(`/api/stories/${storyState.id}/choose`, { choiceIndex: i }); if (r.story) { storyState.story = r.story; renderStory(); } }
+async function storyAddCast(artistId) { toast('评定中…'); const r = await api(`/api/stories/${storyState.id}/cast`, { artistId, role: '参谋' }); if (r.story) { storyState.story = r.story; renderStory(); } else toast('选角失败'); }
+async function storyBattle(tactic) {
+  const sysId = storyState.battleSystem || (storyState.story.map.systems.find((x) => x.faction !== storyState.story.player.faction) || {}).id;
+  toast('交战中…');
+  const r = await api(`/api/stories/${storyState.id}/battle`, { tactic, systemId: sysId });
+  if (r.result) { storyState.battleResult = r; storyState.story = r.story; renderStory(); } else toast('战役失败');
+}
+async function storyEndTurn() { const r = await api(`/api/stories/${storyState.id}/end-turn`, {}); if (r.story) { storyState.story = r.story; storyState.battleResult = null; renderStory(); } }
+
 function init() {
   $('#newArtist').addEventListener('click', startCreate);
+  $('#openStory').addEventListener('click', openStoryHome);
   $('#rpanelBack').addEventListener('click', () => setPanel('profile'));
   $('#send').addEventListener('click', send);
   const input = $('#input');

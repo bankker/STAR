@@ -162,6 +162,16 @@ try {
   const vidMiss2 = await call(`/api/artist/${created.data.id}/interview2/nope/video`, {});
   ok('video 未知会话→not_found', vidMiss2.status === 200 && vidMiss2.data.error?.code === 'not_found', vidMiss2.data.error?.code);
 
+  const stCreate = await call('/api/stories', { player: { name: '冒烟指挥官', faction: '自由同盟' } });
+  ok('故事建局', stCreate.status === 200 && Boolean(stCreate.data.story?.id), stCreate.data.story?.id);
+  const stId = stCreate.data.story?.id;
+  const stGet = await call(`/api/stories/${stId}`);
+  ok('故事详情可读', stGet.status === 200 && stGet.data.story?.turn === 1);
+  const stEnd = await call(`/api/stories/${stId}/end-turn`, {});
+  ok('故事结束回合→turn 2', stEnd.status === 200 && stEnd.data.story?.turn === 2, stEnd.data.story?.turn);
+  const stMiss = await call('/api/stories/nope-bad/end-turn', {});
+  ok('故事未知存档→not_found', stMiss.status === 200 && stMiss.data.error?.code === 'not_found', stMiss.data.error?.code);
+
   const del = await call(`/api/artist/${created.data.id}`, undefined, 'DELETE');
   ok('artist 删除', del.status === 200 && del.data.ok === true);
 } catch (e) {
