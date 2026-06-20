@@ -1171,6 +1171,35 @@ const setHint = (h) => { const el = $('#composerHint'); if (el) el.textContent =
 
 /* ── 初始化 ── */
 function autoGrow() { const t = $('#input'); t.style.height = 'auto'; t.style.height = Math.min(180, t.scrollHeight) + 'px'; }
+
+/* ── 左栏底部·登录用户 ── */
+const PROVIDER_LABEL = { google: 'Google 账号', apple: 'Apple 账号', password: '口令登录', oauth: '已登录', local: '已登录' };
+async function loadMe() {
+  const btn = $('#railUser'); if (!btn) return;
+  const me = await api('/api/me');
+  if (!me || (!me.email && !me.provider)) { btn.hidden = true; return; } // open 模式/未登录 → 不显示
+  const email = me.email || '';
+  $('#ruAv').textContent = (email ? email[0] : 'U').toUpperCase();
+  $('#ruName').textContent = email ? email.split('@')[0] : '已登录';
+  $('#ruSub').textContent = PROVIDER_LABEL[me.provider] || '已登录';
+  btn.hidden = false;
+  btn.onclick = (e) => { e.stopPropagation(); openUserMenu(me); };
+}
+function openUserMenu(me) {
+  const m = $('#umenu');
+  if (!m.hidden) { m.hidden = true; return; }
+  const head = me.email
+    ? `<div class="umenu-head"><div class="umenu-email">${esc(me.email)}</div><div class="umenu-role">${PROVIDER_LABEL[me.provider] || ''}</div></div>`
+    : `<div class="umenu-head"><div class="umenu-email">已登录</div><div class="umenu-role">${PROVIDER_LABEL[me.provider] || ''}</div></div>`;
+  m.innerHTML = `${head}<button class="umenu-item danger" data-act="logout"><span>⎋</span><span>登出</span></button>`;
+  m.hidden = false;
+  const r = $('#railUser').getBoundingClientRect();
+  m.style.left = r.left + 'px';
+  m.style.top = 'auto';
+  m.style.bottom = (window.innerHeight - r.top + 6) + 'px';
+  m.querySelector('[data-act="logout"]').onclick = () => { location.href = '/logout'; };
+}
+
 function init() {
   $('#newArtist').addEventListener('click', startCreate);
   $('#rpanelBack').addEventListener('click', () => setPanel('profile'));
@@ -1184,6 +1213,8 @@ function init() {
     if ($('#cmenu').hidden) openCreateMenu(); else $('#cmenu').hidden = true;
   });
   document.addEventListener('click', (e) => { const m = $('#cmenu'); if (!m.hidden && !m.contains(e.target) && e.target !== $('#composerPlus')) m.hidden = true; });
+  document.addEventListener('click', (e) => { const m = $('#umenu'); if (m && !m.hidden && !m.contains(e.target) && !$('#railUser').contains(e.target)) m.hidden = true; });
+  loadMe();
   loadArtists().then(() => { if (state.artists.length) openArtist(state.artists[0].id); });
 }
 window.addEventListener('DOMContentLoaded', init);

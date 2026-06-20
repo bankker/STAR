@@ -71,6 +71,27 @@ button { font-family: inherit; cursor: pointer; }
 .ar-sub { font-size: 11.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rail-empty { padding: 10px 12px; font-size: 12.5px; color: var(--ink-3); }
 
+/* 左栏底部·登录用户（类 ChatGPT/Claude） */
+.rail-user { margin-top: 6px; display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 8px 10px; border: 0; border-top: 1px solid var(--line); background: transparent;
+  cursor: pointer; text-align: left; border-radius: 10px; }
+.rail-user:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.ru-av { width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; display: flex;
+  align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; background: var(--brand); }
+.ru-meta { min-width: 0; flex: 1; display: flex; flex-direction: column; line-height: 1.25; }
+.ru-name { font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ru-sub { font-size: 11px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ru-caret { color: var(--ink-3); font-size: 16px; line-height: 1; }
+.umenu { position: fixed; z-index: 60; background: var(--surface); border: 1px solid var(--line-2);
+  border-radius: 12px; box-shadow: 0 12px 34px rgba(0,0,0,.16); padding: 6px; min-width: 210px; }
+.umenu-head { padding: 8px 10px 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.umenu-email { font-size: 12.5px; color: var(--ink); font-weight: 600; word-break: break-all; }
+.umenu-role { font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+.umenu-item { display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 10px; border: 0;
+  background: transparent; border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--ink); text-align: left; }
+.umenu-item:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.umenu-item.danger { color: #c0392b; }
+
 /* ── 主区：对话即界面（中等宽度，给右栏让出空间）── */
 .main { flex: 1 1 0; display: flex; flex-direction: column; min-width: 380px; position: relative; }
 

@@ -9,6 +9,7 @@ import { setEnvKey } from '../lib/env.js';
 import { generatedUrlToDataUrl, saveDataUrl } from '../lib/files.js';
 import { ENV_FILE, GENERATED_DIR } from '../lib/paths.js';
 import { buildPlanMessages, buildScriptMessages, extractDialogue } from '../studio/interview.js';
+import { currentUser } from './auth.js';
 import { ffmpegAvailable, runFfmpeg, probeDurationSec, buildSrt, transcodeToWav } from '../lib/ffmpeg.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -174,6 +175,8 @@ async function waitJob(jobId, timeoutMs = 8 * 60 * 1000) {
 
 export function registerRoutes(route) {
   route('GET /api/ping', async (req, res) => json(res, { ok: true, ts: Date.now() }));
+
+  route('GET /api/me', async (req, res) => json(res, currentUser(req) || {}));
 
   const TEXT_ENDPOINTS = { '/api/ai/chat': 'chat', '/api/ai/content': 'content', '/api/ai/world': 'world', '/api/ai/plan': 'plan' };
   for (const [p, capability] of Object.entries(TEXT_ENDPOINTS)) {

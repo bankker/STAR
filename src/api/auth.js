@@ -214,6 +214,15 @@ export function isAuthed(req) {
   return false;
 }
 
+// 当前登录用户（给前端显示）。open 模式无"用户"概念 → null。
+export function currentUser(req) {
+  if (authMode() === 'open') return null;
+  const s = verifySession(readCookie(req, 'ss_session'));
+  if (s) return { email: s.email || '', provider: s.provider || 'oauth', name: s.name || '' };
+  if (isAuthed(req)) return { email: '', provider: 'password', name: '' }; // 口令/Basic 后门
+  return null;
+}
+
 export function denyAuth(req, res) {
   if (authMode() === 'oauth') {
     if (req.method === 'GET' && (req.headers.accept || '').includes('text/html')) {
