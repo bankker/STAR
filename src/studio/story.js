@@ -115,17 +115,37 @@ export function buildAppraiseMessages(artist) {
   return { system, messages: [{ role: 'user', content: profile || '一位神秘角色' }] };
 }
 
-export function buildEventMessages(story, focusArtistId) {
+// focus: 该场景聚焦的角色对象 {artistId,name} 或 null。输出为「叙述散文 + @@@ + 选项行」的流式友好格式。
+export function buildEventMessages(story, focus) {
+  const focusName = focus?.name || '在场角色';
   const system = '你是「银河史诗×恋爱养成」互动游戏的编剧。世界观：新帝国 vs 自由同盟，中立费沙。'
-    + '玩家是第一人称、不露脸的指挥官。全程 SFW 情感向。节奏明快：scene 一句话，lines 1-3 句每句≤40字，choices 文案≤20字。生成"当前回合的一个场景"，'
-    + '只输出 JSON：{"scene":"场景一句话","speakerArtistId":"角色ID","lines":["台词1","台词2"],'
-    + '"choices":[{"text":"选项文案","effects":{"affinity":{"角色ID":8},"resource":{"politics":5},"flag":{"名":true}}}]}。'
-    + '2-3 个选项，effects 字段可缺省。';
-  const roster = (story.cast || []).map((c) => `${c.name || c.artistId}(ID=${c.artistId},好感${c.affinity ?? 0},${c.role || ''})`).join('、') || '（暂无角色）';
-  const beat = story.lastBeat ? `承接上一幕：场景「${story.lastBeat.scene || ''}」，玩家选择了「${story.lastBeat.choice || ''}」。请自然延续这一选择推进剧情，而非另起无关事件。` : '开局序章，请引入世界与在场角色。';
-  const ctx = `回合 ${story.turn}，玩家阵营 ${story.player?.faction}。所有对话与事件都发生在【当前所在：${story.env?.name || '旗舰指挥舱'}】之内，不要描写离开或转移到别的地点（地点转移由玩家在星图上跃迁决定）。在场角色：${roster}。${beat}`
-    + (focusArtistId ? `请聚焦角色 ID=${focusArtistId}。` : '');
+    + '玩家是第一人称、不露脸的指挥官，全程 SFW 情感向，节奏明快。'
+    + `本场景聚焦角色【${focusName}】。先写 1-3 句简短叙述与该角色的台词（每句≤40字），`
+    + '然后另起一行只写三个字符 @@@ 作分隔，其后每行写一个玩家选项（≤20字）；'
+    + '可在某选项行末尾加 #好感+N 或 #好感-N 表示该选择对 TA 好感的增减。'
+    + '直接输出正文，不要 JSON、不要任何额外说明或标题。';
+  const roster = (story.cast || []).map((c) => `${c.name || c.artistId}(好感${c.affinity ?? 0},${c.role || ''})`).join('、') || '（暂无角色）';
+  const beat = story.lastBeat ? `承接上一幕：「${story.lastBeat.scene || ''}」，玩家选择了「${story.lastBeat.choice || ''}」，请自然延续。` : '开局序章，请引入世界与在场角色。';
+  const ctx = `回合 ${story.turn}，阵营 ${story.player?.faction}。所在【${story.env?.name || '旗舰指挥舱'}】（不要离开此地，地点转移由玩家在星图跃迁）。在场：${roster}。${beat}`;
   return { system, messages: [{ role: 'user', content: ctx }] };
+}
+
+// 解析「叙述 + @@@ + 选项」文本为结构化事件。好感增减归到 focusArtistId。永远返回 ≥1 个选项。
+export function parseEvent(text, focusArtistId) {
+  const raw = String(text || '').replace(/```/g, '').trim();
+  const idx = raw.indexOf('@@@');
+  const narr = (idx >= 0 ? raw.slice(0, idx) : raw).trim();
+  const choicePart = idx >= 0 ? raw.slice(idx + 3) : '';
+  const lines = narr.split('\n').map((s) => s.trim()).filter(Boolean);
+  const choices = choicePart.split('\n').map((s) => s.trim()).filter(Boolean).map((line) => {
+    const m = line.match(/#\s*好感\s*([+-]\d+)\s*$/);
+    const delta = m ? parseInt(m[1], 10) : 0;
+    const t = line.replace(/#\s*好感\s*[+-]\d+\s*$/, '').replace(/^[-*\d.、)）.\s]+/, '').trim();
+    const effects = (delta && focusArtistId) ? { affinity: { [focusArtistId]: delta } } : {};
+    return { text: t, effects };
+  }).filter((c) => c.text);
+  if (!choices.length) choices.push({ text: '……（继续）', effects: {} });
+  return { scene: lines[0] || '', lines, speakerArtistId: focusArtistId || '', choices };
 }
 
 export function buildBattleNarration(result, ctx = {}) {

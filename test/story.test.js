@@ -76,6 +76,22 @@ test('seedRoles：给艺人分派角色与阵营', async () => {
   assert.notEqual(r[0].role, r[1].role); // 角色不重复（池内轮换）
 });
 
+test('parseEvent：叙述+@@@+选项 解析，好感归到 focus，永远≥1选项', async () => {
+  const { parseEvent } = await import('../src/studio/story.js');
+  const txt = '林深：警报响起，她侧眸看你。\n「我守你侧翼。」\n@@@\n答应她 #好感+8\n严令先论胜负 #好感-3\n沉默';
+  const ev = parseEvent(txt, 'art1');
+  assert.equal(ev.speakerArtistId, 'art1');
+  assert.equal(ev.lines.length, 2);
+  assert.equal(ev.choices.length, 3);
+  assert.equal(ev.choices[0].text, '答应她');
+  assert.deepEqual(ev.choices[0].effects, { affinity: { art1: 8 } });
+  assert.equal(ev.choices[1].effects.affinity.art1, -3);
+  assert.deepEqual(ev.choices[2].effects, {});           // 无标签 → 空 effects
+  // 无 @@@ / 无选项时兜底一个「继续」
+  const ev2 = parseEvent('只有叙述没有选项', 'art1');
+  assert.equal(ev2.choices.length, 1);
+});
+
 test('parseJsonLoose：去围栏 / 截首尾花括号 / 容错', () => {
   assert.deepEqual(parseJsonLoose('{"统率":70}'), { 统率: 70 });
   assert.deepEqual(parseJsonLoose('```json\n{"a":1}\n```'), { a: 1 });

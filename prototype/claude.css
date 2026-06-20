@@ -166,6 +166,8 @@ button { font-family: inherit; cursor: pointer; }
 .st-env-tag { position: absolute; top: 10px; left: 12px; z-index: 1; font-size: 12px; color: #cfc9e6; background: rgba(12,10,24,.6); border: 1px solid rgba(150,120,255,.2); border-radius: 999px; padding: 3px 10px; }
 .st-loading { animation: st-pulse 1.4s ease-in-out infinite; }
 @keyframes st-pulse { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
+.st-streaming { opacity: .55; cursor: default; animation: st-pulse 1.4s ease-in-out infinite; }
+.st-dim { color: #6b6688; }
 
 /* ── 主区：对话即界面（中等宽度，给右栏让出空间）── */
 .main { flex: 1 1 0; display: flex; flex-direction: column; min-width: 380px; position: relative; }

@@ -10,7 +10,7 @@ import { generatedUrlToDataUrl, saveDataUrl } from '../lib/files.js';
 import { ENV_FILE, GENERATED_DIR } from '../lib/paths.js';
 import { buildPlanMessages, buildScriptMessages, extractDialogue } from '../studio/interview.js';
 import { currentUser } from './auth.js';
-import { newStory, applyChoice, resolveBattle, buildAppraiseMessages, buildEventMessages, buildBattleNarration, buildSceneImagePrompt, buildBattleImagePrompt, seedRoles, parseJsonLoose, TACTICS } from '../studio/story.js';
+import { newStory, applyChoice, resolveBattle, buildAppraiseMessages, buildEventMessages, parseEvent, buildBattleNarration, buildSceneImagePrompt, buildBattleImagePrompt, seedRoles, parseJsonLoose, TACTICS } from '../studio/story.js';
 import { createStory, getStory, listStories, saveStory, updateStory, addCast } from '../studio/story-store.js';
 import { ffmpegAvailable, runFfmpeg, probeDurationSec, buildSrt, transcodeToWav } from '../lib/ffmpeg.js';
 import fs from 'node:fs';
@@ -238,22 +238,43 @@ export function registerRoutes(route) {
     json(res, { story: addCast(params.id, { artistId: body.artistId, name: artist.name, role: body.role, faction: body.faction, stats, portraitUrl: artist.portraits?.[0]?.url || '' }) });
   });
 
-  // 生成当前回合一个事件（LLM）
-  route('POST /api/stories/:id/event', async (req, res, { params, readJsonBody }) => {
+  // 随机挑一个在场角色作为本场景聚焦（→ 立绘 + 好感归属）
+  const pickFocus = (s) => { const c = s.cast || []; return c.length ? c[Math.floor(Math.random() * c.length)] : null; };
+
+  // 生成当前回合一个事件（非流式，留作兜底/冒烟）
+  route('POST /api/stories/:id/event', async (req, res, { params }) => {
     const s = getStory(params.id);
     if (!s) return jsonError(res, 'not_found', `无此存档 ${params.id}`);
-    const body = await readJsonBody();
     try {
-      const { system, messages } = buildEventMessages(s, body?.focusArtistId);
-      // 用 world 能力（qwen-flash，在区更快）生成事件，明显降低推进剧情的等待
+      const focus = pickFocus(s);
+      const { system, messages } = buildEventMessages(s, focus);
       const r = await execute('world', { system, messages, maxTokens: 420 });
-      const ev = parseJsonLoose(r.text);
-      if (!ev || !Array.isArray(ev.choices) || !ev.choices.length) return jsonError(res, 'internal', '事件生成失败，请重试');
+      const ev = parseEvent(r.text, focus?.artistId);
       s.pendingEvent = ev;
       saveStory(s);
-      // 插画不在此生成：location 与当前环境一致则前端复用现图；变化时前端走 /warp
       json(res, { event: ev, env: s.env });
     } catch (e) { sendGatewayError(res, e); }
+  });
+
+  // 生成事件（流式 SSE）：叙述逐字打字、选项随后浮现，不再整屏过场
+  route('POST /api/stories/:id/event/stream', async (req, res, { params }) => {
+    const s = getStory(params.id);
+    if (!s) return jsonError(res, 'not_found', `无此存档 ${params.id}`);
+    res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+    const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    try {
+      const focus = pickFocus(s);
+      send('meta', { speakerArtistId: focus?.artistId || '', env: s.env });
+      const { system, messages } = buildEventMessages(s, focus);
+      const r = await executeStream('world', { system, messages, maxTokens: 420 }, { onToken: (t) => send('token', { t }) });
+      const ev = parseEvent(r.text, focus?.artistId);
+      s.pendingEvent = ev;
+      saveStory(s);
+      send('done', { event: ev, env: s.env });
+    } catch (e) {
+      send('error', e instanceof GatewayError ? e.toJSON() : { code: 'internal', message: e.message });
+    }
+    res.end();
   });
 
   // 环境转移：仅当抵达新环境（或尚无环境图）时生成一张环境插画（前端配「曲速引擎驱动中」过场）

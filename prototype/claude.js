@@ -1261,9 +1261,21 @@ function renderStory() {
   const nav = `<div class="st-tabs">${Object.entries(tabs).map(([t, n]) => `<button class="${storyState.tab === t ? 'on' : ''}" onclick="setStoryTab('${t}')">${n}</button>`).join('')}</div>`;
   const body = { event: renderEventTab, council: renderCouncilTab, battle: renderBattleTab, map: renderMapTab }[storyState.tab](s);
   $('#storyView').innerHTML = `<div class="st-game">${hud}${nav}<div class="st-body">${body}</div></div>`;
+  if (storyState.streaming) updateStreamBody();
 }
 function avatarHtml(c, cls) { return c?.portraitUrl ? `<span class="st-av ${cls || ''}"><img src="${esc(c.portraitUrl)}" alt=""/></span>` : `<span class="st-av ${cls || ''}">${esc((c?.name || '✦')[0])}</span>`; }
 function renderEventTab(s) {
+  if (storyState.streaming) {
+    const sp = (s.cast || []).find((c) => c.artistId === storyState.streaming.speakerArtistId);
+    const envImg = s.env?.image || '';
+    const bg = envImg ? `style="background-image:url('${esc(envImg)}')"` : '';
+    const portrait = sp?.portraitUrl ? `<img class="st-portrait" src="${esc(sp.portraitUrl)}" alt=""/>` : '';
+    const envTag = s.env?.name ? `<div class="st-env-tag">◷ ${esc(s.env.name)}</div>` : '';
+    return `<div class="st-vn">
+      <div class="st-vn-stage ${envImg ? 'has-bg' : ''}" ${bg}>${envTag}${portrait}</div>
+      <div class="st-dialogue"><div class="st-speaker">${avatarHtml(sp)}${esc(sp?.name || '旁白')}</div><div id="st-stream"></div></div>
+    </div>`;
+  }
   const ev = s.pendingEvent;
   if (!ev) return `<div class="st-scene-empty"><p>星海静默。推进剧情，看看谁来找你。</p><button class="st-btn-primary" onclick="storyGenEvent()">推进剧情</button></div>`;
   const sp = (s.cast || []).find((c) => c.artistId === ev.speakerArtistId);
@@ -1324,13 +1336,33 @@ function renderMapTab(s) {
     <div class="st-map-legend">点击星系即可<b>跃迁前往</b>（触发曲速过场；到访过的地点不再重绘）· 蓝＝同盟 橙＝帝国 灰＝中立</div>
   </div>`;
 }
-// 推进剧情：永远停留在当前环境，背景不变、不出图——只生成文字事件（快）
-async function storyGenEvent(first) {
-  storyLoading((first ? '序章生成中' : '推进剧情中') + '…');
-  const r = await api(`/api/stories/${storyState.id}/event`, {});
-  if (r.error) { toast(r.error.message || '生成失败'); return renderStory(); }
-  if (r.env) storyState.story.env = r.env;
-  storyState.story.pendingEvent = r.event; storyState.tab = 'event'; renderStory();
+// 推进剧情：停留在当前画面（背景不变），对话框就地流式打字、选项随后浮现——无整屏过场
+function splitStream(text) {
+  const i = String(text || '').indexOf('@@@');
+  const narr = i >= 0 ? text.slice(0, i) : text;
+  const cp = i >= 0 ? text.slice(i + 3) : '';
+  const lines = narr.split('\n').map((s) => s.trim()).filter(Boolean);
+  const choices = cp.split('\n').map((s) => s.replace(/#\s*好感\s*[+-]\d+\s*$/, '').replace(/^[-*\d.、)）.\s]+/, '').trim()).filter(Boolean);
+  return { lines, choices };
+}
+function updateStreamBody() {
+  const el = document.querySelector('#st-stream'); if (!el || !storyState.streaming) return;
+  const { lines, choices } = splitStream(storyState.streaming.text);
+  el.innerHTML = (lines.map((l) => `<p class="st-line">${esc(l)}</p>`).join('') || '<p class="st-line st-dim">…</p>')
+    + (choices.length ? `<div class="st-choices">${choices.map((c) => `<button class="st-streaming" disabled>${esc(c)}</button>`).join('')}</div>` : '');
+}
+async function storyGenEvent() {
+  storyState.streaming = { text: '', speakerArtistId: '' };
+  storyState.tab = 'event';
+  renderStory(); // 立刻显示当前背景 + 空对话框（不整屏 loading）
+  try {
+    await sseStream(`/api/stories/${storyState.id}/event/stream`, {}, (ev, data) => {
+      if (ev === 'meta') { storyState.streaming.speakerArtistId = data.speakerArtistId || ''; if (data.env) storyState.story.env = data.env; renderStory(); }
+      else if (ev === 'token') { storyState.streaming.text += data.t; updateStreamBody(); }
+      else if (ev === 'done') { storyState.streaming = null; storyState.story.pendingEvent = data.event; if (data.env) storyState.story.env = data.env; renderStory(); }
+      else if (ev === 'error') { storyState.streaming = null; toast((data && data.message) || '生成失败'); renderStory(); }
+    });
+  } catch (e) { storyState.streaming = null; toast('网络错误'); renderStory(); }
 }
 // 跃迁：唯一改变环境/重绘背景的入口（星图点击触发）；到访过的地点复用缓存图
 async function storyWarp(location, label) {
