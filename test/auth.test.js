@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 // 固定会话密钥，保证可重复
 process.env.SESSION_SECRET = 'test-secret-xyz';
 
-const { authMode, signSession, verifySession, isAuthed, verifyGoogleIdToken, __setGoogleKeysForTest } = await import('../src/api/auth.js');
+const { authMode, signSession, verifySession, isAuthed, verifyGoogleIdToken, __setGoogleKeysForTest, emailAllowed } = await import('../src/api/auth.js');
 
 function clearEnv() {
   delete process.env.GOOGLE_CLIENT_ID;
@@ -58,6 +58,20 @@ test('会话校验复查邮箱白名单（移出白名单即失效）', () => {
 test('open 模式全放行', () => {
   clearEnv();
   assert.equal(isAuthed({ headers: {} }), true);
+});
+
+test('emailAllowed：白名单空=放行任意非空邮箱；有名单=只放行名单内（修复登录 403 bug）', () => {
+  clearEnv();
+  // 白名单留空 → 任意非空邮箱放行
+  assert.equal(emailAllowed('arofreedoor@gmail.com'), true);
+  assert.equal(emailAllowed('anyone@example.com'), true);
+  assert.equal(emailAllowed(''), false);
+  // 有白名单 → 只放行名单内（大小写不敏感）
+  process.env.ALLOWED_EMAILS = 'A@b.com, c@d.com';
+  assert.equal(emailAllowed('a@b.com'), true);
+  assert.equal(emailAllowed('C@D.com'), true);
+  assert.equal(emailAllowed('x@y.com'), false);
+  clearEnv();
 });
 
 test('verifyGoogleIdToken：用 JWK 验签真实结构的令牌（覆盖曾经的 403 bug）', async () => {

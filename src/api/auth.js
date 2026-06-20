@@ -14,7 +14,7 @@ const appPassword = () => process.env.APP_PASSWORD || '';
 const SESSION_TTL = 12 * 3600; // 会话有效期 12h
 
 // 白名单留空或含 '*' → 放行任意「已验证」的 Google 账号；否则只放行名单内邮箱。
-function emailAllowed(email) {
+export function emailAllowed(email) {
   const e = String(email || '').toLowerCase();
   if (!e) return false;
   const list = allowed();
@@ -83,20 +83,25 @@ async function googleKeys() {
 }
 // 测试用：注入 Google 公钥（JWK 数组），跳过网络拉取
 export function __setGoogleKeysForTest(keys) { certCache = { exp: Date.now() + 3600000, keys: keys || [] }; }
+const DBG = (...a) => { if (process.env.AUTH_DEBUG) console.error('[auth-debug]', ...a); };
 export async function verifyGoogleIdToken(idToken) {
   const [h, p, s] = String(idToken || '').split('.');
-  if (!h || !p || !s) return null;
-  let header; try { header = JSON.parse(fromB64url(h).toString('utf8')); } catch { return null; }
-  if (header.alg !== 'RS256' || !header.kid) return null;
-  const jwk = (await googleKeys()).find((k) => k.kid === header.kid);
-  if (!jwk) return null;
-  const ok = crypto.createVerify('RSA-SHA256').update(`${h}.${p}`).verify(crypto.createPublicKey({ key: jwk, format: 'jwk' }), fromB64url(s));
-  if (!ok) return null;
-  let payload; try { payload = JSON.parse(fromB64url(p).toString('utf8')); } catch { return null; }
-  if (payload.iss !== 'accounts.google.com' && payload.iss !== 'https://accounts.google.com') return null;
-  if (payload.aud !== clientId()) return null;
-  if (typeof payload.exp !== 'number' || payload.exp < Math.floor(Date.now() / 1000)) return null;
-  if (payload.email_verified !== true && payload.email_verified !== 'true') return null;
+  if (!h || !p || !s) return DBG('not a jwt, len=', String(idToken || '').length), null;
+  let header; try { header = JSON.parse(fromB64url(h).toString('utf8')); } catch { return DBG('bad header'), null; }
+  if (header.alg !== 'RS256' || !header.kid) return DBG('alg/kid', header.alg, header.kid), null;
+  const keys = await googleKeys();
+  const jwk = keys.find((k) => k.kid === header.kid);
+  if (!jwk) return DBG('kid not found', header.kid, 'have', keys.map((k) => k.kid)), null;
+  let ok = false;
+  try { ok = crypto.createVerify('RSA-SHA256').update(`${h}.${p}`).verify(crypto.createPublicKey({ key: jwk, format: 'jwk' }), fromB64url(s)); }
+  catch (e) { return DBG('verify threw', e.message), null; }
+  if (!ok) return DBG('bad signature'), null;
+  let payload; try { payload = JSON.parse(fromB64url(p).toString('utf8')); } catch { return DBG('bad payload'), null; }
+  if (payload.iss !== 'accounts.google.com' && payload.iss !== 'https://accounts.google.com') return DBG('iss', payload.iss), null;
+  if (payload.aud !== clientId()) return DBG('aud mismatch', JSON.stringify(payload.aud), '!=', JSON.stringify(clientId())), null;
+  if (typeof payload.exp !== 'number' || payload.exp < Math.floor(Date.now() / 1000)) return DBG('exp', payload.exp), null;
+  if (payload.email_verified !== true && payload.email_verified !== 'true') return DBG('email_verified', payload.email_verified), null;
+  DBG('OK', payload.email);
   return payload;
 }
 
@@ -114,9 +119,10 @@ export async function handleAuthRoutes(req, res, pathname) {
   if (req.method === 'POST' && pathname === '/api/auth/google') {
     let raw = ''; for await (const c of req) { raw += c; if (raw.length > 8192) break; }
     let cred = ''; try { cred = JSON.parse(raw).credential || ''; } catch {}
-    const payload = await verifyGoogleIdToken(cred).catch(() => null);
+    const payload = await verifyGoogleIdToken(cred).catch((e) => (DBG('verify threw(outer)', e.message), null));
     const email = String(payload?.email || '').toLowerCase();
-    if (!payload || !allowed().includes(email)) {
+    if (!payload || !emailAllowed(email)) {
+      DBG('reject', { hasPayload: !!payload, email, emailAllowed: emailAllowed(email) });
       res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ error: '该 Google 账号未被授权访问' })); return true;
     }
