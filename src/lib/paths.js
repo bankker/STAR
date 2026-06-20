@@ -10,6 +10,7 @@ export const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR
 export const DRAMA_DIR = path.join(DATA_DIR, 'dramas');
 export const GUESTS_DIR = path.join(DATA_DIR, 'guests');
 export const INTERVIEWS_DIR = path.join(DATA_DIR, 'interviews');
-export const LOGS_DIR = path.join(ROOT_DIR, 'logs');
+// 日志/台账与密钥文件也可用环境变量改写，便于容器部署时把全部可写状态指向同一块持久卷（GCS 等）。
+export const LOGS_DIR = process.env.LOGS_DIR ? path.resolve(process.env.LOGS_DIR) : path.join(ROOT_DIR, 'logs');
 export const CONFIG_FILE = path.join(ROOT_DIR, 'config', 'ai-providers.json');
-export const ENV_FILE = path.join(ROOT_DIR, '.env');
+export const ENV_FILE = process.env.ENV_FILE ? path.resolve(process.env.ENV_FILE) : path.join(ROOT_DIR, '.env');

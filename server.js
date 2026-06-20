@@ -1,6 +1,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { loadEnv } from './src/lib/env.js';
 import { safeJoin } from './src/lib/files.js';
 import { ROOT_DIR, PROTOTYPE_DIR, GENERATED_DIR, ENV_FILE } from './src/lib/paths.js';
@@ -13,6 +14,25 @@ process.on('unhandledRejection', (err) => console.error('[server] unhandledRejec
 loadEnv(ENV_FILE);
 bootstrap();
 const PORT = parseInt(process.env.PORT || '3100', 10) || 3100;
+
+// 可选登录闸：设了 APP_PASSWORD 就要求 HTTP Basic Auth（用户名随意，密码=APP_PASSWORD），
+// 覆盖所有路由含 /api 与 /generated 媒体；不设则完全放行（本地开发默认无闸）。
+const APP_PASSWORD = process.env.APP_PASSWORD || '';
+function timingSafeEq(a, b) {
+  const ba = Buffer.from(String(a)), bb = Buffer.from(String(b));
+  return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
+}
+function requireAuth(req, res) {
+  if (!APP_PASSWORD) return true;
+  const m = (req.headers.authorization || '').match(/^Basic (.+)$/);
+  if (m) {
+    const pass = Buffer.from(m[1], 'base64').toString('utf8').split(':').slice(1).join(':');
+    if (timingSafeEq(pass, APP_PASSWORD)) return true;
+  }
+  res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="AI Star Studio", charset="UTF-8"', 'Content-Type': 'text/plain; charset=utf-8' });
+  res.end('需要登录');
+  return false;
+}
 
 const exact = new Map();
 const dynamic = []; // { method, segments:['api','jobs',':id'], handler }
@@ -71,6 +91,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   const pathname = url.pathname;
   try {
+    if (!requireAuth(req, res)) return;
     const handler = exact.get(`${req.method} ${pathname}`);
     if (handler) return await handler(req, res, { url, readJsonBody: () => readJsonBody(req, pathname) });
     const dyn = matchDynamic(req.method, pathname);
