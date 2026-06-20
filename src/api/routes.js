@@ -281,6 +281,7 @@ export function registerRoutes(route) {
     const choice = s.pendingEvent?.choices?.[body?.choiceIndex];
     if (!choice) return jsonError(res, 'bad_request', '无效选项');
     const next = applyChoice(s, choice);
+    next.lastBeat = { scene: s.pendingEvent?.scene || '', choice: choice.text || '' }; // 供下一幕承接
     next.pendingEvent = null;
     next.log = [...(next.log || []), { turn: next.turn, type: 'event', text: choice.text }].slice(-50);
     json(res, { story: saveStory(next) });

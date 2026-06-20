@@ -1328,7 +1328,12 @@ async function storyGenEvent(first) {
   }
   storyState.story.pendingEvent = ev; storyState.tab = 'event'; renderStory();
 }
-async function storyChoose(i) { const r = await api(`/api/stories/${storyState.id}/choose`, { choiceIndex: i }); if (r.story) { storyState.story = r.story; renderStory(); } }
+async function storyChoose(i) {
+  const r = await api(`/api/stories/${storyState.id}/choose`, { choiceIndex: i });
+  if (!r.story) return toast('出错了');
+  storyState.story = r.story;
+  await storyGenEvent(); // 选完自动承接下一幕，无需手动「推进剧情」
+}
 async function storyAddCast(artistId) { toast('评定中…'); const r = await api(`/api/stories/${storyState.id}/cast`, { artistId, role: '参谋' }); if (r.story) { storyState.story = r.story; renderStory(); } else toast('选角失败'); }
 async function storyBattle(tactic) {
   const sysId = storyState.battleSystem || (storyState.story.map.systems.find((x) => x.faction !== storyState.story.player.faction) || {}).id;
@@ -1336,7 +1341,12 @@ async function storyBattle(tactic) {
   const r = await api(`/api/stories/${storyState.id}/battle`, { tactic, systemId: sysId });
   if (r.result) { storyState.battleResult = r; storyState.story = r.story; renderStory(); } else { toast('战役失败'); renderStory(); }
 }
-async function storyEndTurn() { const r = await api(`/api/stories/${storyState.id}/end-turn`, {}); if (r.story) { storyState.story = r.story; storyState.battleResult = null; renderStory(); } }
+async function storyEndTurn() {
+  const r = await api(`/api/stories/${storyState.id}/end-turn`, {});
+  if (!r.story) return;
+  storyState.story = r.story; storyState.battleResult = null;
+  await storyGenEvent(); // 新回合自动开场
+}
 
 function init() {
   $('#newArtist').addEventListener('click', startCreate);

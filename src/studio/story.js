@@ -122,7 +122,8 @@ export function buildEventMessages(story, focusArtistId) {
     + '"choices":[{"text":"选项文案","effects":{"affinity":{"角色ID":8},"resource":{"politics":5},"flag":{"名":true}}}]}。'
     + '2-3 个选项，effects 字段可缺省。**多数情况下应停留在当前环境（沿用当前环境名作为 location）；仅当剧情确实转移到新地点时才更换 location。**';
   const roster = (story.cast || []).map((c) => `${c.name || c.artistId}(ID=${c.artistId},好感${c.affinity ?? 0},${c.role || ''})`).join('、') || '（暂无角色）';
-  const ctx = `回合 ${story.turn}，玩家阵营 ${story.player?.faction}。当前环境：${story.env?.name || '（开局，尚未抵达任何地点）'}。在场角色：${roster}。`
+  const beat = story.lastBeat ? `承接上一幕：场景「${story.lastBeat.scene || ''}」，玩家选择了「${story.lastBeat.choice || ''}」。请自然延续这一选择推进剧情，而非另起无关事件。` : '开局序章，请引入世界与在场角色。';
+  const ctx = `回合 ${story.turn}，玩家阵营 ${story.player?.faction}。当前环境：${story.env?.name || '（开局，尚未抵达任何地点）'}。在场角色：${roster}。${beat}`
     + (focusArtistId ? `请聚焦角色 ID=${focusArtistId}。` : '');
   return { system, messages: [{ role: 'user', content: ctx }] };
 }
