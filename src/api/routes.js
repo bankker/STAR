@@ -10,7 +10,7 @@ import { generatedUrlToDataUrl, saveDataUrl } from '../lib/files.js';
 import { ENV_FILE, GENERATED_DIR } from '../lib/paths.js';
 import { buildPlanMessages, buildScriptMessages, extractDialogue } from '../studio/interview.js';
 import { currentUser } from './auth.js';
-import { newStory, applyChoice, resolveBattle, buildAppraiseMessages, buildEventMessages, parseEvent, buildBattleNarration, buildSceneImagePrompt, buildBattleImagePrompt, seedRoles, parseJsonLoose, TACTICS } from '../studio/story.js';
+import { newStory, applyChoice, resolveBattle, buildAppraiseMessages, buildEventMessages, parseEvent, buildBattleNarration, buildSceneImagePrompt, buildBattleImagePrompt, seedRoles, parseJsonLoose, TACTICS, rankFor, checkChapter, computeEnding, enemyAdvance } from '../studio/story.js';
 import { createStory, getStory, listStories, saveStory, updateStory, addCast } from '../studio/story-store.js';
 import { ffmpegAvailable, runFfmpeg, probeDurationSec, buildSrt, transcodeToWav } from '../lib/ffmpeg.js';
 import fs from 'node:fs';
@@ -334,7 +334,16 @@ export function registerRoutes(route) {
       image = ir.files?.[0]?.url || '';
     } catch {}
     if (cmd && result.winner === 'attacker') cmd.affinity = Math.min(100, (cmd.affinity || 0) + 4);
-    if (result.winner === 'attacker' && body?.systemId) { const t = s.map.systems.find((x) => x.id === body.systemId); if (t) t.faction = s.player.faction; }
+    if (result.winner === 'attacker') {
+      s.player.renown = (s.player.renown || 0) + 10; // 战功→声望
+      s.player.rank = rankFor(s.player.renown);
+      if (body?.systemId) { const t = s.map.systems.find((x) => x.id === body.systemId); if (t) t.faction = s.player.faction; }
+    } else {
+      s.player.renown = (s.player.renown || 0) + 2;
+    }
+    // 战后即时判章节（夺下目标即达成）
+    const chk = checkChapter(s);
+    if (chk.status !== 'active') { s.chapter.status = chk.status; s.endings = computeEnding(s); }
     s.log = [...(s.log || []), { turn: s.turn, type: 'battle', text: `${sys.name}：${result.winner === 'attacker' ? '胜' : '败'}` }].slice(-50);
     saveStory(s);
     json(res, { result: { ...result, myTactic, foeTactic, system: sys.name, terrain: sys.terrain }, narration, image, story: s });
@@ -350,7 +359,10 @@ export function registerRoutes(route) {
     s.player.resources.supply = Math.min(100, (s.player.resources.supply || 0) + own * 2);
     s.player.resources.politics = Math.min(100, (s.player.resources.politics || 0) + 1);
     s.pendingEvent = null;
-    json(res, { story: saveStory(s) });
+    const advanced = enemyAdvance(s);             // 敌军推进（威胁时钟）
+    const chk = checkChapter(s);                  // 判定章节（超时/失守/达成）
+    if (chk.status !== 'active') { s.chapter.status = chk.status; s.endings = computeEnding(s); }
+    json(res, { story: saveStory(s), advanced, chapter: chk });
   });
 
   const TEXT_ENDPOINTS = { '/api/ai/chat': 'chat', '/api/ai/content': 'content', '/api/ai/world': 'world', '/api/ai/plan': 'plan' };

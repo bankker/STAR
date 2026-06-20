@@ -80,14 +80,57 @@ export function newStory(player = {}) {
     turn: 1, era: '帝国历 487',
     player: {
       name: player.name || '指挥官', title: player.title || '', pronoun: player.pronoun || '',
-      faction: player.faction || '自由同盟', actionPoints: 2,
+      faction: player.faction || '自由同盟', actionPoints: 2, rank: '少尉', renown: 0,
       resources: { supply: 70, politics: 30, intel: 10 },
     },
     map: structuredClone(SEED_SECTOR),
+    // 第一章：限定回合内夺取伊谢尔伦要塞(s2)；双线结局看是否有同伴交心
+    chapter: { index: 1, title: '第一章 · 回廊烽火', goalMode: 'capture', targetSystemId: 's2',
+      goalDesc: '夺取伊谢尔伦要塞', deadlineTurn: 8, status: 'active' },
+    endings: null,
     env: { name: '旗舰指挥舱', image: '' }, // 当前所在环境；仅"跃迁"改变，事件不改
     envImages: {}, // 去过的地点→插画缓存（回访不重绘）
     cast: [], fleets: [], log: [], flags: {}, pendingEvent: null,
   };
+}
+
+// ── 进度/养成（纯函数）────────────────────────────────────────────────
+export const RANKS = [
+  { renown: 0, name: '少尉' }, { renown: 30, name: '中尉' }, { renown: 70, name: '上尉' },
+  { renown: 130, name: '少将' }, { renown: 220, name: '中将' }, { renown: 340, name: '上将' },
+];
+export function rankFor(renown) { let r = RANKS[0]; for (const x of RANKS) if ((renown || 0) >= x.renown) r = x; return r.name; }
+export function topAffinity(story) { return (story.cast || []).reduce((m, c) => Math.max(m, c.affinity || 0), 0); }
+
+// 判定章节状态：达成/失败/进行中
+export function checkChapter(story) {
+  const ch = story.chapter;
+  if (!ch || ch.status !== 'active') return { status: ch?.status || 'active' };
+  const sys = (story.map?.systems || []).find((x) => x.id === ch.targetSystemId);
+  const mine = sys && sys.faction === story.player.faction;
+  if (ch.goalMode === 'capture' && mine) return { status: 'won', reason: 'captured' };
+  if (ch.goalMode === 'defend' && sys && !mine) return { status: 'lost', reason: 'fell' };
+  if ((story.turn || 1) > ch.deadlineTurn) return { status: 'lost', reason: 'deadline' };
+  return { status: 'active' };
+}
+
+// 双线结局：军事达成 × 关系(最高好感≥80 交心)
+export function computeEnding(story) {
+  const military = story.chapter?.status === 'won';
+  const bond = topAffinity(story) >= 80;
+  if (military && bond) return { key: '双全', title: '双全结局', text: '回廊归于安宁，星海为证，你与挚爱并肩而立。' };
+  if (military && !bond) return { key: '孤高', title: '孤高的胜利', text: '你赢得了战争，却独自望着冷清的星海。' };
+  if (!military && bond) return { key: '相守', title: '败走亦相守', text: '要塞失守，但总有人始终握紧你的手。' };
+  return { key: '陨落', title: '陨落', text: '回廊失守，舰队四散，传说就此沉寂于星尘。' };
+}
+
+// 敌军每回合推进（威胁时钟）：吞并一个中立星系，没有则吞并我方一个非目标星系
+export function enemyAdvance(story) {
+  const sys = story.map?.systems || [];
+  const cand = sys.find((x) => x.faction === '中立')
+    || sys.find((x) => x.faction === story.player.faction && x.id !== story.chapter?.targetSystemId);
+  if (cand) { cand.faction = '新帝国'; return cand.name; }
+  return '';
 }
 
 // ── 从 LLM 文本里稳健地抠出 JSON（去围栏、截首尾花括号）────────────────

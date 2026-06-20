@@ -1250,18 +1250,32 @@ function setStoryTab(t) { storyState.tab = t; renderStory(); }
 
 function renderStory() {
   const s = storyState.story; if (!s) return;
+  if (s.chapter && s.chapter.status !== 'active' && s.endings) return renderEnding(s);
   const res = s.player.resources;
+  const ch = s.chapter || {};
+  const left = Math.max(0, (ch.deadlineTurn || 0) - (s.turn || 1));
   const hud = `<div class="st-hud">
     <span class="st-era">${esc(s.era)} · 第 ${s.turn} 回合</span>
     <span class="st-chip" style="--fc:${FACTION_COLOR[s.player.faction] || '#888'}">${esc(s.player.faction)}</span>
-    <span class="st-res">补给 ${res.supply} · 政治 ${res.politics} · 情报 ${res.intel} · 行动点 ${s.player.actionPoints}</span>
+    <span class="st-res">${esc(s.player.rank || '')} · 声望 ${s.player.renown || 0} · 补给 ${res.supply} · 政治 ${res.politics} · 情报 ${res.intel}</span>
     <button class="st-endturn" onclick="storyEndTurn()">结束回合 →</button>
     <button class="st-close" onclick="closeStory()">✕</button></div>`;
+  const goal = ch.goalDesc ? `<div class="st-goal"><b>${esc(ch.title || '目标')}</b>：${esc(ch.goalDesc)}　<span class="${left <= 2 ? 'st-urgent' : ''}">期限第 ${ch.deadlineTurn} 回合（剩 ${left}）</span></div>` : '';
   const tabs = { event: '事件', council: '议事厅', battle: '战役', map: '星图' };
   const nav = `<div class="st-tabs">${Object.entries(tabs).map(([t, n]) => `<button class="${storyState.tab === t ? 'on' : ''}" onclick="setStoryTab('${t}')">${n}</button>`).join('')}</div>`;
   const body = { event: renderEventTab, council: renderCouncilTab, battle: renderBattleTab, map: renderMapTab }[storyState.tab](s);
-  $('#storyView').innerHTML = `<div class="st-game">${hud}${nav}<div class="st-body">${body}</div></div>`;
+  $('#storyView').innerHTML = `<div class="st-game">${hud}${goal}${nav}<div class="st-body">${body}</div></div>`;
   if (storyState.streaming) updateStreamBody();
+}
+function renderEnding(s) {
+  const e = s.endings || {};
+  const topAff = (s.cast || []).reduce((m, c) => Math.max(m, c.affinity || 0), 0);
+  $('#storyView').innerHTML = `<div class="st-home"><div class="st-home-inner">
+    <div class="st-logo">${esc(e.title || '结局')}</div>
+    <div class="st-sub">${esc(e.text || '')}</div>
+    <div class="st-ending-meta">「${esc(s.chapter?.title || '')}」 · ${s.chapter?.status === 'won' ? '军事达成 ✓' : '军事失利 ✕'} · 最高好感 ${topAff}（${affStage(topAff)}）· 军衔 ${esc(s.player?.rank || '')}</div>
+    <div class="st-new"><button class="st-btn-primary" onclick="openStoryHome()">新的征程 →</button></div>
+  </div></div>`;
 }
 function avatarHtml(c, cls) { return c?.portraitUrl ? `<span class="st-av ${cls || ''}"><img src="${esc(c.portraitUrl)}" alt=""/></span>` : `<span class="st-av ${cls || ''}">${esc((c?.name || '✦')[0])}</span>`; }
 function renderEventTab(s) {
