@@ -10,6 +10,8 @@ import { generatedUrlToDataUrl, saveDataUrl } from '../lib/files.js';
 import { ENV_FILE, GENERATED_DIR } from '../lib/paths.js';
 import { buildPlanMessages, buildScriptMessages, extractDialogue } from '../studio/interview.js';
 import { currentUser } from './auth.js';
+import { newStory, applyChoice, resolveBattle, buildAppraiseMessages, buildEventMessages, buildBattleNarration, parseJsonLoose, TACTICS } from '../studio/story.js';
+import { createStory, getStory, listStories, saveStory, updateStory, addCast } from '../studio/story-store.js';
 import { ffmpegAvailable, runFfmpeg, probeDurationSec, buildSrt, transcodeToWav } from '../lib/ffmpeg.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -177,6 +179,113 @@ export function registerRoutes(route) {
   route('GET /api/ping', async (req, res) => json(res, { ok: true, ts: Date.now() }));
 
   route('GET /api/me', async (req, res) => json(res, currentUser(req) || {}));
+
+  // ── 故事模式（银河史诗 × 恋爱养成）──
+  route('GET /api/stories', async (req, res) => json(res, { stories: listStories() }));
+
+  route('POST /api/stories', async (req, res, { readJsonBody }) => {
+    const body = await readJsonBody();
+    json(res, { story: createStory(newStory(body?.player || {})) });
+  });
+
+  route('GET /api/stories/:id', async (req, res, { params }) => {
+    const s = getStory(params.id);
+    if (!s) return jsonError(res, 'not_found', `无此存档 ${params.id}`);
+    json(res, { story: s });
+  });
+
+  route('PUT /api/stories/:id', async (req, res, { params, readJsonBody }) => {
+    if (!getStory(params.id)) return jsonError(res, 'not_found', `无此存档 ${params.id}`);
+    const body = await readJsonBody();
+    const patch = {};
+    if (body.name) patch.name = String(body.name).slice(0, 60);
+    if (body.player && typeof body.player === 'object') patch.player = body.player;
+    json(res, { story: updateStory(params.id, patch) });
+  });
+
+  // 选角：把艺人加入剧本，LLM 依其人设评定五维数值（失败给保底值）
+  route('POST /api/stories/:id/cast', async (req, res, { params, readJsonBody }) => {
+    const s = getStory(params.id);
+    if (!s) return jsonError(res, 'not_found', `无此存档 ${params.id}`);
+    const body = await readJsonBody();
+    const artist = getArtist(body?.artistId);
+    if (!artist) return jsonError(res, 'bad_request', '无此艺人');
+    const stats = { 统率: 50, 谋略: 50, 政务: 50, 魅力: 50, 忠诚: 50 };
+    try {
+      const { system, messages } = buildAppraiseMessages(artist);
+      const r = await execute('content', { system, messages, maxTokens: 120 });
+      const parsed = parseJsonLoose(r.text);
+      if (parsed) for (const k of Object.keys(stats)) if (Number.isFinite(parsed[k])) stats[k] = Math.max(0, Math.min(100, Math.round(parsed[k])));
+    } catch {}
+    json(res, { story: addCast(params.id, { artistId: body.artistId, name: artist.name, role: body.role, faction: body.faction, stats }) });
+  });
+
+  // 生成当前回合一个事件（LLM）
+  route('POST /api/stories/:id/event', async (req, res, { params, readJsonBody }) => {
+    const s = getStory(params.id);
+    if (!s) return jsonError(res, 'not_found', `无此存档 ${params.id}`);
+    const body = await readJsonBody();
+    try {
+      const { system, messages } = buildEventMessages(s, body?.focusArtistId);
+      const r = await execute('content', { system, messages, maxTokens: 600 });
+      const ev = parseJsonLoose(r.text);
+      if (!ev || !Array.isArray(ev.choices) || !ev.choices.length) return jsonError(res, 'internal', '事件生成失败，请重试');
+      s.pendingEvent = ev;
+      saveStory(s);
+      json(res, { event: ev });
+    } catch (e) { sendGatewayError(res, e); }
+  });
+
+  // 选择当前事件的一个选项 → 施加效果
+  route('POST /api/stories/:id/choose', async (req, res, { params, readJsonBody }) => {
+    const s = getStory(params.id);
+    if (!s) return jsonError(res, 'not_found', `无此存档 ${params.id}`);
+    const body = await readJsonBody();
+    const choice = s.pendingEvent?.choices?.[body?.choiceIndex];
+    if (!choice) return jsonError(res, 'bad_request', '无效选项');
+    const next = applyChoice(s, choice);
+    next.pendingEvent = null;
+    next.log = [...(next.log || []), { turn: next.turn, type: 'event', text: choice.text }].slice(-50);
+    json(res, { story: saveStory(next) });
+  });
+
+  // 战役：选战法 → 确定性结算 + LLM 旁白
+  route('POST /api/stories/:id/battle', async (req, res, { params, readJsonBody }) => {
+    const s = getStory(params.id);
+    if (!s) return jsonError(res, 'not_found', `无此存档 ${params.id}`);
+    const body = await readJsonBody();
+    const myTactic = TACTICS.includes(body?.tactic) ? body.tactic : '突击';
+    const sys = s.map?.systems?.find((x) => x.id === body?.systemId) || s.map?.systems?.[0] || { name: '未知星域', terrain: '星云' };
+    const foeTactic = TACTICS[Math.floor(Math.random() * 3)];
+    const cmd = (s.cast || [])[0];
+    const attacker = { troops: 100, morale: 70, commander: cmd?.stats || { 统率: 60 }, tactic: myTactic };
+    const defender = { troops: 100, morale: 65, commander: { 统率: 65 }, tactic: foeTactic };
+    const result = resolveBattle({ attacker, defender, terrain: sys.terrain });
+    let narration = '';
+    try {
+      const m = buildBattleNarration(result, { system: sys.name, terrain: sys.terrain, myTactic, foeTactic });
+      const r = await execute('content', { system: m.system, messages: m.messages, maxTokens: 200 });
+      narration = r.text || '';
+    } catch {}
+    if (cmd && result.winner === 'attacker') cmd.affinity = Math.min(100, (cmd.affinity || 0) + 4);
+    if (result.winner === 'attacker' && body?.systemId) { const t = s.map.systems.find((x) => x.id === body.systemId); if (t) t.faction = s.player.faction; }
+    s.log = [...(s.log || []), { turn: s.turn, type: 'battle', text: `${sys.name}：${result.winner === 'attacker' ? '胜' : '败'}` }].slice(-50);
+    saveStory(s);
+    json(res, { result: { ...result, myTactic, foeTactic, system: sys.name, terrain: sys.terrain }, narration, story: s });
+  });
+
+  // 结束回合 → 推进 1 月 + 资源结算
+  route('POST /api/stories/:id/end-turn', async (req, res, { params }) => {
+    const s = getStory(params.id);
+    if (!s) return jsonError(res, 'not_found', `无此存档 ${params.id}`);
+    s.turn = (s.turn || 1) + 1;
+    s.player.actionPoints = 2;
+    const own = (s.map?.systems || []).filter((x) => x.faction === s.player.faction).length;
+    s.player.resources.supply = Math.min(100, (s.player.resources.supply || 0) + own * 2);
+    s.player.resources.politics = Math.min(100, (s.player.resources.politics || 0) + 1);
+    s.pendingEvent = null;
+    json(res, { story: saveStory(s) });
+  });
 
   const TEXT_ENDPOINTS = { '/api/ai/chat': 'chat', '/api/ai/content': 'content', '/api/ai/world': 'world', '/api/ai/plan': 'plan' };
   for (const [p, capability] of Object.entries(TEXT_ENDPOINTS)) {
