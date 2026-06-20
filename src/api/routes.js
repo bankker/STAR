@@ -261,12 +261,14 @@ export function registerRoutes(route) {
     const s = getStory(params.id);
     if (!s) return jsonError(res, 'not_found', `无此存档 ${params.id}`);
     const body = await readJsonBody();
-    const location = String(body?.location || '').trim() || s.env?.name || '星舰舰桥';
-    let image = s.env?.image || '';
-    if (location !== s.env?.name || !image) {
+    const location = String(body?.location || '').trim() || s.env?.name || '旗舰指挥舱';
+    s.envImages = s.envImages || {};
+    let image = s.envImages[location] || '';
+    if (!image) { // 该地点没去过才出图；去过则复用缓存
       try {
         const ir = await execute('image', { prompt: buildSceneImagePrompt(location), aspect: '16:9' });
-        image = ir.files?.[0]?.url || image;
+        image = ir.files?.[0]?.url || '';
+        if (image) s.envImages[location] = image;
       } catch {}
     }
     s.env = { name: location, image };

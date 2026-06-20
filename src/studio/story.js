@@ -84,7 +84,8 @@ export function newStory(player = {}) {
       resources: { supply: 70, politics: 30, intel: 10 },
     },
     map: structuredClone(SEED_SECTOR),
-    env: { name: '', image: '' }, // 当前所在环境（插画按环境生成，同环境内不变）
+    env: { name: '旗舰指挥舱', image: '' }, // 当前所在环境；仅"跃迁"改变，事件不改
+    envImages: {}, // 去过的地点→插画缓存（回访不重绘）
     cast: [], fleets: [], log: [], flags: {}, pendingEvent: null,
   };
 }
@@ -117,13 +118,12 @@ export function buildAppraiseMessages(artist) {
 export function buildEventMessages(story, focusArtistId) {
   const system = '你是「银河史诗×恋爱养成」互动游戏的编剧。世界观：新帝国 vs 自由同盟，中立费沙。'
     + '玩家是第一人称、不露脸的指挥官。全程 SFW 情感向。节奏明快：scene 一句话，lines 1-3 句每句≤40字，choices 文案≤20字。生成"当前回合的一个场景"，'
-    + '只输出 JSON：{"location":"本场景所在环境名（如 旗舰舰桥/费沙港口/要塞战术室）","scene":"场景一句话",'
-    + '"speakerArtistId":"角色ID","lines":["台词1","台词2"],'
+    + '只输出 JSON：{"scene":"场景一句话","speakerArtistId":"角色ID","lines":["台词1","台词2"],'
     + '"choices":[{"text":"选项文案","effects":{"affinity":{"角色ID":8},"resource":{"politics":5},"flag":{"名":true}}}]}。'
-    + '2-3 个选项，effects 字段可缺省。**多数情况下应停留在当前环境（沿用当前环境名作为 location）；仅当剧情确实转移到新地点时才更换 location。**';
+    + '2-3 个选项，effects 字段可缺省。';
   const roster = (story.cast || []).map((c) => `${c.name || c.artistId}(ID=${c.artistId},好感${c.affinity ?? 0},${c.role || ''})`).join('、') || '（暂无角色）';
   const beat = story.lastBeat ? `承接上一幕：场景「${story.lastBeat.scene || ''}」，玩家选择了「${story.lastBeat.choice || ''}」。请自然延续这一选择推进剧情，而非另起无关事件。` : '开局序章，请引入世界与在场角色。';
-  const ctx = `回合 ${story.turn}，玩家阵营 ${story.player?.faction}。当前环境：${story.env?.name || '（开局，尚未抵达任何地点）'}。在场角色：${roster}。${beat}`
+  const ctx = `回合 ${story.turn}，玩家阵营 ${story.player?.faction}。所有对话与事件都发生在【当前所在：${story.env?.name || '旗舰指挥舱'}】之内，不要描写离开或转移到别的地点（地点转移由玩家在星图上跃迁决定）。在场角色：${roster}。${beat}`
     + (focusArtistId ? `请聚焦角色 ID=${focusArtistId}。` : '');
   return { system, messages: [{ role: 'user', content: ctx }] };
 }

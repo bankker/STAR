@@ -1235,7 +1235,8 @@ async function newStoryGame() {
   const r = await api('/api/stories', { player: { name, faction }, autoCast: true });
   if (!r.story) return toast('建局失败');
   storyState = { id: r.story.id, story: r.story, tab: 'event', battleResult: null, battleSystem: null };
-  await storyGenEvent(true); // 自动进入序章
+  await storyWarp(storyState.story.env?.name || '旗舰指挥舱', '抵达旗舰指挥舱、建立态势…'); // 先生成一次"家"的环境图
+  await storyGenEvent(true); // 再进入序章
 }
 async function openStory(id) {
   const r = await api(`/api/stories/${id}`);
@@ -1307,28 +1308,41 @@ function renderBattleTab(s) {
 }
 function renderMapTab(s) {
   const sys = s.map?.systems || []; const lanes = s.map?.lanes || [];
+  const cur = s.env?.name || '';
   const pos = { s1: [80, 60], s2: [260, 40], s3: [170, 140], s4: [430, 150], s5: [310, 160], s6: [490, 70] };
   const lane = lanes.map(([a, b]) => { const p = pos[a], q = pos[b]; return p && q ? `<line x1="${p[0]}" y1="${p[1]}" x2="${q[0]}" y2="${q[1]}" stroke="#3a3550" stroke-width="1.5"/>` : ''; }).join('');
-  const node = sys.map((x) => { const p = pos[x.id] || [0, 0]; const c = FACTION_COLOR[x.faction] || '#888'; return `<g><circle cx="${p[0]}" cy="${p[1]}" r="13" fill="${c}" opacity="0.85"/><text x="${p[0]}" y="${p[1] + 27}" fill="#cfc9e6" font-size="11" text-anchor="middle">${esc(x.name)}</text></g>`; }).join('');
-  return `<div class="st-map"><svg viewBox="0 0 560 220">${lane}${node}</svg><div class="st-map-legend">蓝＝同盟 · 橙＝帝国 · 灰＝中立（攻占敌方星系扩大补给）</div></div>`;
+  const node = sys.map((x) => {
+    const p = pos[x.id] || [0, 0]; const c = FACTION_COLOR[x.faction] || '#888'; const here = x.name === cur;
+    return `<g style="cursor:pointer" onclick="storyTravel('${esc(x.name)}')">
+      <circle cx="${p[0]}" cy="${p[1]}" r="${here ? 16 : 13}" fill="${c}" opacity="0.9" ${here ? 'stroke="#fff" stroke-width="2"' : ''}/>
+      <text x="${p[0]}" y="${p[1] + 27}" fill="#cfc9e6" font-size="11" text-anchor="middle">${esc(x.name)}</text></g>`;
+  }).join('');
+  const back = cur !== '旗舰指挥舱' ? `<button class="st-mini" onclick="storyTravel('旗舰指挥舱')">↩ 回旗舰指挥舱</button>` : '';
+  return `<div class="st-map">
+    <div class="st-map-cur">当前所在：<b>${esc(cur || '—')}</b> ${back}</div>
+    <svg viewBox="0 0 560 220">${lane}${node}</svg>
+    <div class="st-map-legend">点击星系即可<b>跃迁前往</b>（触发曲速过场；到访过的地点不再重绘）· 蓝＝同盟 橙＝帝国 灰＝中立</div>
+  </div>`;
 }
+// 推进剧情：永远停留在当前环境，背景不变、不出图——只生成文字事件（快）
 async function storyGenEvent(first) {
   storyLoading((first ? '序章生成中' : '推进剧情中') + '…');
   const r = await api(`/api/stories/${storyState.id}/event`, {});
   if (r.error) { toast(r.error.message || '生成失败'); return renderStory(); }
-  const ev = r.event;
   if (r.env) storyState.story.env = r.env;
-  const curEnv = storyState.story.env?.name || '';
-  const loc = ev.location || curEnv || '旗舰舰桥';
-  // 规范化比较：忽略「」『』括号与空格，避免 LLM 微小差异被误判为换环境而白白重绘
-  const norm = (x) => String(x || '').replace(/[「」『』（）()\s]/g, '');
-  // 仅当转移到新环境（或尚无环境图）才重绘背景，配「曲速引擎驱动中」过场
-  if (norm(loc) !== norm(curEnv) || !storyState.story.env?.image) {
-    storyLoading('曲速引擎驱动中…抵达「' + loc + '」');
-    const wr = await api(`/api/stories/${storyState.id}/warp`, { location: loc });
-    if (wr.env) storyState.story.env = wr.env;
-  }
-  storyState.story.pendingEvent = ev; storyState.tab = 'event'; renderStory();
+  storyState.story.pendingEvent = r.event; storyState.tab = 'event'; renderStory();
+}
+// 跃迁：唯一改变环境/重绘背景的入口（星图点击触发）；到访过的地点复用缓存图
+async function storyWarp(location, label) {
+  storyLoading(label || ('曲速引擎驱动中…前往「' + location + '」'));
+  const r = await api(`/api/stories/${storyState.id}/warp`, { location });
+  if (r.env) storyState.story.env = r.env;
+}
+async function storyTravel(location) {
+  if (location === storyState.story.env?.name) { toast('已在「' + location + '」'); return; }
+  await storyWarp(location, '曲速引擎驱动中…前往「' + location + '」');
+  await storyGenEvent(); // 抵达后生成该地点的新场景
+  toast('已抵达「' + location + '」');
 }
 async function storyChoose(i) {
   const r = await api(`/api/stories/${storyState.id}/choose`, { choiceIndex: i });
