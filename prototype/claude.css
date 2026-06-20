@@ -152,6 +152,14 @@ button { font-family: inherit; cursor: pointer; }
 .st-battle-pick { margin-bottom: 12px; font-size: 13.5px; }
 .st-map svg { width: 100%; height: auto; background: rgba(20,16,36,.5); border-radius: 12px; }
 .st-map-legend { font-size: 12px; color: #a8a2c4; margin-top: 8px; text-align: center; }
+/* 视觉小说式场景：生成背景 + 角色立绘 */
+.st-vn-stage { position: relative; min-height: 220px; border-radius: 12px; overflow: hidden; background: #15102a; border: 1px solid rgba(150,120,255,.18); display: flex; align-items: flex-end; margin-bottom: 12px; }
+.st-vn-stage.has-bg { background-size: cover; background-position: center; }
+.st-portrait { position: absolute; right: 14px; bottom: 0; height: 94%; max-height: 300px; width: auto; object-fit: contain; }
+.st-scene-cap { position: relative; z-index: 1; margin: auto 12px 12px; max-width: 60%; background: rgba(12,10,24,.62); border-radius: 8px; padding: 8px 11px; font-size: 12.5px; color: #cfc9e6; line-height: 1.6; }
+.st-av img { width: 100%; height: 100%; object-fit: cover; }
+.st-av { overflow: hidden; }
+.st-splash { width: 100%; border-radius: 10px; margin-bottom: 10px; display: block; }
 
 /* ── 主区：对话即界面（中等宽度，给右栏让出空间）── */
 .main { flex: 1 1 0; display: flex; flex-direction: column; min-width: 380px; position: relative; }

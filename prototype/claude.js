@@ -1227,11 +1227,15 @@ async function openStoryHome() {
         <button class="st-btn-primary" onclick="newStoryGame()">开新局 →</button>
       </div></div></div>`;
 }
+function storyLoading(msg) { $('#storyView').hidden = false; $('#storyView').innerHTML = `<div class="st-home"><div class="st-loading">✦ ${esc(msg)}</div></div>`; }
 async function newStoryGame() {
   const name = ($('#stName').value || '').trim() || '指挥官';
   const faction = $('#stFaction').value;
-  const r = await api('/api/stories', { player: { name, faction } });
-  if (r.story) openStory(r.story.id);
+  storyLoading('建立星海、为群英评定…（约 10 秒）');
+  const r = await api('/api/stories', { player: { name, faction }, autoCast: true });
+  if (!r.story) return toast('建局失败');
+  storyState = { id: r.story.id, story: r.story, tab: 'event', battleResult: null, battleSystem: null };
+  await storyGenEvent(true); // 自动进入序章
 }
 async function openStory(id) {
   const r = await api(`/api/stories/${id}`);
@@ -1257,13 +1261,17 @@ function renderStory() {
   const body = { event: renderEventTab, council: renderCouncilTab, battle: renderBattleTab, map: renderMapTab }[storyState.tab](s);
   $('#storyView').innerHTML = `<div class="st-game">${hud}${nav}<div class="st-body">${body}</div></div>`;
 }
+function avatarHtml(c, cls) { return c?.portraitUrl ? `<span class="st-av ${cls || ''}"><img src="${esc(c.portraitUrl)}" alt=""/></span>` : `<span class="st-av ${cls || ''}">${esc((c?.name || '✦')[0])}</span>`; }
 function renderEventTab(s) {
   const ev = s.pendingEvent;
-  if (!ev) return `<div class="st-scene-empty"><p>星海静默。推进剧情，看看谁来找你。</p><button class="st-btn-primary" onclick="storyGenEvent()">推进剧情（生成事件）</button></div>`;
+  if (!ev) return `<div class="st-scene-empty"><p>星海静默。推进剧情，看看谁来找你。</p><button class="st-btn-primary" onclick="storyGenEvent()">推进剧情（生成事件＋场景图）</button></div>`;
   const sp = (s.cast || []).find((c) => c.artistId === ev.speakerArtistId);
-  return `<div class="st-scene"><div class="st-scene-bg">${esc(ev.scene || '')}</div>
+  const bg = ev.sceneImage ? `style="background-image:url('${esc(ev.sceneImage)}')"` : '';
+  const portrait = sp?.portraitUrl ? `<img class="st-portrait" src="${esc(sp.portraitUrl)}" alt=""/>` : '';
+  return `<div class="st-vn">
+    <div class="st-vn-stage ${ev.sceneImage ? 'has-bg' : ''}" ${bg}>${portrait}<div class="st-scene-cap">${esc(ev.scene || '')}</div></div>
     <div class="st-dialogue">
-      <div class="st-speaker"><span class="st-av">${esc((sp?.name || '✦')[0])}</span>${esc(sp?.name || '旁白')}</div>
+      <div class="st-speaker">${avatarHtml(sp)}${esc(sp?.name || '旁白')}${sp ? ` · 好感 ${sp.affinity || 0}` : ''}</div>
       ${(ev.lines || []).map((l) => `<p class="st-line">${esc(l)}</p>`).join('')}
       <div class="st-choices">${(ev.choices || []).map((c, i) => `<button onclick="storyChoose(${i})">${esc(c.text)}</button>`).join('')}</div>
     </div></div>`;
@@ -1271,7 +1279,7 @@ function renderEventTab(s) {
 function renderCouncilTab(s) {
   const inCast = new Set((s.cast || []).map((c) => c.artistId));
   const roster = (s.cast || []).map((c) => `<div class="st-member">
-    <span class="st-av big">${esc((c.name || '?')[0])}</span>
+    ${avatarHtml(c, 'big')}
     <div class="st-member-main"><div class="st-member-name">${esc(c.name || c.artistId)} <span class="st-role">${esc(c.role || '')} · ${esc(c.faction || '')}</span></div>
       <div class="st-aff"><div class="st-aff-bar"><i style="width:${c.affinity || 0}%"></i></div><span>好感 ${c.affinity || 0} · ${affStage(c.affinity || 0)}</span></div>
       <div class="st-stats">统率 ${c.stats?.统率 ?? '-'} · 谋略 ${c.stats?.谋略 ?? '-'} · 政务 ${c.stats?.政务 ?? '-'} · 魅力 ${c.stats?.魅力 ?? '-'} · 忠诚 ${c.stats?.忠诚 ?? '-'}</div>
@@ -1288,6 +1296,7 @@ function renderBattleTab(s) {
     <div class="st-battle-pick">目标星系：<select onchange="storyState.battleSystem=this.value">${enemy.map((x) => `<option value="${x.id}" ${x.id === sel ? 'selected' : ''}>${esc(x.name)}（${esc(x.terrain)}·${esc(x.faction)}）</option>`).join('')}</select></div>
     <div class="st-cards">${STORY_TACTICS.map((t) => `<button class="st-card-tac" onclick="storyBattle('${t.k}')"><b>${t.k}</b><span>${esc(t.d)}</span></button>`).join('')}</div>
     ${r ? `<div class="st-result ${r.result.winner === 'attacker' ? 'win' : 'lose'}">
+      ${r.image ? `<img class="st-splash" src="${esc(r.image)}" alt=""/>` : ''}
       <div class="st-result-h">${r.result.winner === 'attacker' ? '我军取胜' : '我军失利'} · 我方 ${esc(r.result.myTactic)} vs 敌方 ${esc(r.result.foeTactic)} @ ${esc(r.result.system)}</div>
       <p class="st-narration">${esc(r.narration || '')}</p>
       <div class="st-result-meta">战力 ${r.result.powerA} : ${r.result.powerD} · 损失 我 ${r.result.casualties.attacker}% / 敌 ${r.result.casualties.defender}%</div>
@@ -1301,14 +1310,19 @@ function renderMapTab(s) {
   const node = sys.map((x) => { const p = pos[x.id] || [0, 0]; const c = FACTION_COLOR[x.faction] || '#888'; return `<g><circle cx="${p[0]}" cy="${p[1]}" r="13" fill="${c}" opacity="0.85"/><text x="${p[0]}" y="${p[1] + 27}" fill="#cfc9e6" font-size="11" text-anchor="middle">${esc(x.name)}</text></g>`; }).join('');
   return `<div class="st-map"><svg viewBox="0 0 560 220">${lane}${node}</svg><div class="st-map-legend">蓝＝同盟 · 橙＝帝国 · 灰＝中立（攻占敌方星系扩大补给）</div></div>`;
 }
-async function storyGenEvent() { const r = await api(`/api/stories/${storyState.id}/event`, {}); if (r.error) return toast(r.error.message || '生成失败'); storyState.story.pendingEvent = r.event; renderStory(); }
+async function storyGenEvent(first) {
+  storyLoading('生成' + (first ? '序章' : '剧情') + '场景与插画…（约 10-15 秒）');
+  const r = await api(`/api/stories/${storyState.id}/event`, {});
+  if (r.error) { toast(r.error.message || '生成失败'); return renderStory(); }
+  storyState.story.pendingEvent = r.event; storyState.tab = 'event'; renderStory();
+}
 async function storyChoose(i) { const r = await api(`/api/stories/${storyState.id}/choose`, { choiceIndex: i }); if (r.story) { storyState.story = r.story; renderStory(); } }
 async function storyAddCast(artistId) { toast('评定中…'); const r = await api(`/api/stories/${storyState.id}/cast`, { artistId, role: '参谋' }); if (r.story) { storyState.story = r.story; renderStory(); } else toast('选角失败'); }
 async function storyBattle(tactic) {
   const sysId = storyState.battleSystem || (storyState.story.map.systems.find((x) => x.faction !== storyState.story.player.faction) || {}).id;
-  toast('交战中…');
+  storyLoading('会战推演与战报绘制…（约 10 秒）');
   const r = await api(`/api/stories/${storyState.id}/battle`, { tactic, systemId: sysId });
-  if (r.result) { storyState.battleResult = r; storyState.story = r.story; renderStory(); } else toast('战役失败');
+  if (r.result) { storyState.battleResult = r; storyState.story = r.story; renderStory(); } else { toast('战役失败'); renderStory(); }
 }
 async function storyEndTurn() { const r = await api(`/api/stories/${storyState.id}/end-turn`, {}); if (r.story) { storyState.story = r.story; storyState.battleResult = null; renderStory(); } }
 

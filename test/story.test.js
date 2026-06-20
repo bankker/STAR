@@ -67,6 +67,15 @@ test('buildAppraiseMessages：{system,messages}，要求只回 JSON', () => {
   assert.match(m.messages[0].content, /林深/);
 });
 
+test('seedRoles：给艺人分派角色与阵营', async () => {
+  const { seedRoles } = await import('../src/studio/story.js');
+  const r = seedRoles([{ id: 'a', name: '林深' }, { id: 'b', name: '雪' }], '自由同盟');
+  assert.equal(r.length, 2);
+  assert.equal(r[0].artistId, 'a');
+  assert.equal(r[0].faction, '自由同盟');
+  assert.notEqual(r[0].role, r[1].role); // 角色不重复（池内轮换）
+});
+
 test('parseJsonLoose：去围栏 / 截首尾花括号 / 容错', () => {
   assert.deepEqual(parseJsonLoose('{"统率":70}'), { 统率: 70 });
   assert.deepEqual(parseJsonLoose('```json\n{"a":1}\n```'), { a: 1 });

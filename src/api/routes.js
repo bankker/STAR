@@ -10,7 +10,7 @@ import { generatedUrlToDataUrl, saveDataUrl } from '../lib/files.js';
 import { ENV_FILE, GENERATED_DIR } from '../lib/paths.js';
 import { buildPlanMessages, buildScriptMessages, extractDialogue } from '../studio/interview.js';
 import { currentUser } from './auth.js';
-import { newStory, applyChoice, resolveBattle, buildAppraiseMessages, buildEventMessages, buildBattleNarration, parseJsonLoose, TACTICS } from '../studio/story.js';
+import { newStory, applyChoice, resolveBattle, buildAppraiseMessages, buildEventMessages, buildBattleNarration, buildSceneImagePrompt, buildBattleImagePrompt, seedRoles, parseJsonLoose, TACTICS } from '../studio/story.js';
 import { createStory, getStory, listStories, saveStory, updateStory, addCast } from '../studio/story-store.js';
 import { ffmpegAvailable, runFfmpeg, probeDurationSec, buildSrt, transcodeToWav } from '../lib/ffmpeg.js';
 import fs from 'node:fs';
@@ -185,7 +185,25 @@ export function registerRoutes(route) {
 
   route('POST /api/stories', async (req, res, { readJsonBody }) => {
     const body = await readJsonBody();
-    json(res, { story: createStory(newStory(body?.player || {})) });
+    let s = createStory(newStory(body?.player || {}));
+    // 开局自动选角：把现有艺人分派角色并并行评定数值（让一进游戏就有阵容）
+    if (body?.autoCast !== false) {
+      const seeded = seedRoles(listArtists().slice(0, 4), s.player.faction);
+      const members = await Promise.all(seeded.map(async (m) => {
+        const artist = getArtist(m.artistId);
+        const stats = { 统率: 50, 谋略: 50, 政务: 50, 魅力: 50, 忠诚: 50 };
+        try {
+          const { system, messages } = buildAppraiseMessages(artist);
+          const r = await execute('content', { system, messages, maxTokens: 120 });
+          const parsed = parseJsonLoose(r.text);
+          if (parsed) for (const k of Object.keys(stats)) if (Number.isFinite(parsed[k])) stats[k] = Math.max(0, Math.min(100, Math.round(parsed[k])));
+        } catch {}
+        return { ...m, stats, portraitUrl: artist?.portraits?.[0]?.url || '' };
+      }));
+      for (const m of members) addCast(s.id, m);
+      s = getStory(s.id);
+    }
+    json(res, { story: s });
   });
 
   route('GET /api/stories/:id', async (req, res, { params }) => {
@@ -217,7 +235,7 @@ export function registerRoutes(route) {
       const parsed = parseJsonLoose(r.text);
       if (parsed) for (const k of Object.keys(stats)) if (Number.isFinite(parsed[k])) stats[k] = Math.max(0, Math.min(100, Math.round(parsed[k])));
     } catch {}
-    json(res, { story: addCast(params.id, { artistId: body.artistId, name: artist.name, role: body.role, faction: body.faction, stats }) });
+    json(res, { story: addCast(params.id, { artistId: body.artistId, name: artist.name, role: body.role, faction: body.faction, stats, portraitUrl: artist.portraits?.[0]?.url || '' }) });
   });
 
   // 生成当前回合一个事件（LLM）
@@ -230,6 +248,11 @@ export function registerRoutes(route) {
       const r = await execute('content', { system, messages, maxTokens: 600 });
       const ev = parseJsonLoose(r.text);
       if (!ev || !Array.isArray(ev.choices) || !ev.choices.length) return jsonError(res, 'internal', '事件生成失败，请重试');
+      // 生成场景背景图（best-effort；失败则纯文字）
+      try {
+        const ir = await execute('image', { prompt: buildSceneImagePrompt(ev.scene), aspect: '16:9' });
+        ev.sceneImage = ir.files?.[0]?.url || '';
+      } catch {}
       s.pendingEvent = ev;
       saveStory(s);
       json(res, { event: ev });
@@ -261,17 +284,21 @@ export function registerRoutes(route) {
     const attacker = { troops: 100, morale: 70, commander: cmd?.stats || { 统率: 60 }, tactic: myTactic };
     const defender = { troops: 100, morale: 65, commander: { 统率: 65 }, tactic: foeTactic };
     const result = resolveBattle({ attacker, defender, terrain: sys.terrain });
-    let narration = '';
+    let narration = '', image = '';
     try {
       const m = buildBattleNarration(result, { system: sys.name, terrain: sys.terrain, myTactic, foeTactic });
       const r = await execute('content', { system: m.system, messages: m.messages, maxTokens: 200 });
       narration = r.text || '';
     } catch {}
+    try {
+      const ir = await execute('image', { prompt: buildBattleImagePrompt({ terrain: sys.terrain }), aspect: '16:9' });
+      image = ir.files?.[0]?.url || '';
+    } catch {}
     if (cmd && result.winner === 'attacker') cmd.affinity = Math.min(100, (cmd.affinity || 0) + 4);
     if (result.winner === 'attacker' && body?.systemId) { const t = s.map.systems.find((x) => x.id === body.systemId); if (t) t.faction = s.player.faction; }
     s.log = [...(s.log || []), { turn: s.turn, type: 'battle', text: `${sys.name}：${result.winner === 'attacker' ? '胜' : '败'}` }].slice(-50);
     saveStory(s);
-    json(res, { result: { ...result, myTactic, foeTactic, system: sys.name, terrain: sys.terrain }, narration, story: s });
+    json(res, { result: { ...result, myTactic, foeTactic, system: sys.name, terrain: sys.terrain }, narration, image, story: s });
   });
 
   // 结束回合 → 推进 1 月 + 资源结算

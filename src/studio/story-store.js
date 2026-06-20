@@ -67,6 +67,7 @@ export function addCast(id, member) {
   s.cast.push({
     artistId: member.artistId, name: member.name || '', role: member.role || '参谋',
     faction: member.faction || s.player?.faction || '自由同盟',
+    portraitUrl: member.portraitUrl || '',
     stats: member.stats || { 统率: 50, 谋略: 50, 政务: 50, 魅力: 50, 忠诚: 50 },
     affinity: member.affinity ?? 0, mood: '平静', routeProgress: 0,
   });

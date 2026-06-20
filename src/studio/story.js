@@ -130,3 +130,22 @@ export function buildBattleNarration(result, ctx = {}) {
     + `结果：${result.winner === 'attacker' ? '我军取胜' : '我军失利'}。`;
   return { system, messages: [{ role: 'user', content: u }] };
 }
+
+// ── 开局自动选角：把现有艺人分派角色（纯函数）────────────────────────
+const ROLE_POOL = ['副官', '参谋长', '舰队司令', '情报官', '军医', '盟友'];
+export function seedRoles(artists, playerFaction) {
+  return (artists || []).map((a, i) => ({
+    artistId: a.id, name: a.name,
+    role: ROLE_POOL[i % ROLE_POOL.length],
+    faction: playerFaction || '自由同盟',
+  }));
+}
+
+// ── 场景/战役图像提示词（文生图 16:9 背景）────────────────────────────
+export function buildSceneImagePrompt(scene) {
+  const base = String(scene || '星舰舰桥，星海背景').slice(0, 120);
+  return `${base}。科幻太空歌剧风格的电影级2D场景插画，星舰内部或幽蓝星云背景，氛围光影，宽幅构图，无文字，高质量数字绘画`;
+}
+export function buildBattleImagePrompt(ctx = {}) {
+  return `星海舰队大会战，${ctx.terrain || '星云'}星域，宏大的太空战列舰交火，激光火炮与爆炸光芒，电影级科幻概念插画，2D数字绘画，史诗氛围，无文字`;
+}
