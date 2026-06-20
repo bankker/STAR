@@ -1,10 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 
 // 固定会话密钥，保证可重复
 process.env.SESSION_SECRET = 'test-secret-xyz';
 
-const { authMode, signSession, verifySession, isAuthed } = await import('../src/api/auth.js');
+const { authMode, signSession, verifySession, isAuthed, verifyGoogleIdToken, __setGoogleKeysForTest } = await import('../src/api/auth.js');
 
 function clearEnv() {
   delete process.env.GOOGLE_CLIENT_ID;
@@ -57,6 +58,29 @@ test('会话校验复查邮箱白名单（移出白名单即失效）', () => {
 test('open 模式全放行', () => {
   clearEnv();
   assert.equal(isAuthed({ headers: {} }), true);
+});
+
+test('verifyGoogleIdToken：用 JWK 验签真实结构的令牌（覆盖曾经的 403 bug）', async () => {
+  clearEnv();
+  process.env.GOOGLE_CLIENT_ID = 'cid.apps.googleusercontent.com';
+  const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const jwk = publicKey.export({ format: 'jwk' }); jwk.kid = 'k1'; jwk.alg = 'RS256';
+  __setGoogleKeysForTest([jwk]);
+  const enc = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const mint = (payload, kid = 'k1') => {
+    const head = enc({ alg: 'RS256', kid });
+    const body = enc(payload);
+    const sig = crypto.createSign('RSA-SHA256').update(`${head}.${body}`).sign(privateKey).toString('base64url');
+    return `${head}.${body}.${sig}`;
+  };
+  const base = { iss: 'https://accounts.google.com', aud: 'cid.apps.googleusercontent.com', email: 'me@gmail.com', email_verified: true, exp: Math.floor(Date.now() / 1000) + 3600 };
+  assert.equal((await verifyGoogleIdToken(mint(base))).email, 'me@gmail.com'); // 有效令牌
+  assert.equal(await verifyGoogleIdToken(mint({ ...base, aud: 'other' })), null); // aud 不符
+  assert.equal(await verifyGoogleIdToken(mint({ ...base, email_verified: false })), null); // 邮箱未验证
+  assert.equal(await verifyGoogleIdToken(mint({ ...base, exp: Math.floor(Date.now() / 1000) - 1 })), null); // 过期
+  assert.equal(await verifyGoogleIdToken(mint(base, 'nope')), null); // kid 找不到
+  const t = mint(base); assert.equal(await verifyGoogleIdToken(t.slice(0, -3) + 'xxx'), null); // 篡改签名
+  clearEnv();
 });
 
 test('password 模式：Basic 正确放行、错误拦截', () => {

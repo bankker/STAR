@@ -69,24 +69,28 @@ function readCookie(req, name) {
   return '';
 }
 
-// ── Google ID 令牌校验（RS256，零依赖，用 Google 的 X.509 证书）─────────────
-let certCache = { exp: 0, keys: {} };
-async function googleCerts() {
-  if (Date.now() < certCache.exp && Object.keys(certCache.keys).length) return certCache.keys;
-  const r = await fetch('https://www.googleapis.com/oauth2/v1/certs');
-  const keys = await r.json();
+// ── Google ID 令牌校验（RS256，零依赖，用 Google 的 JWK 公钥）─────────────
+// 注意：必须用 JWK（v3/certs）。v1/certs 给的是 X.509 证书，crypto.createPublicKey 不吃证书会抛错。
+let certCache = { exp: 0, keys: [] };
+async function googleKeys() {
+  if (Date.now() < certCache.exp && certCache.keys.length) return certCache.keys;
+  const r = await fetch('https://www.googleapis.com/oauth2/v3/certs');
+  const body = await r.json().catch(() => ({}));
+  const keys = Array.isArray(body.keys) ? body.keys : [];
   const m = (r.headers.get('cache-control') || '').match(/max-age=(\d+)/);
-  certCache = { exp: Date.now() + (m ? Number(m[1]) : 3600) * 1000, keys };
+  if (keys.length) certCache = { exp: Date.now() + (m ? Number(m[1]) : 3600) * 1000, keys };
   return keys;
 }
-async function verifyGoogleIdToken(idToken) {
+// 测试用：注入 Google 公钥（JWK 数组），跳过网络拉取
+export function __setGoogleKeysForTest(keys) { certCache = { exp: Date.now() + 3600000, keys: keys || [] }; }
+export async function verifyGoogleIdToken(idToken) {
   const [h, p, s] = String(idToken || '').split('.');
   if (!h || !p || !s) return null;
   let header; try { header = JSON.parse(fromB64url(h).toString('utf8')); } catch { return null; }
   if (header.alg !== 'RS256' || !header.kid) return null;
-  const cert = (await googleCerts())[header.kid];
-  if (!cert) return null;
-  const ok = crypto.createVerify('RSA-SHA256').update(`${h}.${p}`).verify(crypto.createPublicKey(cert), fromB64url(s));
+  const jwk = (await googleKeys()).find((k) => k.kid === header.kid);
+  if (!jwk) return null;
+  const ok = crypto.createVerify('RSA-SHA256').update(`${h}.${p}`).verify(crypto.createPublicKey({ key: jwk, format: 'jwk' }), fromB64url(s));
   if (!ok) return null;
   let payload; try { payload = JSON.parse(fromB64url(p).toString('utf8')); } catch { return null; }
   if (payload.iss !== 'accounts.google.com' && payload.iss !== 'https://accounts.google.com') return null;
