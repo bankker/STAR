@@ -1,0 +1,19 @@
+# 控制 `gcloud run deploy --source .` 上传到 Cloud Build 的内容。
+# 注意：本文件存在时 gcloud 不再回退到 .gitignore，故这里要把要排除的都列全。
+
+.git
+.gitignore
+.claude
+node_modules
+
+# 本地状态与密钥——绝不上传到 Cloud Build
+.env
+.env.*
+data
+prototype/generated
+logs
+*.log
+
+# 构建/运行用不到，瘦身上传
+docs
+test

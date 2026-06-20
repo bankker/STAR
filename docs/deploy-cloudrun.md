@@ -65,13 +65,24 @@ echo "登录口令是：$PW   （记下来，登录时用户名随意、密码�
 
 ---
 
-## 3. 构建 + 部署（一条命令，含所有关键开关）
+## 3. 构建 + 部署（两步）
 
-仓库里已有 `Dockerfile`，`gcloud run deploy --source .` 会用它经 Cloud Build 构建并部署：
+> ⚠️ **别用 `gcloud run deploy --source .`**。它走 buildpacks/buildkit 路径，会给镜像附带 OCI provenance/attestation 清单，Cloud Run **导入时会报 `Container import failed`（ContainerImageImportFailed）**。改用经典的 `gcloud builds submit`（docker 构建器，产出干净的单清单镜像），再 `--image` 部署。
+
+**3a. 构建镜像（经典构建器，约 1-2 分钟）：**
+
+```bash
+IMAGE=${REGION}-docker.pkg.dev/${PROJECT}/cloud-run-source-deploy/starstudio:manual
+# 首次需先建 Artifact Registry 仓库（已存在会报错，忽略即可）
+gcloud artifacts repositories create cloud-run-source-deploy --repository-format=docker --location=$REGION
+gcloud builds submit --tag "$IMAGE" --region $REGION .
+```
+
+**3b. 部署（含所有关键开关）：**
 
 ```bash
 gcloud run deploy $SERVICE \
-  --source . \
+  --image "$IMAGE" \
   --region $REGION \
   --execution-environment gen2 \
   --add-volume   name=state,type=cloud-storage,bucket=${PROJECT}-starstudio-state \
@@ -127,8 +138,9 @@ gcloud run deploy $SERVICE \
 ## 5. 更新 / 回滚 / 拆除
 
 ```bash
-# 改完代码重新部署（同一条 deploy 命令即可，自动建新修订版）
-gcloud run deploy $SERVICE --source . --region $REGION   # 其余开关同上
+# 改完代码重新部署：先重建镜像，再用同一条 3b deploy 命令（自动建新修订版）
+gcloud builds submit --tag "$IMAGE" --region $REGION .
+gcloud run deploy $SERVICE --image "$IMAGE" --region $REGION   # 其余开关同 3b
 
 # 回滚到上一个修订版
 gcloud run services update-traffic $SERVICE --region $REGION --to-revisions PREV_REVISION=100
