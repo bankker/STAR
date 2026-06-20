@@ -1320,8 +1320,10 @@ async function storyGenEvent(first) {
   if (r.env) storyState.story.env = r.env;
   const curEnv = storyState.story.env?.name || '';
   const loc = ev.location || curEnv || '旗舰舰桥';
+  // 规范化比较：忽略「」『』括号与空格，避免 LLM 微小差异被误判为换环境而白白重绘
+  const norm = (x) => String(x || '').replace(/[「」『』（）()\s]/g, '');
   // 仅当转移到新环境（或尚无环境图）才重绘背景，配「曲速引擎驱动中」过场
-  if (loc !== curEnv || !storyState.story.env?.image) {
+  if (norm(loc) !== norm(curEnv) || !storyState.story.env?.image) {
     storyLoading('曲速引擎驱动中…抵达「' + loc + '」');
     const wr = await api(`/api/stories/${storyState.id}/warp`, { location: loc });
     if (wr.env) storyState.story.env = wr.env;

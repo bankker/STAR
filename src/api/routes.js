@@ -245,7 +245,8 @@ export function registerRoutes(route) {
     const body = await readJsonBody();
     try {
       const { system, messages } = buildEventMessages(s, body?.focusArtistId);
-      const r = await execute('content', { system, messages, maxTokens: 600 });
+      // 用 world 能力（qwen-flash，在区更快）生成事件，明显降低推进剧情的等待
+      const r = await execute('world', { system, messages, maxTokens: 420 });
       const ev = parseJsonLoose(r.text);
       if (!ev || !Array.isArray(ev.choices) || !ev.choices.length) return jsonError(res, 'internal', '事件生成失败，请重试');
       s.pendingEvent = ev;

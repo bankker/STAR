@@ -116,7 +116,7 @@ export function buildAppraiseMessages(artist) {
 
 export function buildEventMessages(story, focusArtistId) {
   const system = '你是「银河史诗×恋爱养成」互动游戏的编剧。世界观：新帝国 vs 自由同盟，中立费沙。'
-    + '玩家是第一人称、不露脸的指挥官。全程 SFW 情感向。生成"当前回合的一个场景"，'
+    + '玩家是第一人称、不露脸的指挥官。全程 SFW 情感向。节奏明快：scene 一句话，lines 1-3 句每句≤40字，choices 文案≤20字。生成"当前回合的一个场景"，'
     + '只输出 JSON：{"location":"本场景所在环境名（如 旗舰舰桥/费沙港口/要塞战术室）","scene":"场景一句话",'
     + '"speakerArtistId":"角色ID","lines":["台词1","台词2"],'
     + '"choices":[{"text":"选项文案","effects":{"affinity":{"角色ID":8},"resource":{"politics":5},"flag":{"名":true}}}]}。'
