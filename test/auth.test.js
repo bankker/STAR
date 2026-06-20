@@ -5,10 +5,11 @@ import crypto from 'node:crypto';
 // 固定会话密钥，保证可重复
 process.env.SESSION_SECRET = 'test-secret-xyz';
 
-const { authMode, signSession, verifySession, isAuthed, verifyGoogleIdToken, __setGoogleKeysForTest, emailAllowed } = await import('../src/api/auth.js');
+const { authMode, signSession, verifySession, isAuthed, verifyGoogleIdToken, __setGoogleKeysForTest, verifyAppleIdToken, __setAppleKeysForTest, emailAllowed } = await import('../src/api/auth.js');
 
 function clearEnv() {
   delete process.env.GOOGLE_CLIENT_ID;
+  delete process.env.APPLE_CLIENT_ID;
   delete process.env.ALLOWED_EMAILS;
   delete process.env.APP_PASSWORD;
 }
@@ -23,9 +24,12 @@ test('authMode 由环境变量决定', () => {
   process.env.APP_PASSWORD = 'pw';
   assert.equal(authMode(), 'password');
   process.env.GOOGLE_CLIENT_ID = 'cid.apps.googleusercontent.com';
-  assert.equal(authMode(), 'google'); // 只要有 CLIENT_ID 就是 google（白名单可空）
+  assert.equal(authMode(), 'oauth'); // 有 GOOGLE/APPLE CLIENT_ID 即 oauth（白名单可空）
   process.env.ALLOWED_EMAILS = 'a@b.com';
-  assert.equal(authMode(), 'google');
+  assert.equal(authMode(), 'oauth');
+  clearEnv();
+  process.env.APPLE_CLIENT_ID = 'com.example.web';
+  assert.equal(authMode(), 'oauth'); // 仅 Apple 也算 oauth
   clearEnv();
 });
 
@@ -94,6 +98,29 @@ test('verifyGoogleIdToken：用 JWK 验签真实结构的令牌（覆盖曾经�
   assert.equal(await verifyGoogleIdToken(mint({ ...base, exp: Math.floor(Date.now() / 1000) - 1 })), null); // 过期
   assert.equal(await verifyGoogleIdToken(mint(base, 'nope')), null); // kid 找不到
   const t = mint(base); assert.equal(await verifyGoogleIdToken(t.slice(0, -3) + 'xxx'), null); // 篡改签名
+  clearEnv();
+});
+
+test('verifyAppleIdToken：用 Apple JWK 验签（iss/aud/exp/kid/篡改）', async () => {
+  clearEnv();
+  process.env.APPLE_CLIENT_ID = 'com.wangrui.starstudio.web';
+  const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const jwk = publicKey.export({ format: 'jwk' }); jwk.kid = 'ak1'; jwk.alg = 'RS256';
+  __setAppleKeysForTest([jwk]);
+  const enc = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const mint = (payload, kid = 'ak1') => {
+    const head = enc({ alg: 'RS256', kid });
+    const body = enc(payload);
+    const sig = crypto.createSign('RSA-SHA256').update(`${head}.${body}`).sign(privateKey).toString('base64url');
+    return `${head}.${body}.${sig}`;
+  };
+  const base = { iss: 'https://appleid.apple.com', aud: 'com.wangrui.starstudio.web', email: 'me@privaterelay.appleid.com', nonce: 'n1', exp: Math.floor(Date.now() / 1000) + 3600 };
+  assert.equal((await verifyAppleIdToken(mint(base))).email, 'me@privaterelay.appleid.com'); // 有效
+  assert.equal(await verifyAppleIdToken(mint({ ...base, aud: 'other' })), null); // aud 不符
+  assert.equal(await verifyAppleIdToken(mint({ ...base, iss: 'https://evil.com' })), null); // iss 不符
+  assert.equal(await verifyAppleIdToken(mint({ ...base, exp: Math.floor(Date.now() / 1000) - 1 })), null); // 过期
+  assert.equal(await verifyAppleIdToken(mint(base, 'nope')), null); // kid 找不到
+  const t = mint(base); assert.equal(await verifyAppleIdToken(t.slice(0, -3) + 'xxx'), null); // 篡改签名
   clearEnv();
 });
 
