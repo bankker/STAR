@@ -1248,24 +1248,38 @@ async function openStory(id) {
 function closeStory() { $('#storyView').hidden = true; }
 function setStoryTab(t) { storyState.tab = t; renderStory(); }
 
+const bloodHtml = (s) => '♥'.repeat(s.blood || 0) + '♡'.repeat(Math.max(0, (s.maxBlood || 3) - (s.blood || 0)));
 function renderStory() {
   const s = storyState.story; if (!s) return;
-  if (s.chapter && s.chapter.status !== 'active' && s.endings) return renderEnding(s);
-  const res = s.player.resources;
-  const ch = s.chapter || {};
-  const left = Math.max(0, (ch.deadlineTurn || 0) - (s.turn || 1));
+  if (s.status && s.status !== 'active' && s.endings) return renderEnding(s);
+  if (storyState.battleView) return renderBattleResult(s);
+  const round = Math.min(s.cycle?.round || 0, 5);
+  const thr = 50 + ((s.cycle?.index || 1) - 1) * 18;
   const hud = `<div class="st-hud">
-    <span class="st-era">${esc(s.era)} · 第 ${s.turn} 回合</span>
+    <span class="st-blood" title="生命">${bloodHtml(s)}</span>
     <span class="st-chip" style="--fc:${FACTION_COLOR[s.player.faction] || '#888'}">${esc(s.player.faction)}</span>
-    <span class="st-res">${esc(s.player.rank || '')} · 声望 ${s.player.renown || 0} · 补给 ${res.supply} · 政治 ${res.politics} · 情报 ${res.intel}</span>
-    <button class="st-endturn" onclick="storyEndTurn()">结束回合 →</button>
+    <span class="st-res">${esc(s.player.rank || '')} · 战功 ${s.battlesWon || 0}/${s.winTarget || 3} · 战备 ${s.cycle?.prep || 0}/${thr} · 第 ${round}/5 轮</span>
     <button class="st-close" onclick="closeStory()">✕</button></div>`;
-  const goal = ch.goalDesc ? `<div class="st-goal"><b>${esc(ch.title || '目标')}</b>：${esc(ch.goalDesc)}　<span class="${left <= 2 ? 'st-urgent' : ''}">期限第 ${ch.deadlineTurn} 回合（剩 ${left}）</span></div>` : '';
-  const tabs = { event: '事件', council: '议事厅', battle: '战役', map: '星图' };
-  const nav = `<div class="st-tabs">${Object.entries(tabs).map(([t, n]) => `<button class="${storyState.tab === t ? 'on' : ''}" onclick="setStoryTab('${t}')">${n}</button>`).join('')}</div>`;
-  const body = { event: renderEventTab, council: renderCouncilTab, battle: renderBattleTab, map: renderMapTab }[storyState.tab](s);
-  $('#storyView').innerHTML = `<div class="st-game">${hud}${goal}${nav}<div class="st-body">${body}</div></div>`;
+  const phase = round >= 5
+    ? `<div class="st-goal">第 ${s.cycle?.index || 1} 场会战 · 战前筹备已满 —— <button class="st-mini" onclick="storyStrategy()">⚔ 制定会战策略</button></div>`
+    : `<div class="st-goal">第 ${s.cycle?.index || 1} 场会战筹备中 · 还需 ${5 - round} 轮战前对话（选择会累积战备）</div>`;
+  const tabs = { event: '事件', council: '议事厅', map: '星图' };
+  const tab = tabs[storyState.tab] ? storyState.tab : 'event';
+  const nav = `<div class="st-tabs">${Object.entries(tabs).map(([t, n]) => `<button class="${tab === t ? 'on' : ''}" onclick="setStoryTab('${t}')">${n}</button>`).join('')}</div>`;
+  const body = { event: renderEventTab, council: renderCouncilTab, map: renderMapTab }[tab](s);
+  $('#storyView').innerHTML = `<div class="st-game">${hud}${phase}${nav}<div class="st-body">${body}</div></div>`;
   if (storyState.streaming) updateStreamBody();
+}
+function renderBattleResult(s) {
+  const b = storyState.battleView || {}; const win = b.result?.win;
+  $('#storyView').innerHTML = `<div class="st-game">
+    <div class="st-hud"><span class="st-blood">${bloodHtml(s)}</span><span class="st-res">战功 ${s.battlesWon || 0}/${s.winTarget || 3}</span><button class="st-close" onclick="closeStory()">✕</button></div>
+    <div class="st-body"><div class="st-battle">
+      ${b.image ? `<img class="st-splash" src="${esc(b.image)}" alt=""/>` : ''}
+      <div class="st-result ${win ? 'win' : 'lose'}"><div class="st-result-h">${win ? '会战胜利 ✓' : '会战失利 ✕'} · 战备 ${b.result?.prep}/${b.result?.threshold}${win ? '' : ' · 失去 1 格血'}</div>
+        <p class="st-narration">${esc(b.strategy || '')}</p></div>
+      <button class="st-btn-primary" onclick="storyContinueAfterBattle()">继续 →</button>
+    </div></div></div>`;
 }
 function renderEnding(s) {
   const e = s.endings || {};
@@ -1273,7 +1287,7 @@ function renderEnding(s) {
   $('#storyView').innerHTML = `<div class="st-home"><div class="st-home-inner">
     <div class="st-logo">${esc(e.title || '结局')}</div>
     <div class="st-sub">${esc(e.text || '')}</div>
-    <div class="st-ending-meta">「${esc(s.chapter?.title || '')}」 · ${s.chapter?.status === 'won' ? '军事达成 ✓' : '军事失利 ✕'} · 最高好感 ${topAff}（${affStage(topAff)}）· 军衔 ${esc(s.player?.rank || '')}</div>
+    <div class="st-ending-meta">${s.status === 'won' ? '通关 ✓ 战功 ' + (s.battlesWon || 0) : '血尽覆灭 ✕'} · 最高好感 ${topAff}（${affStage(topAff)}）· 军衔 ${esc(s.player?.rank || '')}</div>
     <div class="st-new"><button class="st-btn-primary" onclick="openStoryHome()">新的征程 →</button></div>
   </div></div>`;
 }
@@ -1373,7 +1387,7 @@ async function storyGenEvent() {
     await sseStream(`/api/stories/${storyState.id}/event/stream`, {}, (ev, data) => {
       if (ev === 'meta') { storyState.streaming.speakerArtistId = data.speakerArtistId || ''; if (data.env) storyState.story.env = data.env; renderStory(); }
       else if (ev === 'token') { storyState.streaming.text += data.t; updateStreamBody(); }
-      else if (ev === 'done') { storyState.streaming = null; storyState.story.pendingEvent = data.event; if (data.env) storyState.story.env = data.env; renderStory(); }
+      else if (ev === 'done') { storyState.streaming = null; storyState.story.pendingEvent = data.event; if (data.env) storyState.story.env = data.env; if (data.cycle) storyState.story.cycle = data.cycle; renderStory(); }
       else if (ev === 'error') { storyState.streaming = null; toast((data && data.message) || '生成失败'); renderStory(); }
     });
   } catch (e) { storyState.streaming = null; toast('网络错误'); renderStory(); }
@@ -1394,8 +1408,19 @@ async function storyChoose(i) {
   const r = await api(`/api/stories/${storyState.id}/choose`, { choiceIndex: i });
   if (!r.story) return toast('出错了');
   storyState.story = r.story;
-  await storyGenEvent(); // 选完自动承接下一幕，无需手动「推进剧情」
+  if ((r.story.cycle?.round || 0) >= 5) renderStory();   // 满 5 轮战前对话 → 等玩家点「制定会战策略」
+  else await storyGenEvent();                              // 否则自动续下一轮
 }
+async function storyStrategy() {
+  storyLoading('参谋部制定会战策略、推演胜负…');
+  const r = await api(`/api/stories/${storyState.id}/strategy`, {});
+  if (r.error) { toast(r.error.message || '出错'); return renderStory(); }
+  storyState.story = r.story;
+  storyState.battleView = { strategy: r.strategy, result: r.result, image: r.image };
+  if (r.story.status && r.story.status !== 'active') return renderEnding(r.story);
+  renderStory();
+}
+function storyContinueAfterBattle() { storyState.battleView = null; storyGenEvent(); }
 async function storyAddCast(artistId) { toast('评定中…'); const r = await api(`/api/stories/${storyState.id}/cast`, { artistId, role: '参谋' }); if (r.story) { storyState.story = r.story; renderStory(); } else toast('选角失败'); }
 async function storyBattle(tactic) {
   const sysId = storyState.battleSystem || (storyState.story.map.systems.find((x) => x.faction !== storyState.story.player.faction) || {}).id;

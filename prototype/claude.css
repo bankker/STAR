@@ -172,6 +172,7 @@ button { font-family: inherit; cursor: pointer; }
 .st-goal b { color: #b69bff; }
 .st-urgent { color: #ff9a9a; font-weight: 600; }
 .st-ending-meta { font-size: 12.5px; color: #a8a2c4; margin: 14px 0 4px; }
+.st-blood { color: #ff6b8a; font-size: 15px; letter-spacing: 2px; }
 
 /* ── 主区：对话即界面（中等宽度，给右栏让出空间）── */
 .main { flex: 1 1 0; display: flex; flex-direction: column; min-width: 380px; position: relative; }

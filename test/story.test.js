@@ -67,32 +67,31 @@ test('buildAppraiseMessages：{system,messages}，要求只回 JSON', () => {
   assert.match(m.messages[0].content, /林深/);
 });
 
-test('进度：rankFor 按声望升衔；checkChapter 达成/超时；computeEnding 双线矩阵', async () => {
-  const { newStory, rankFor, checkChapter, computeEnding, enemyAdvance, topAffinity } = await import('../src/studio/story.js');
+test('进度：rankFor 升衔；battleThreshold 逐场升；resolveCycleBattle 看战备；computeEnding 双线', async () => {
+  const { newStory, rankFor, battleThreshold, resolveCycleBattle, computeEnding, topAffinity, applyChoice } = await import('../src/studio/story.js');
   assert.equal(rankFor(0), '少尉');
   assert.equal(rankFor(75), '上尉');
   assert.equal(rankFor(500), '上将');
 
   const s = newStory({ name: '杨', faction: '自由同盟' });
-  assert.equal(checkChapter(s).status, 'active');           // 初始进行中
-  const tgt = s.map.systems.find((x) => x.id === s.chapter.targetSystemId);
-  tgt.faction = '自由同盟';                                  // 夺下目标
-  assert.equal(checkChapter(s).status, 'won');
-  tgt.faction = '中立'; s.turn = 99;                         // 超时
-  assert.equal(checkChapter(s).status, 'lost');
+  assert.equal(s.blood, 3);
+  assert.equal(s.cycle.index, 1);
+  assert.ok(battleThreshold(2) > battleThreshold(1));        // 越往后越难
+
+  // 选项的 #战备 累积到 cycle.prep
+  const s2 = applyChoice(s, { effects: { prep: 60 } });
+  assert.equal(s2.cycle.prep, 60);
+  assert.equal(resolveCycleBattle({ cycle: { index: 1, prep: 60 } }, () => 0.5).win, true);   // 60≥50 胜
+  assert.equal(resolveCycleBattle({ cycle: { index: 1, prep: 30 } }, () => 0.5).win, false);  // 30<50 败
 
   s.cast = [{ artistId: 'a', affinity: 85 }];
   assert.equal(topAffinity(s), 85);
-  s.chapter.status = 'won';
-  assert.equal(computeEnding(s).key, '双全');               // 军事胜+交心
+  s.status = 'won';
+  assert.equal(computeEnding(s).key, '双全');               // 通关+交心
   s.cast[0].affinity = 10;
-  assert.equal(computeEnding(s).key, '孤高');               // 军事胜+无交心
-  s.chapter.status = 'lost';
-  assert.equal(computeEnding(s).key, '陨落');
-
-  const s2 = newStory({});
-  const taken = enemyAdvance(s2);                            // 敌军吞并一个中立
-  assert.ok(taken && s2.map.systems.some((x) => x.faction === '新帝国' && x.name === taken));
+  assert.equal(computeEnding(s).key, '孤高');               // 通关+无交心
+  s.status = 'lost';
+  assert.equal(computeEnding(s).key, '陨落');               // 血尽+无交心
 });
 
 test('seedRoles：给艺人分派角色与阵营', async () => {

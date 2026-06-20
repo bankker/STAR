@@ -10,7 +10,7 @@ import { generatedUrlToDataUrl, saveDataUrl } from '../lib/files.js';
 import { ENV_FILE, GENERATED_DIR } from '../lib/paths.js';
 import { buildPlanMessages, buildScriptMessages, extractDialogue } from '../studio/interview.js';
 import { currentUser } from './auth.js';
-import { newStory, applyChoice, resolveBattle, buildAppraiseMessages, buildEventMessages, parseEvent, buildBattleNarration, buildSceneImagePrompt, buildBattleImagePrompt, seedRoles, parseJsonLoose, TACTICS, rankFor, checkChapter, computeEnding, enemyAdvance } from '../studio/story.js';
+import { newStory, applyChoice, buildAppraiseMessages, buildEventMessages, parseEvent, buildStrategyMessages, resolveCycleBattle, buildSceneImagePrompt, buildBattleImagePrompt, seedRoles, parseJsonLoose, rankFor, computeEnding, ROUNDS_PER_BATTLE } from '../studio/story.js';
 import { createStory, getStory, listStories, saveStory, updateStory, addCast } from '../studio/story-store.js';
 import { ffmpegAvailable, runFfmpeg, probeDurationSec, buildSrt, transcodeToWav } from '../lib/ffmpeg.js';
 import fs from 'node:fs';
@@ -251,8 +251,9 @@ export function registerRoutes(route) {
       const r = await execute('world', { system, messages, maxTokens: 420 });
       const ev = parseEvent(r.text, focus?.artistId);
       s.pendingEvent = ev;
+      s.cycle.round = (s.cycle.round || 0) + 1;
       saveStory(s);
-      json(res, { event: ev, env: s.env });
+      json(res, { event: ev, env: s.env, cycle: s.cycle });
     } catch (e) { sendGatewayError(res, e); }
   });
 
@@ -269,8 +270,9 @@ export function registerRoutes(route) {
       const r = await executeStream('world', { system, messages, maxTokens: 420 }, { onToken: (t) => send('token', { t }) });
       const ev = parseEvent(r.text, focus?.artistId);
       s.pendingEvent = ev;
+      s.cycle.round = (s.cycle.round || 0) + 1;
       saveStory(s);
-      send('done', { event: ev, env: s.env });
+      send('done', { event: ev, env: s.env, cycle: s.cycle });
     } catch (e) {
       send('error', e instanceof GatewayError ? e.toJSON() : { code: 'internal', message: e.message });
     }
@@ -306,47 +308,45 @@ export function registerRoutes(route) {
     if (!choice) return jsonError(res, 'bad_request', '无效选项');
     const next = applyChoice(s, choice);
     next.lastBeat = { scene: s.pendingEvent?.scene || '', choice: choice.text || '' }; // 供下一幕承接
+    next.cycle = next.cycle || { round: 0, prep: 0, decisions: [] };
+    next.cycle.decisions = [...(next.cycle.decisions || []), choice.text].slice(-ROUNDS_PER_BATTLE); // 战前决定→喂战略
     next.pendingEvent = null;
-    next.log = [...(next.log || []), { turn: next.turn, type: 'event', text: choice.text }].slice(-50);
-    json(res, { story: saveStory(next) });
+    next.log = [...(next.log || []), { type: 'event', text: choice.text }].slice(-50);
+    json(res, { story: saveStory(next), stage: (next.cycle.round || 0) >= ROUNDS_PER_BATTLE ? 'battle' : 'dialogue' });
   });
 
-  // 战役：选战法 → 确定性结算 + LLM 旁白
-  route('POST /api/stories/:id/battle', async (req, res, { params, readJsonBody }) => {
+  // 会战：据五轮战前决定生成战略 + 判胜负；胜→战功/进阶，负→掉血；血尽或通关→结局
+  route('POST /api/stories/:id/strategy', async (req, res, { params }) => {
     const s = getStory(params.id);
     if (!s) return jsonError(res, 'not_found', `无此存档 ${params.id}`);
-    const body = await readJsonBody();
-    const myTactic = TACTICS.includes(body?.tactic) ? body.tactic : '突击';
-    const sys = s.map?.systems?.find((x) => x.id === body?.systemId) || s.map?.systems?.[0] || { name: '未知星域', terrain: '星云' };
-    const foeTactic = TACTICS[Math.floor(Math.random() * 3)];
-    const cmd = (s.cast || [])[0];
-    const attacker = { troops: 100, morale: 70, commander: cmd?.stats || { 统率: 60 }, tactic: myTactic };
-    const defender = { troops: 100, morale: 65, commander: { 统率: 65 }, tactic: foeTactic };
-    const result = resolveBattle({ attacker, defender, terrain: sys.terrain });
-    let narration = '', image = '';
+    if ((s.cycle?.round || 0) < ROUNDS_PER_BATTLE) return jsonError(res, 'bad_request', `还需完成战前对话（${s.cycle?.round || 0}/${ROUNDS_PER_BATTLE}）`);
+    const battle = resolveCycleBattle(s);
+    let strategy = '', image = '';
     try {
-      const m = buildBattleNarration(result, { system: sys.name, terrain: sys.terrain, myTactic, foeTactic });
-      const r = await execute('content', { system: m.system, messages: m.messages, maxTokens: 200 });
-      narration = r.text || '';
+      const m = buildStrategyMessages(s);
+      const r = await execute('content', { system: m.system, messages: m.messages, maxTokens: 240 });
+      strategy = r.text || '';
     } catch {}
     try {
-      const ir = await execute('image', { prompt: buildBattleImagePrompt({ terrain: sys.terrain }), aspect: '16:9' });
+      const ir = await execute('image', { prompt: buildBattleImagePrompt({ terrain: s.env?.name || '星云' }), aspect: '16:9' });
       image = ir.files?.[0]?.url || '';
     } catch {}
-    if (cmd && result.winner === 'attacker') cmd.affinity = Math.min(100, (cmd.affinity || 0) + 4);
-    if (result.winner === 'attacker') {
-      s.player.renown = (s.player.renown || 0) + 10; // 战功→声望
-      s.player.rank = rankFor(s.player.renown);
-      if (body?.systemId) { const t = s.map.systems.find((x) => x.id === body.systemId); if (t) t.faction = s.player.faction; }
+    const cmd = (s.cast || [])[0];
+    if (battle.win) {
+      s.battlesWon = (s.battlesWon || 0) + 1;
+      s.player.renown = (s.player.renown || 0) + 15; s.player.rank = rankFor(s.player.renown);
+      if (cmd) cmd.affinity = Math.min(100, (cmd.affinity || 0) + 5);
+      s.cycle = { index: (s.cycle.index || 1) + 1, round: 0, prep: 0, decisions: [] };
+      if (s.battlesWon >= (s.winTarget || 3)) { s.status = 'won'; s.endings = computeEnding(s); }
     } else {
-      s.player.renown = (s.player.renown || 0) + 2;
+      s.blood = Math.max(0, (s.blood || 0) - 1);
+      s.cycle = { index: s.cycle.index || 1, round: 0, prep: 0, decisions: [] };
+      if (s.blood <= 0) { s.status = 'lost'; s.endings = computeEnding(s); }
     }
-    // 战后即时判章节（夺下目标即达成）
-    const chk = checkChapter(s);
-    if (chk.status !== 'active') { s.chapter.status = chk.status; s.endings = computeEnding(s); }
-    s.log = [...(s.log || []), { turn: s.turn, type: 'battle', text: `${sys.name}：${result.winner === 'attacker' ? '胜' : '败'}` }].slice(-50);
+    s.pendingEvent = null; s.lastBeat = null;
+    s.log = [...(s.log || []), { type: 'battle', text: `会战${battle.win ? '胜' : '败'}（战备 ${battle.prep}/${battle.threshold}）` }].slice(-50);
     saveStory(s);
-    json(res, { result: { ...result, myTactic, foeTactic, system: sys.name, terrain: sys.terrain }, narration, image, story: s });
+    json(res, { strategy, result: battle, image, story: s });
   });
 
   // 结束回合 → 推进 1 月 + 资源结算
@@ -359,10 +359,7 @@ export function registerRoutes(route) {
     s.player.resources.supply = Math.min(100, (s.player.resources.supply || 0) + own * 2);
     s.player.resources.politics = Math.min(100, (s.player.resources.politics || 0) + 1);
     s.pendingEvent = null;
-    const advanced = enemyAdvance(s);             // 敌军推进（威胁时钟）
-    const chk = checkChapter(s);                  // 判定章节（超时/失守/达成）
-    if (chk.status !== 'active') { s.chapter.status = chk.status; s.endings = computeEnding(s); }
-    json(res, { story: saveStory(s), advanced, chapter: chk });
+    json(res, { story: saveStory(s) });
   });
 
   const TEXT_ENDPOINTS = { '/api/ai/chat': 'chat', '/api/ai/content': 'content', '/api/ai/world': 'world', '/api/ai/plan': 'plan' };
