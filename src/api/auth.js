@@ -13,8 +13,16 @@ const allowed = () => (process.env.ALLOWED_EMAILS || '').split(',').map((s) => s
 const appPassword = () => process.env.APP_PASSWORD || '';
 const SESSION_TTL = 12 * 3600; // 会话有效期 12h
 
+// 白名单留空或含 '*' → 放行任意「已验证」的 Google 账号；否则只放行名单内邮箱。
+function emailAllowed(email) {
+  const e = String(email || '').toLowerCase();
+  if (!e) return false;
+  const list = allowed();
+  return list.length === 0 || list.includes('*') || list.includes(e);
+}
+
 export function authMode() {
-  if (clientId() && allowed().length) return 'google';
+  if (clientId()) return 'google';
   if (appPassword()) return 'password';
   return 'open';
 }
@@ -49,8 +57,7 @@ export function verifySession(token) {
   if (!safeEq(mac, expect)) return null;
   let obj; try { obj = JSON.parse(fromB64url(body).toString('utf8')); } catch { return null; }
   if (!obj || typeof obj.exp !== 'number' || obj.exp < Math.floor(Date.now() / 1000)) return null;
-  const list = allowed();
-  if (list.length && !list.includes(String(obj.email || '').toLowerCase())) return null;
+  if (!emailAllowed(obj.email)) return null;
   return obj;
 }
 

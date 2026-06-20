@@ -22,8 +22,18 @@ test('authMode 由环境变量决定', () => {
   process.env.APP_PASSWORD = 'pw';
   assert.equal(authMode(), 'password');
   process.env.GOOGLE_CLIENT_ID = 'cid.apps.googleusercontent.com';
+  assert.equal(authMode(), 'google'); // 只要有 CLIENT_ID 就是 google（白名单可空）
   process.env.ALLOWED_EMAILS = 'a@b.com';
-  assert.equal(authMode(), 'google'); // google 优先
+  assert.equal(authMode(), 'google');
+  clearEnv();
+});
+
+test('白名单留空 → 放行任意已验证 Google 账号', () => {
+  clearEnv();
+  process.env.GOOGLE_CLIENT_ID = 'cid.apps.googleusercontent.com'; // 无 ALLOWED_EMAILS
+  assert.ok(verifySession(signSession({ email: 'anyone@gmail.com', exp: future() })));
+  assert.ok(verifySession(signSession({ email: 'other@whatever.com', exp: future() })));
+  assert.equal(verifySession(signSession({ email: '', exp: future() })), null); // 空邮箱仍不放行
   clearEnv();
 });
 
