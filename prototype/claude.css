@@ -94,7 +94,21 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ── 故事模式：全屏游戏 overlay（深空风，区别于纸面主界面）── */
 .story-entry { margin-top: 8px; }
-#storyView { position: fixed; inset: 0; z-index: 90; background: #0c0a18; color: #e8e6f0; font-family: var(--sans); overflow: auto; }
+/* 窄体拉丁字体：unicode-range 限定，只接管数字/英文/%；中文自动落系统重黑 */
+@font-face { font-family: 'Rajdhani'; font-weight: 500; font-display: swap; src: url('/fonts/rajdhani-500.woff2') format('woff2'); unicode-range: U+0000-00FF; }
+@font-face { font-family: 'Rajdhani'; font-weight: 600; font-display: swap; src: url('/fonts/rajdhani-600.woff2') format('woff2'); unicode-range: U+0000-00FF; }
+@font-face { font-family: 'Rajdhani'; font-weight: 700; font-display: swap; src: url('/fonts/rajdhani-700.woff2') format('woff2'); unicode-range: U+0000-00FF; }
+/* 唯一的 #storyView 真源：满屏 + 科技网格深空底 + 自带 token + 重置继承字号 */
+#storyView {
+  position: fixed; inset: 0; z-index: 90; overflow: auto;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 26px, rgba(54,160,200,.045) 26px 27px),
+    repeating-linear-gradient(90deg, transparent 0 26px, rgba(54,160,200,.045) 26px 27px),
+    radial-gradient(150% 110% at 50% -25%, #0e2c44 0%, #07182a 50%, #020810 100%);
+  color: #bfe2f0; font-family: var(--sans); font-size: 15px; line-height: 1.6;
+  --sc-display: 'Rajdhani','PingFang SC','Microsoft YaHei','Source Han Sans SC',sans-serif;
+  --sc-cyan: #5fe6e0; --sc-gold: #f0c14a; --sc-red: #ff5a6e; --sc-ink: #cfe3f0; --sc-dim: #8fb4cc;
+}
 .st-loading, .st-empty, .st-hint, .st-scene-empty { color: #a8a2c4; padding: 24px; text-align: center; }
 .st-home { position: relative; min-height: 100%; display: grid; place-items: center; background: radial-gradient(120% 120% at 50% 0%, #1a1030, #0c0a18 60%); }
 .st-home-inner { width: min(92vw, 520px); text-align: center; padding: 40px 24px; }
@@ -175,7 +189,6 @@ button { font-family: inherit; cursor: pointer; }
 .st-blood { color: #ff6b8a; font-size: 15px; letter-spacing: 2px; }
 
 /* ══ 星际争霸风格主题：深空底 + 青/金金属角切框 + 辉光 ══ */
-#storyView { background: radial-gradient(120% 90% at 50% -10%, #0e2742 0%, #07101e 55%, #03060d 100%); color: #cfe3f0; }
 .st-home { background: radial-gradient(120% 90% at 50% -10%, #102a46, #05080f 62%); }
 .st-logo { background: linear-gradient(100deg, #5fe6e0, #e8b54a); -webkit-background-clip: text; background-clip: text; color: transparent; letter-spacing: .06em; }
 .st-sub { color: #8fb4cc; }
@@ -633,13 +646,6 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 /* ════════ 故事界面 · 完全重做为星际争霸 SC2 指挥控制台皮肤 ════════ */
-#storyView {
-  background:
-    repeating-linear-gradient(0deg, transparent 0 26px, rgba(54,160,200,.045) 26px 27px),
-    repeating-linear-gradient(90deg, transparent 0 26px, rgba(54,160,200,.045) 26px 27px),
-    radial-gradient(150% 110% at 50% -25%, #0e2c44 0%, #07182a 50%, #020810 100%);
-  color: #bfe2f0;
-}
 .st-hud { background: linear-gradient(180deg,#123952,#0a2236 60%,#08192a); border-bottom: 2px solid #2fb9d6; box-shadow: inset 0 1px 0 rgba(120,220,245,.18), 0 2px 10px rgba(0,0,0,.5); }
 .st-blood { color: #ff5a6e; text-shadow: 0 0 10px rgba(255,90,110,.6); }
 .st-res { color: #7fb6cf; }
@@ -772,3 +778,37 @@ button { font-family: inherit; cursor: pointer; }
 .sc-stat thead td { color: #6f93a6; font-size: 10px; }
 .sc-narr { font-size: 13px; line-height: 1.7; color: #cfe0ea; margin: 6px 0 10px; }
 .sc-meta { font-size: 12.5px; color: #8fb4cc; margin-bottom: 12px; }
+
+/* ════════ 显示字体层（窄体拉丁数字 + 中文系统重黑）+ 满铺 ════════ */
+/* 标题/名字/数字/标签 → 显示字体栈：拉丁走 Rajdhani 窄体，中文落苹方/雅黑 */
+.sc-h-big, .sc-cmd-name, .sc-ntab, .sc-nav-status, .sc-vic, .sc-pn, .sc-killbar, .sc-killbar i,
+.sc-ring i, .sc-stat, .sc-tst, .sc-tlv, .sc-sect, .sc-itab, .sc-meta, .sc-obj-head, .st-obj-body,
+.st-tx-head, .st-env-tag, .st-actions button, .sc-acts button, .st-key, .st-blood, .sc-foot,
+.st-logo, .st-menu-title, .st-menu-label, .st-menu-key, .st-menu-meta, .st-btn-primary, .st-mini, .sc-cust {
+  font-family: var(--sc-display);
+}
+/* 中文标题加重 + 加宽字距（拉丁本就窄体）*/
+.sc-h-big, .sc-cmd-name, .sc-vic, .st-logo, .st-menu-title { font-weight: 700; letter-spacing: .05em; }
+/* 数字/标题拉大字号阶梯（Rajdhani 窄高，放大不挤）*/
+.sc-cmd-name { font-size: 40px; margin: 4px 0 12px; }
+.sc-h-big { font-size: 27px; }
+.sc-vic { font-size: 28px; }
+.sc-ring i { font-size: 36px; font-weight: 700; }
+.sc-nav-status { font-size: 14px; letter-spacing: .03em; }
+.sc-ntab { font-size: 15px; letter-spacing: .09em; }
+.sc-killbar { font-size: 14px; }
+.sc-killbar i { font-weight: 600; }
+.sc-stat { font-size: 13px; }
+.sc-stat thead td { font-size: 11px; letter-spacing: .04em; }
+.sc-sect { font-size: 15px; letter-spacing: .03em; }
+.st-tx-head { font-size: 13px; letter-spacing: .06em; }
+.st-menu-title { font-size: 44px; }
+/* 满铺：去掉 760 居中列、面板 max-width；网格自动填满整行 */
+#storyView .st-body { max-width: none; margin: 0; padding: 22px clamp(16px, 3vw, 44px); }
+.sc-coop { max-width: none; }
+.sc-grid { grid-template-columns: repeat(auto-fill, minmax(74px, 88px)); }
+.sc-acts { max-width: 660px; }
+.sc-results { max-width: 940px; padding: 26px clamp(20px, 4vw, 64px); }
+.sc-results .sc-stat { max-width: 600px; }
+.sc-rhead { max-width: 600px; }
+.sc-killbar { max-width: 600px; }
