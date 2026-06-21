@@ -112,7 +112,8 @@ async function openGame() {
   const v = view();
   v.hidden = false; v.classList.add('bg-root');
   G.run = { nodes: structuredClone(MAP_NODES), selected: 'n4', flagAt: 'n4', pan: { x: -40, y: -70 }, current: null, relics: [], credits: 0, upgrades: [] };
-  G.maxSlots = 4;   // 核心仓位（基础 4，§3.2 永久升级可达 6）
+  G.meta = loadMeta();              // 永久升级（localStorage，§3.1/§3.2）
+  G.maxSlots = G.meta.slots;        // 核心仓位随永久升级成长
   G.screen = 'map'; G.squad = []; G.detail = null; G.battle = null; G.pending = null; G.result = null; G.pendingEnemy = null;
   render();
   try {
@@ -132,6 +133,7 @@ function render() {
   if (G.screen === 'dialogue') { v.innerHTML = renderDialogue() + '<div class="bg-toast"></div>'; fit(); return; }
   if (G.screen === 'reward') { v.innerHTML = renderReward() + '<div class="bg-toast"></div>'; fit(); return; }
   if (G.screen === 'defeat') { v.innerHTML = renderDefeat() + '<div class="bg-toast"></div>'; fit(); return; }
+  if (G.screen === 'armory') { v.innerHTML = renderArmory() + '<div class="bg-toast"></div>'; fit(); return; }
   v.innerHTML = `<div class="bg-wrap">${renderHud()}${renderResult()}</div><div class="bg-toast"></div>`;
 }
 function fit() {
@@ -423,6 +425,37 @@ function renderResult() {
   </div>`;
 }
 
+// ── 改装坞：永久升级树 + 仓位（§3.1/§3.2，localStorage 持久化）──
+const META_KEY = 'starfall_meta_v1';
+const ROUTES = [
+  { id: '主炮·重炮', part: '主炮', relic: { kind: 'atkDmg', amount: 2 }, desc: '所有伤害牌 +2 伤害' },
+  { id: '主炮·连射', part: '主炮', relic: { kind: 'extraDraw', amount: 1 }, desc: '每回合多摸 1 张牌' },
+  { id: '护盾·硬盾', part: '护盾', relic: { kind: 'startArmor', amount: 4 }, desc: '开局舰体 +4 护甲' },
+  { id: '反应堆·高功率', part: '反应堆', relic: { kind: 'startEnergy', amount: 1 }, desc: '每场首回合 +1 能量' },
+];
+const EQUIP_MAX = 2;
+function loadMeta() {
+  try { const m = JSON.parse(localStorage.getItem(META_KEY)); if (m && typeof m === 'object') return { routes: m.routes || {}, equipped: Array.isArray(m.equipped) ? m.equipped : [], slots: Math.max(4, Math.min(6, m.slots || 4)) }; } catch {}
+  return { routes: {}, equipped: [], slots: 4 };
+}
+function saveMeta() { try { localStorage.setItem(META_KEY, JSON.stringify(G.meta)); } catch {} }
+function equippedRelics() { return (G.meta?.equipped || []).map((id) => ROUTES.find((r) => r.id === id)?.relic).filter(Boolean); }
+function renderArmory() {
+  const m = G.meta; const parts = {};
+  ROUTES.forEach((r) => { (parts[r.part] = parts[r.part] || []).push(r); });
+  const partHtml = Object.entries(parts).map(([part, routes]) => `<div style="background:rgba(10,24,40,.6);border:1px solid rgba(79,214,230,.25);border-radius:8px;padding:14px 16px"><div style="font-weight:700;font-size:14px;letter-spacing:2px;color:#d6f3ff;margin-bottom:10px">${esc(part)}</div>${routes.map((r) => {
+    const unlocked = !!m.routes[r.id], equipped = (m.equipped || []).includes(r.id);
+    const st = equipped ? '已装备' : unlocked ? '点击装备' : '点击解锁';
+    const color = equipped ? '#5fe8c0' : unlocked ? '#5fe0ee' : '#7a93a8';
+    return `<button data-act="route-toggle" data-id="${esc(r.id)}" style="width:100%;text-align:left;margin-bottom:8px;padding:11px 13px;cursor:pointer;background:${equipped ? 'rgba(63,240,160,.12)' : 'rgba(8,18,30,.6)'};border:1px solid ${color}66;border-radius:6px;display:flex;align-items:center;gap:10px"><span style="width:9px;height:9px;background:${color};transform:rotate(45deg);flex:none"></span><span style="flex:1"><span style="font-size:13px;color:#eaf4ff;font-weight:600">${esc(r.id.split('·')[1] || r.id)}</span><br><span style="font-size:11px;color:#9fb6c6">${esc(r.desc)}</span></span><span style="font-size:11px;letter-spacing:1px;color:${color}">${st}</span></button>`;
+  }).join('')}</div>`).join('');
+  return `<div class="bg-fit"><div class="bg-stage" id="bg-stage" style="background:radial-gradient(ellipse 90% 80% at 50% 30%,#0a1730,#05080f 80%);overflow-y:auto;padding:38px 56px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px"><div><div style="font-family:Oxanium;font-weight:800;font-size:30px;letter-spacing:4px;color:#5fe6ff">改装坞 · 永久升级</div><div style="font-size:12px;letter-spacing:2px;color:#7a93a8;margin-top:6px">解锁永久保留 · 出战前自由配置（装备上限 ${EQUIP_MAX}）· 已装备 ${(m.equipped || []).length}/${EQUIP_MAX}</div></div><button data-act="armory-back" style="padding:10px 22px;font-weight:700;letter-spacing:2px;color:#06202a;background:linear-gradient(180deg,#5fe8c0,#3fd0e0);border:0;clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);cursor:pointer">‹ 返回星图</button></div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:22px">${partHtml}</div>
+    <div style="background:rgba(10,24,40,.6);border:1px solid rgba(192,123,255,.3);border-radius:8px;padding:16px 18px;display:flex;align-items:center;gap:16px"><div style="flex:1"><div style="font-weight:700;font-size:14px;letter-spacing:2px;color:#c79bff">核心仓位（§3.2）</div><div style="font-size:12px;color:#9fb6c6;margin-top:4px">同时可上场核心船员数 · 当前 <b style="color:#fff;font-family:Oxanium">${m.slots}</b> / 6</div></div>${m.slots < 6 ? '<button data-act="slot-unlock" style="padding:10px 18px;font-weight:700;color:#06202a;background:linear-gradient(180deg,#c79bff,#9a6fe0);border:0;border-radius:6px;cursor:pointer">扩充第 ' + (m.slots + 1) + ' 格</button>' : '<span style="color:#7a93a8;font-size:12px">已达上限 6</span>'}</div>
+  </div></div>`;
+}
+
 // ── 星图（1:1 复刻 SC2 comp 星图.dc.html）+ run 循环 ──
 function mapById(id) { return G.run.nodes.find((n) => n.id === id); }
 function unlockAdjacent() {
@@ -541,6 +574,7 @@ function renderMap() {
         <div style="display:flex;align-items:center;gap:8px;padding:7px 14px;background:rgba(8,22,34,.85);border:1px solid rgba(79,214,230,.3);border-radius:3px"><span style="width:7px;height:7px;background:#5fe0ee;transform:rotate(45deg)"></span>跃迁燃料 <span style="font-family:Oxanium;font-weight:800;color:#7fe6ff">8</span>/10</div>
         <div style="display:flex;align-items:center;gap:8px;padding:7px 14px;background:rgba(8,22,34,.85);border:1px solid rgba(255,176,32,.3);border-radius:3px"><span style="width:7px;height:7px;background:#ffd27a;transform:rotate(45deg)"></span>信用点 <span style="font-family:Oxanium;font-weight:800;color:#ffd27a">${(r.credits || 0).toLocaleString()}</span></div>
         <div style="display:flex;align-items:center;gap:8px;padding:7px 14px;background:rgba(8,22,34,.85);border:1px solid rgba(192,123,255,.3);border-radius:3px"><span style="width:7px;height:7px;background:#c07bff;transform:rotate(45deg)"></span>遗物 <span style="font-family:Oxanium;font-weight:800;color:#c07bff">${(r.relics || []).length}</span></div>
+        <button data-act="open-armory" style="padding:7px 16px;font-size:12px;letter-spacing:2px;color:#9fe6f4;background:rgba(12,30,44,.85);border:1px solid rgba(95,210,235,.4);border-radius:3px;cursor:pointer">⚙ 改装坞</button>
       </div>
     </div>
     <div style="position:absolute;bottom:24px;left:28px;display:flex;gap:16px;padding:10px 18px;background:rgba(8,16,28,.82);border:1px solid rgba(79,214,230,.22);border-radius:8px;z-index:35">${legend}<div style="width:1px;background:rgba(79,214,230,.2)"></div><span style="font-size:11px;letter-spacing:1px;color:#6a8090">拖动平移星图</span></div>
@@ -666,6 +700,15 @@ function onClick(e) {
   if (act === 'deploy-again') { if (G.run?.current && G.result === 'won') { genReward(); G.screen = 'reward'; return render(); } return returnFromBattle(); }
   if (act === 'reward-pick') return applyReward(+el.dataset.idx);
   if (act === 'defeat-continue') { G.screen = 'map'; return render(); }
+  if (act === 'open-armory') { G.screen = 'armory'; return render(); }
+  if (act === 'armory-back') { G.screen = 'map'; return render(); }
+  if (act === 'route-toggle') {
+    if (!ROUTES.find((x) => x.id === id)) return;
+    if (!G.meta.routes[id]) { G.meta.routes[id] = true; toast('已解锁 · ' + id); }
+    else { const i = G.meta.equipped.indexOf(id); if (i >= 0) G.meta.equipped.splice(i, 1); else { if (G.meta.equipped.length >= EQUIP_MAX) return toast('装备已满（最多 ' + EQUIP_MAX + '）'); G.meta.equipped.push(id); } }
+    saveMeta(); return render();
+  }
+  if (act === 'slot-unlock') { if (G.meta.slots < 6) { G.meta.slots++; G.maxSlots = G.meta.slots; saveMeta(); toast('核心仓位 → ' + G.meta.slots); } return render(); }
   if (act === 'talk') { const a = G.artists.find((x) => x.id === id); if (a) enterDialogue(a); return; }
   if (act === 'close-dialogue') return exitDialogue();
   if (act === 'dlg-advance') return advanceDialogue();
@@ -691,7 +734,7 @@ function deploy() {
   if (G.squad.length === 0) return toast('至少选 1 名核心船员');
   const cast = G.squad.length ? G.squad : G.artists.slice(0, 2);
   if (!cast.length) return toast('还没有艺人可作为船员');
-  G.battle = newBattle({ cards: runCards(), deck: starterDeck(), crew: crewFromCast(cast.slice(0, G.maxSlots)), enemy: G.pendingEnemy || ENEMIES.海盗前锋, rng: Math.random, maxSlots: G.maxSlots, terrain: G.pendingTerrain || null, relics: G.run?.relics || [] });
+  G.battle = newBattle({ cards: runCards(), deck: starterDeck(), crew: crewFromCast(cast.slice(0, G.maxSlots)), enemy: G.pendingEnemy || ENEMIES.海盗前锋, rng: Math.random, maxSlots: G.maxSlots, terrain: G.pendingTerrain || null, relics: [...(G.run?.relics || []), ...equippedRelics()] });
   G.screen = 'battle'; G.pending = null; G.result = null;
   render();
 }
