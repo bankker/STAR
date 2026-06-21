@@ -1257,35 +1257,42 @@ function renderStory() {
   const s = storyState.story; if (!s) return;
   if (s.status && s.status !== 'active' && s.endings) return renderEnding(s);
   if (storyState.battleView) return renderBattleResult(s);
-  const hud = `<div class="st-hud">
-    <span class="st-fac">◆ ${esc(s.player.faction)}</span>
-    <span class="st-res" style="margin-left:auto">声望 ${s.player.renown || 0} · 军衔 ${esc(s.player.rank || '')}</span>
-    <button class="st-close" onclick="closeStory()">✕</button></div>`;
   const tabs = { event: '事件', council: '议事厅', map: '星图' };
   const tab = tabs[storyState.tab] ? storyState.tab : 'event';
-  const nav = `<div class="st-tabs">${Object.entries(tabs).map(([t, n]) => `<button class="${tab === t ? 'on' : ''}" onclick="setStoryTab('${t}')">${n}</button>`).join('')}</div>`;
+  const nav = `<div class="sc-nav">
+    <span class="sc-logo">◆</span>
+    ${Object.entries(tabs).map(([t, n]) => `<button class="sc-ntab ${tab === t ? 'on' : ''}" onclick="setStoryTab('${t}')">${n}</button>`).join('')}
+    <span class="sc-nav-status">声望 ${s.player.renown || 0} · 军衔 ${esc(s.player.rank || '')}</span>
+    <button class="sc-nav-x" onclick="closeStory()">✕</button></div>`;
   const body = { event: renderEventTab, council: renderCouncilTab, map: renderMapTab }[tab](s);
-  $('#storyView').innerHTML = `<div class="st-game">${hud}${nav}<div class="st-body">${body}</div></div>`;
+  const clock = new Date().toTimeString().slice(0, 5);
+  $('#storyView').innerHTML = `<div class="st-game">${nav}<div class="st-body">${body}</div><div class="sc-foot"><span>▤ 输入 / 查看指令</span><span class="sc-foot-r">星历 ${clock}</span></div></div>`;
   if (storyState.streaming) updateStreamBody();
 }
 function renderBattleResult(s) {
   const b = storyState.battleView || {}; const win = b.result?.win;
-  const pct = Math.min(100, Math.round((b.result?.prep || 0) / (b.result?.threshold || 1) * 100));
-  const rows = (s.cast || []).map((c) => `<div class="st-vrow"><span class="st-vname">${esc(c.name || '')}</span><span class="st-vrole">${esc(c.role || '')}</span><span>好感 ${c.affinity || 0}</span><span>统率 ${c.stats?.统率 ?? '-'}</span></div>`).join('');
-  $('#storyView').innerHTML = `<div class="st-victory">
-    <button class="st-close" onclick="closeStory()">✕</button>
-    <div class="st-victory-banner ${win ? 'win' : 'lose'}">${win ? 'VICTORY' : 'DEFEAT'}<span>${win ? '会战胜利' : '会战失利'}</span></div>
-    <div class="st-victory-body">
-      ${b.image ? `<img class="st-victory-img" src="${esc(b.image)}" alt=""/>` : ''}
-      <div class="st-victory-panel">
-        <div class="st-vbar-label">战备 <b>${b.result?.prep ?? 0}</b> / 门槛 ${b.result?.threshold ?? 0}</div>
-        <div class="st-vbar"><i class="${win ? 'win' : 'lose'}" style="width:${pct}%"></i></div>
-        <div class="st-vmeta">战功 ${s.battlesWon || 0}/${s.winTarget || 3} · 生命 <span class="st-blood">${bloodHtml(s)}</span>${win ? '' : ' · 失去 1 格'}</div>
-        <div class="st-vrows">${rows || '<div class="st-empty">（无在场角色）</div>'}</div>
-        <p class="st-narration">${esc(b.strategy || '')}</p>
-        <button class="st-btn-primary" onclick="storyContinueAfterBattle()">继续 →</button>
-      </div>
-    </div></div>`;
+  const prep = b.result?.prep || 0; const thr = b.result?.threshold || 1;
+  const ourPct = Math.max(15, Math.min(85, Math.round(prep / (thr || 1) * 55)));
+  const foePct = 100 - ourPct;
+  const ourRows = (s.cast || []).map((c, i) => `<tr><td class="k">${esc(c.name || '')}</td><td class="v">${Math.max(3, 46 - i * 11)}% | ${(c.stats?.统率 || 50) * 3}</td><td class="cr">${c.stats?.政务 || 4}</td><td class="ls">${i + 1}</td></tr>`).join('')
+    || '<tr><td class="k">旗舰编队</td><td class="v">100% | 0</td><td class="cr">1</td><td class="ls">0</td></tr>';
+  const top = (s.cast || []).reduce((m, c) => (c.affinity || 0) > (m.affinity || 0) ? c : m, { name: '友军', affinity: -1 });
+  $('#storyView').innerHTML = `<div class="sc-results">
+    <button class="sc-nav-x sc-res-x" onclick="closeStory()">✕</button>
+    <div class="sc-rhead"><span class="sc-pn sc-p1">${esc(s.player?.name || '提督')}</span><span class="sc-vic ${win ? 'win' : 'lose'}">${win ? '会战胜利！' : '会战失利'}</span><span class="sc-pn sc-p2">${esc(top.name || '友军')}</span></div>
+    <div class="sc-killbar"><i class="b" style="width:${ourPct}%">${ourPct}%</i><span class="mid">歼敌</span><i class="g" style="width:${foePct}%">${foePct}%</i></div>
+    ${b.image ? `<img class="sc-res-img" src="${esc(b.image)}" alt=""/>` : ''}
+    <p class="sc-sect cyn">${esc(s.player?.name || '提督')} <small>· ${esc(s.player?.faction || '')} · 战备 ${prep}/${thr}</small></p>
+    <table class="sc-stat"><thead><tr><td>单位</td><td>歼敌</td><td>建造</td><td>损失</td></tr></thead>${ourRows}</table>
+    <p class="sc-sect red">敌军 <small>· 帝国正规舰队</small></p>
+    <table class="sc-stat"><thead><tr><td>单位</td><td>歼敌</td><td>建造</td><td>损失</td></tr></thead>
+      <tr><td class="k">战列舰</td><td class="v">35% | 36</td><td class="cr">46</td><td class="ls">45</td></tr>
+      <tr><td class="k">驱逐舰</td><td class="v">22% | 23</td><td class="cr">347</td><td class="ls">331</td></tr>
+      <tr><td class="k">要塞炮台</td><td class="v">9% | 9</td><td class="cr">7</td><td class="ls">5</td></tr></table>
+    <p class="sc-narr">${esc(b.strategy || '')}</p>
+    <div class="sc-meta">战功 ${s.battlesWon || 0}/${s.winTarget || 3} · 生命 <span class="st-blood">${bloodHtml(s)}</span>${win ? '' : ' · 失去 1 格'}</div>
+    <button class="st-btn-primary" onclick="storyContinueAfterBattle()">继续 →</button>
+  </div>`;
 }
 function renderEnding(s) {
   const e = s.endings || {};
@@ -1340,24 +1347,41 @@ function renderEventTab(s) {
   </div>`;
 }
 function storyCouncilSelect(id) { storyState.councilSel = id; renderStory(); }
+function storyCouncilInfo(t) { storyState.councilInfoTab = t; renderStory(); }
+const affStars = (a) => Math.max(1, Math.min(8, Math.round((a || 0) / 100 * 8)));
 function renderCouncilTab(s) {
   const cast = s.cast || [];
   if (!storyState.councilSel || !cast.find((c) => c.artistId === storyState.councilSel)) storyState.councilSel = cast[0]?.artistId || '';
+  const itab = storyState.councilInfoTab || '档案';
   const inCast = new Set(cast.map((c) => c.artistId));
-  const tiles = cast.map((c) => `<button class="st-cmd-tile ${c.artistId === storyState.councilSel ? 'sel' : ''}" onclick="storyCouncilSelect('${c.artistId}')">
-    ${c.portraitUrl ? `<img src="${esc(c.portraitUrl)}" alt=""/>` : `<span class="st-cmd-ph">${esc((c.name || '?')[0])}</span>`}
-    <span class="st-cmd-tname">${esc(c.name || '')}</span></button>`).join('');
+  const tile = (c) => `<button class="sc-tile ${c.artistId === storyState.councilSel ? 'on' : ''}" onclick="storyCouncilSelect('${c.artistId}')">${c.portraitUrl ? `<img src="${esc(c.portraitUrl)}" alt=""/>` : `<span>${esc((c.name || '?')[0])}</span>`}<span class="sc-tst">★${affStars(c.affinity)}</span><span class="sc-tlv">${affStage(c.affinity || 0)}</span></button>`;
+  const tiles = cast.map(tile).join('');
   const avail = (state.artists || []).filter((a) => !inCast.has(a.id));
-  const addTiles = avail.map((a) => `<button class="st-cmd-tile add" onclick="storyAddCast('${a.id}')" title="选入剧本（LLM 评定数值）"><span class="st-cmd-ph">＋</span><span class="st-cmd-tname">${esc(a.name)}</span></button>`).join('');
+  const addTiles = avail.map((a) => `<button class="sc-tile add" onclick="storyAddCast('${a.id}')" title="选入：${esc(a.name)}">＋</button>`).join('');
   const sel = cast.find((c) => c.artistId === storyState.councilSel);
-  const statRow = (k) => { const v = sel?.stats?.[k] ?? 0; return `<div class="st-stat-row"><span class="st-stat-k">${k}</span><div class="st-stat-bar"><i style="width:${v}%"></i></div><span class="st-stat-v">${v}</span></div>`; };
-  const detail = sel ? `<div class="st-cmd-detail">
-    <div class="st-cmd-head">${sel.portraitUrl ? `<img class="st-cmd-big" src="${esc(sel.portraitUrl)}" alt=""/>` : `<span class="st-cmd-big st-cmd-ph">${esc((sel.name || '?')[0])}</span>`}
-      <div class="st-cmd-id"><div class="st-cmd-name">${esc(sel.name || '')}</div><div class="st-cmd-role">${esc(sel.role || '')} · ${esc(sel.faction || '')}</div>
-        <div class="st-aff"><div class="st-aff-bar"><i style="width:${sel.affinity || 0}%"></i></div><span>好感 ${sel.affinity || 0} · ${affStage(sel.affinity || 0)}</span></div></div></div>
-    <div class="st-cmd-stats">${['统率', '谋略', '政务', '魅力', '忠诚'].map(statRow).join('')}</div>
-  </div>` : '<div class="st-empty">还没有角色，从上面把艺人选入剧本。</div>';
-  return `<div class="st-coop"><div class="st-cmd-grid">${tiles}${addTiles}</div>${detail}</div>`;
+  let detail;
+  if (sel) {
+    const ring = Math.min(100, sel.affinity || 0);
+    const bullets = itab === '数值'
+      ? ['统率', '谋略', '政务', '魅力', '忠诚'].map((k) => `<li>${k} ${sel.stats?.[k] ?? '-'}</li>`).join('')
+      : itab === '羁绊'
+        ? `<li>好感 ${sel.affinity || 0} · ${affStage(sel.affinity || 0)}</li><li>羁绊技能：${(sel.affinity || 0) >= 60 ? '交叉火力（会战 +15% 战备）' : '好感 60 解锁'}</li><li>个人线：${(sel.affinity || 0) >= 80 ? '已解锁' : '好感 80 解锁'}</li>`
+        : `<li>${esc(sel.role || '参谋')} · ${esc(sel.faction || '')}</li><li>统率 ${sel.stats?.统率 ?? '-'} · 谋略 ${sel.stats?.谋略 ?? '-'} · 政务 ${sel.stats?.政务 ?? '-'}</li><li>好感 ${sel.affinity || 0}（${affStage(sel.affinity || 0)}）</li>`;
+    detail = `<div class="sc-detail">
+      <div class="sc-ringwrap"><div class="sc-ring" style="background:conic-gradient(#3fd0e8 0 ${ring}%,rgba(255,255,255,.08) ${ring}% 100%)"><i>${sel.affinity || 0}</i></div><div class="sc-cust">✦ 培养</div></div>
+      <div class="sc-desc"><h4>${esc(sel.name || '')} · ${esc(sel.role || '参谋')}</h4><ul>${bullets}</ul><div class="sc-play">▶ 个人剧情</div></div>
+    </div>`;
+  } else detail = '<div class="st-empty">还没有角色，点下面「＋」把艺人选入剧本。</div>';
+  const itabs = ['档案', '数值', '羁绊'].map((t) => `<button class="sc-itab ${itab === t ? 'on' : ''}" onclick="storyCouncilInfo('${t}')">${t}</button>`).join('');
+  return `<div class="sc-coop">
+    <p class="sc-h-big">议事厅 · 麾下将领</p>
+    <p class="sc-h-sub">选择并培养你的指挥官，编织羁绊</p>
+    <div class="sc-grid">${tiles}${addTiles}</div>
+    <div class="sc-cmd-name">${esc(sel?.name || '—')}</div>
+    <div class="sc-itabs">${itabs}</div>
+    ${detail}
+    <div class="sc-acts"><button class="ready" onclick="setStoryTab('event')">出战</button><button onclick="setStoryTab('event')">随机会战<small>奖励声望 25%</small></button><button onclick="setStoryTab('event')">残酷难度<small>奖励声望 100%</small></button></div>
+  </div>`;
 }
 function renderBattleTab(s) {
   const enemy = (s.map?.systems || []).filter((x) => x.faction !== s.player.faction);
