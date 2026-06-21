@@ -10,6 +10,7 @@
     "check": "node scripts/check.mjs",
     "test": "node --test",
     "smoke": "node scripts/smoke.mjs",
-    "gen:ships": "node scripts/gen-ships.mjs"
+    "gen:ships": "node scripts/gen-ships.mjs",
+    "cutout:ships": "node scripts/cutout-ships.mjs"
   }
 }

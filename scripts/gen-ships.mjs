@@ -4,6 +4,7 @@
 //   node scripts/gen-ships.mjs --force      # 全部重生成
 //   node scripts/gen-ships.mjs --only=enemy-boss   # 只生成某一艘
 // 需在 .env 里已录入对应平台 API key（与服务器同源）。
+// 生成的是纯黑底图；随后跑 `npm run cutout:ships` 把黑背景抠成透明，再投入游戏。
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadEnv } from '../src/lib/env.js';
