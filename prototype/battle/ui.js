@@ -1,7 +1,7 @@
 // 星舰炉石 · 前端（出战编成 + 战斗界面 + 结算）。引擎在浏览器端运行，无服务器往返。
 import { newBattle, canPlay, playCard, attack, endTurn, heroPower } from './engine.js';
 import { CARDS, starterDeck, crewFromCast, ENEMIES, CREW_ROLES, CREW_TRAITS } from './cards.js';
-import { CAT, PALETTES, portrait, crack, drone, friendlyDrone, enemyShip, traitIcon, cardArt, starfield, shipSchematic, tagIcon, dialoguePortrait, nodeIcon, enemyThumb, flagSvg, FAC, TYPE_META } from './assets.js';
+import { CAT, PALETTES, portrait, crack, drone, friendlyDrone, enemyShip, traitIcon, cardArt, starfield, shipSchematic, tagIcon, dialoguePortrait, nodeIcon, enemyThumb, flagSvg, FAC, TYPE_META, warshipSVG, planetSVG } from './assets.js';
 
 // 星图节点数据（取自 comp 星图.dc.html）
 const MAP_NODES = [
@@ -328,6 +328,7 @@ function renderBattle() {
   const crew = b.board.filter((u) => u.type === 'crew');
   const summons = b.board.filter((u) => u.type === 'summon');
   const faceHit = p?.kind === 'attack' && isLegalTarget(b, 'face');
+  const enemyBoss = (b.enemy.maxHp || 0) >= 60 || /涅墨西斯|旗舰|母舰|boss/i.test(b.enemy.name || '');
   const intent = b.intent || { type: 'attack', value: 0, target: 'ship' };
   const intentTarget = intent.target && intent.target !== 'ship' ? (b.board.find((u) => u.instanceId === intent.target)?.name || '船员') : '舰体';
   const enemyPct = Math.max(0, Math.min(100, b.enemy.hp / b.enemy.maxHp * 100));
@@ -340,6 +341,8 @@ function renderBattle() {
   const slots = [0, 1, 2].map((i) => summonSlot(summons[i])).join('');
   return `<div class="bg-fit"><div class="bg-stage" id="bg-stage">
     <div style="position:absolute;inset:0;background-image:url(&quot;${Q(STARS)}&quot;);background-size:cover;opacity:.7;pointer-events:none"></div>
+    <div style="position:absolute;left:-120px;top:90px;width:360px;height:360px;opacity:.5;pointer-events:none;filter:drop-shadow(0 0 40px ${enemyBoss ? 'rgba(170,110,255,.25)' : 'rgba(255,150,90,.2)'})">${planetSVG({ scheme: enemyBoss ? 'void' : 'default' })}</div>
+    <div style="position:absolute;right:-90px;top:340px;width:200px;height:200px;opacity:.32;pointer-events:none">${planetSVG({ scheme: 'ice' })}</div>
     <div style="position:absolute;inset:0;background:radial-gradient(ellipse 60% 40% at 50% 8%,rgba(60,120,170,.16),transparent 70%),radial-gradient(ellipse 70% 45% at 50% 96%,rgba(40,90,140,.22),transparent 65%);pointer-events:none"></div>
 
     <div style="position:absolute;top:0;left:0;width:1920px;height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;background:linear-gradient(180deg,rgba(10,26,40,.96),rgba(8,18,30,.55));border-bottom:1px solid rgba(79,214,230,.32);box-shadow:0 2px 18px rgba(0,0,0,.6);z-index:40">
@@ -354,7 +357,7 @@ function renderBattle() {
 
     <div style="position:absolute;top:64px;left:0;width:1920px;height:330px">
       <div style="position:absolute;top:14px;left:50%;transform:translateX(-50%);width:470px;display:flex;flex-direction:column;align-items:center">
-        <div ${faceHit ? 'data-act="foe-face"' : ''} style="width:430px;height:144px;background-image:url(&quot;${Q(enemyShip(false))}&quot;);background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(0 0 24px rgba(255,110,60,.35));animation:bgfloat 5s ease-in-out infinite;cursor:${faceHit ? 'crosshair' : 'default'};${faceHit ? 'outline:2px solid #ff5a3c;outline-offset:6px' : ''}"></div>
+        <div ${faceHit ? 'data-act="foe-face"' : ''} style="width:440px;height:152px;filter:drop-shadow(0 0 26px ${enemyBoss ? 'rgba(180,110,255,.42)' : 'rgba(255,110,60,.4)'});animation:bgfloat 5s ease-in-out infinite;cursor:${faceHit ? 'crosshair' : 'default'};${faceHit ? 'outline:2px solid #ff5a3c;outline-offset:8px;border-radius:8px' : ''}">${warshipSVG({ boss: enemyBoss })}</div>
         <div style="margin-top:-6px;display:flex;flex-direction:column;align-items:center;gap:6px;width:460px">
           <div style="font-family:Oxanium;font-weight:700;font-size:18px;letter-spacing:2px;color:#ffb9a0;text-shadow:0 0 14px rgba(255,90,60,.45)">${esc(b.enemy.name)}</div>
           <div style="position:relative;width:310px;height:18px;background:rgba(6,16,26,.9);border:1px solid rgba(255,90,60,.45);clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);overflow:hidden">
@@ -578,7 +581,7 @@ function renderMap() {
     </div>`;
   }).join('');
   const fa = map[r.flagAt];
-  const flag = `<div style="position:absolute;left:${fa.x + 58}px;top:${fa.y - 58}px;transform:translate(-50%,-50%);width:72px;height:54px;z-index:25;animation:flagFloat 3.4s ease-in-out infinite"><div style="width:72px;height:54px;background-image:url(&quot;${Q(flagSvg)}&quot;);background-size:contain;background-repeat:no-repeat;filter:drop-shadow(0 0 14px rgba(95,224,238,.6))"></div><div style="position:absolute;top:-22px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10px;letter-spacing:1px;color:#9fe6f4;background:rgba(6,16,26,.8);padding:2px 8px;border-radius:8px;border:1px solid rgba(95,210,235,.4)">旗舰 · 奥德赛号</div></div>`;
+  const flag = `<div style="position:absolute;left:${fa.x + 58}px;top:${fa.y - 58}px;transform:translate(-50%,-50%);width:92px;height:40px;z-index:25;animation:flagFloat 3.4s ease-in-out infinite"><div style="width:92px;height:40px;filter:drop-shadow(0 0 14px rgba(95,224,238,.6))">${warshipSVG({ ally: true })}</div><div style="position:absolute;top:-20px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10px;letter-spacing:1px;color:#9fe6f4;background:rgba(6,16,26,.8);padding:2px 8px;border-radius:8px;border:1px solid rgba(95,210,235,.4)">旗舰 · 奥德赛号</div></div>`;
   const legend = Object.values(FAC).map((f) => `<div style="display:flex;align-items:center;gap:7px;font-size:11px;letter-spacing:1px;color:#b6c6d4"><span style="width:10px;height:10px;background:${f.color};transform:rotate(45deg);box-shadow:0 0 6px ${f.color}"></span>${f.name}</div>`).join('');
   return `<div class="bg-fit"><div class="bg-stage" id="bg-stage">
     <div id="bg-mapwrap" style="position:absolute;inset:0;overflow:hidden;cursor:grab;background:radial-gradient(ellipse 70% 60% at 30% 40%,rgba(40,80,130,.16),transparent 60%),radial-gradient(ellipse 60% 60% at 80% 60%,rgba(120,70,200,.14),transparent 60%),#05070f">
@@ -670,7 +673,7 @@ function renderDialogue() {
     <div style="position:absolute;inset:0;background:radial-gradient(ellipse 120% 80% at 50% 30%,#181233,#0a0a1c 70%,#06060f)"></div>
     <div style="position:absolute;top:66px;left:54px;right:54px;height:560px;clip-path:polygon(36px 0,calc(100% - 36px) 0,100% 36px,100% calc(100% - 18px),calc(100% - 60px) 100%,60px 100%,0 calc(100% - 18px),0 36px);overflow:hidden;box-shadow:inset 0 0 120px rgba(0,0,0,.7)">
       <div style="position:absolute;inset:-60px;animation:nebDrift 26s ease-in-out infinite;background:radial-gradient(ellipse 42% 52% at 28% 38%,rgba(255,86,148,.55),transparent 62%),radial-gradient(ellipse 50% 44% at 64% 26%,rgba(150,92,255,.5),transparent 62%),radial-gradient(ellipse 46% 56% at 52% 60%,rgba(58,196,214,.34),transparent 62%),radial-gradient(ellipse 32% 34% at 80% 64%,rgba(255,168,92,.34),transparent 60%),#0c0a22"></div>
-      <div style="position:absolute;left:11%;top:50%;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle at 36% 32%,#ffd9a8,#e07a4a 46%,#7a2f3a 78%,#2a1230);box-shadow:0 0 60px rgba(255,140,90,.4),inset -12px -10px 30px rgba(0,0,0,.55)"></div>
+      <div style="position:absolute;left:9%;top:46%;width:190px;height:190px;filter:drop-shadow(0 0 40px rgba(255,140,90,.35))">${planetSVG({ scheme: 'default' })}</div>
       <div style="position:absolute;left:8%;top:54%;width:200px;height:46px;border-radius:50%;border:2px solid rgba(255,200,150,.4);transform:rotate(-18deg)"></div>
       <div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(120,200,230,0) 0,rgba(120,200,230,0) 3px,rgba(90,170,210,.04) 4px)"></div>
     </div>

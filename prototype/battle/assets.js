@@ -1,6 +1,57 @@
 // 星舰炉石 · 视觉资产（SVG 生成器，1:1 取自 SC2 comp 战斗界面.dc.html）
 const uri = (s) => 'data:image/svg+xml,' + encodeURIComponent(s);
 
+// ── 写实风 + 动画（内嵌渐变光影 + SMIL，直接内联进 DOM 才会动）──
+let _svgId = 0; const sid = () => 'r' + (++_svgId);
+// 写实战舰（敌/友通用，配色不同）：分层装甲 + 引擎尾焰脉动 + 能量核心呼吸 + 舷灯闪烁
+export function warshipSVG(opts = {}) {
+  const boss = opts.boss, ally = opts.ally;
+  const g = sid();
+  const hullTop = ally ? '#3a6478' : boss ? '#4a3a6e' : '#5a6478';
+  const hullMid = ally ? '#1e3a4c' : boss ? '#2a2048' : '#2e3647';
+  const hullBot = ally ? '#0e1c28' : boss ? '#140e26' : '#161c28';
+  const edge = ally ? '#5fe0ee' : boss ? '#b89cf2' : '#7a8499';
+  const eng = ally ? '#5fe0ee' : boss ? '#c690ff' : '#ff8a4a';
+  const core = ally ? '#bff0ff' : boss ? '#f2dcff' : '#ffe0b0';
+  const lite = ally ? '#9fe6ff' : boss ? '#e8c8ff' : '#9fe6ff';
+  const dir = ally ? 'scale(-1,1) translate(-560,0)' : '';   // 友舰朝右
+  return `<svg viewBox='0 0 560 200' width='100%' height='100%' preserveAspectRatio='xMidYMid meet' xmlns='http://www.w3.org/2000/svg'>
+    <defs>
+      <linearGradient id='${g}h' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='${hullTop}'/><stop offset='.5' stop-color='${hullMid}'/><stop offset='1' stop-color='${hullBot}'/></linearGradient>
+      <linearGradient id='${g}hl' x1='0' x2='1'><stop offset='0' stop-color='${edge}'/><stop offset='1' stop-color='${hullMid}'/></linearGradient>
+      <radialGradient id='${g}e'><stop offset='0' stop-color='#ffffff'/><stop offset='.3' stop-color='${eng}'/><stop offset='1' stop-color='${eng}' stop-opacity='0'/></radialGradient>
+      <radialGradient id='${g}c'><stop offset='0' stop-color='${core}'/><stop offset='1' stop-color='${eng}' stop-opacity='0'/></radialGradient>
+    </defs>
+    <g transform='${dir}'>
+      <ellipse cx='44' cy='100' rx='62' ry='28' fill='url(#${g}e)'><animate attributeName='rx' values='54;70;54' dur='1.6s' repeatCount='indefinite'/><animate attributeName='opacity' values='.65;1;.65' dur='1.6s' repeatCount='indefinite'/></ellipse>
+      <path d='M122 58 L470 70 L524 100 L470 130 L122 142 L88 100 Z' fill='url(#${g}h)' stroke='#10161f' stroke-width='2'/>
+      <path d='M122 58 L470 70 L470 86 L122 76 Z' fill='url(#${g}hl)' opacity='.55'/>
+      <g stroke='#0c1119' stroke-width='1.5' opacity='.55'><path d='M180 62 L180 138 M260 64 L260 140 M340 66 L340 138 M420 70 L420 132'/></g>
+      <rect x='84' y='82' width='42' height='14' rx='3' fill='#0a0f17'/><rect x='84' y='104' width='42' height='14' rx='3' fill='#0a0f17'/>
+      <rect x='94' y='86' width='14' height='6' fill='${eng}'><animate attributeName='opacity' values='.5;1;.5' dur='1.6s' repeatCount='indefinite'/></rect>
+      <rect x='94' y='108' width='14' height='6' fill='${eng}'><animate attributeName='opacity' values='.7;1;.7' dur='1.4s' repeatCount='indefinite'/></rect>
+      <path d='M378 70 L420 56 L442 70 L420 92 Z' fill='${hullMid}' stroke='${edge}' stroke-width='1'/>
+      <circle cx='300' cy='100' r='22' fill='url(#${g}c)'><animate attributeName='r' values='18;25;18' dur='2.3s' repeatCount='indefinite'/></circle>
+      <circle cx='300' cy='100' r='9' fill='#ffffff' opacity='.92'/>
+      <circle cx='238' cy='100' r='2.6' fill='${lite}'><animate attributeName='opacity' values='1;.2;1' dur='1.1s' repeatCount='indefinite'/></circle>
+      <circle cx='362' cy='100' r='2.6' fill='${lite}'><animate attributeName='opacity' values='.2;1;.2' dur='1.3s' repeatCount='indefinite'/></circle>
+      <rect x='198' y='134' width='14' height='10' fill='${hullMid}' stroke='${edge}' stroke-width='1'/><rect x='340' y='134' width='14' height='10' fill='${hullMid}' stroke='${edge}' stroke-width='1'/>
+    </g></svg>`;
+}
+// 写实行星：大气辉光 + 表面渐变 + 自转云带 + 晨昏线阴影
+export function planetSVG(opts = {}) {
+  const g = sid();
+  const a = opts.scheme === 'ice' ? ['#cfeaff', '#5a93c8', '#214a78', '#0c1a30'] : opts.scheme === 'void' ? ['#e0c8ff', '#9a6fe0', '#4a2f78', '#160e2a'] : ['#ffd9a8', '#e07a4a', '#7a2f3a', '#2a1230'];
+  const glow = opts.scheme === 'ice' ? 'rgba(120,180,255,.22)' : opts.scheme === 'void' ? 'rgba(170,110,255,.22)' : 'rgba(255,150,90,.2)';
+  return `<svg viewBox='0 0 200 200' width='100%' height='100%' xmlns='http://www.w3.org/2000/svg'>
+    <defs><radialGradient id='${g}p' cx='35%' cy='30%'><stop offset='0' stop-color='${a[0]}'/><stop offset='.5' stop-color='${a[1]}'/><stop offset='.85' stop-color='${a[2]}'/><stop offset='1' stop-color='${a[3]}'/></radialGradient><clipPath id='${g}c'><circle cx='100' cy='100' r='84'/></clipPath></defs>
+    <circle cx='100' cy='100' r='94' fill='${glow}'/>
+    <circle cx='100' cy='100' r='84' fill='url(#${g}p)'/>
+    <g clip-path='url(#${g}c)' opacity='.38'><g><ellipse cx='100' cy='78' rx='130' ry='13' fill='#fff' opacity='.22'/><ellipse cx='100' cy='112' rx='130' ry='9' fill='#fff' opacity='.16'/><ellipse cx='100' cy='132' rx='130' ry='7' fill='#fff' opacity='.12'/><animateTransform attributeName='transform' type='translate' values='-44 0;44 0;-44 0' dur='44s' repeatCount='indefinite'/></g></g>
+    <path d='M100 16 A84 84 0 0 1 100 184 A126 126 0 0 0 100 16 Z' fill='#000' opacity='.42'/>
+    <circle cx='100' cy='100' r='84' fill='none' stroke='${a[0]}' stroke-opacity='.25' stroke-width='1'/></svg>`;
+}
+
 export function starfield() {
   let stars = '';
   for (let i = 0; i < 140; i++) { const x = (Math.random() * 1920) | 0, y = (Math.random() * 1080) | 0, r = (Math.random() * 1.4 + 0.3).toFixed(1), o = (Math.random() * 0.7 + 0.2).toFixed(2); stars += `<circle cx='${x}' cy='${y}' r='${r}' fill='#cfe6ff' opacity='${o}'/>`; }
