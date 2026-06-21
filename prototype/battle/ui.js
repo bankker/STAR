@@ -1,7 +1,29 @@
 // 星舰炉石 · 前端（出战编成 + 战斗界面 + 结算）。引擎在浏览器端运行，无服务器往返。
 import { newBattle, canPlay, playCard, attack, endTurn, heroPower } from './engine.js';
 import { CARDS, starterDeck, crewFromCast, ENEMIES, CREW_ROLES, CREW_TRAITS } from './cards.js';
-import { CAT, PALETTES, portrait, crack, drone, friendlyDrone, enemyShip, traitIcon, cardArt, starfield, shipSchematic, tagIcon, dialoguePortrait } from './assets.js';
+import { CAT, PALETTES, portrait, crack, drone, friendlyDrone, enemyShip, traitIcon, cardArt, starfield, shipSchematic, tagIcon, dialoguePortrait, nodeIcon, enemyThumb, flagSvg, FAC, TYPE_META } from './assets.js';
+
+// 星图节点数据（取自 comp 星图.dc.html）
+const MAP_NODES = [
+  { id: 'n1', x: 200, y: 650, name: '自由港', type: 'supply', fac: 'free', state: 'cleared', region: '自由港湾', desc: '舰队的补给前哨，安全的避风港。可在此修复舰体、补充燃料与采购卡牌。', rewards: [{ t: '修复舰体 / 补给燃料', tag: '服务', c: '#5fe0ee', ic: 'supply' }, { t: '卡牌商店', tag: '商店', c: '#ffcc4d', ic: 'event' }] },
+  { id: 'n2', x: 480, y: 500, name: '哨戒星', type: 'combat', fac: 'neutral', state: 'cleared', region: '自由港湾', desc: '外围哨戒空域，零星的废弃无人机仍在游荡。', enemy: { name: '废弃无人机群', hp: 18, armor: 0, intent: '集火攻击' }, rewards: [{ t: '信用点 ×80', tag: '+80', c: '#ffd27a', ic: 'supply' }] },
+  { id: 'n3', x: 480, y: 800, name: '残骸带', type: 'event', fac: 'neutral', state: 'cleared', region: '自由港湾', desc: '一片古老的战场残骸，漂浮着待打捞的舱段。', rewards: [{ t: '随机零件 / 剧情线索', tag: '事件', c: '#c07bff', ic: 'event' }] },
+  { id: 'n4', x: 820, y: 640, name: '赤隼巢穴', type: 'elite', fac: 'raider', state: 'available', region: '争议星域', desc: '掠夺者头目「赤隼」盘踞的小行星基地。清剿后将打通前往双子星域的航路。', enemy: { name: '掠夺者 · 赤隼', hp: 34, armor: 2, intent: '召唤僚机' }, rewards: [{ t: '新卡「破甲弹」', tag: '攻击', c: '#ff4d4d', ic: 'elite' }, { t: '信用点 ×120', tag: '+120', c: '#ffd27a', ic: 'supply' }] },
+  { id: 'n5', x: 1180, y: 440, name: '双子星', type: 'combat', fac: 'raider', state: 'locked', region: '争议星域', desc: '两颗互绕的恒星之间，掠夺者的巡逻舰队往来频繁。', enemy: { name: '掠夺者巡逻队', hp: 28, armor: 1, intent: '舷侧齐射' }, rewards: [{ t: '信用点 ×140', tag: '+140', c: '#ffd27a', ic: 'supply' }] },
+  { id: 'n6', x: 1180, y: 860, name: '静默舱', type: 'event', fac: 'neutral', state: 'locked', region: '争议星域', desc: '一具漂流的医疗冷冻舱发出微弱信标——里面似乎还有幸存的船员。', rewards: [{ t: '可招募新船员', tag: '养成', c: '#3ff0a0', ic: 'event' }, { t: '对话事件', tag: '剧情', c: '#c07bff', ic: 'event' }] },
+  { id: 'n7', x: 1560, y: 640, name: '回廊补给站', type: 'supply', fac: 'free', state: 'locked', region: '虚空回廊', desc: '深入虚空回廊前的最后一处补给点。', rewards: [{ t: '修复 / 升级卡牌', tag: '服务', c: '#5fe0ee', ic: 'supply' }] },
+  { id: 'n8', x: 1940, y: 460, name: '截击者据点', type: 'combat', fac: 'void', state: 'locked', region: '虚空回廊', desc: '虚空教团的前哨据点，截击者编队严阵以待。', enemy: { name: '虚空截击编队', hp: 40, armor: 3, intent: '核心蓄力' }, rewards: [{ t: '新卡「相位干扰」', tag: '调度', c: '#ffcc4d', ic: 'combat' }] },
+  { id: 'n9', x: 1940, y: 840, name: '暗物质云', type: 'elite', fac: 'void', state: 'locked', region: '虚空回廊', desc: '扭曲的暗物质云团，能量读数异常。精英守卫潜伏其中。', enemy: { name: '湮灭者', hp: 46, armor: 4, intent: '集火攻击' }, rewards: [{ t: '稀有零件', tag: '养成', c: '#3ff0a0', ic: 'elite' }] },
+  { id: 'n10', x: 2320, y: 640, name: '涅墨西斯', type: 'boss', fac: 'void', state: 'locked', region: '虚空回廊', desc: '虚空母舰「涅墨西斯」——本章的最终目标。击破它，夺回失落的星门。', enemy: { name: '虚空母舰 · 涅墨西斯', hp: 72, armor: 8, intent: '核心过载' }, rewards: [{ t: '章节通关', tag: 'BOSS', c: '#c07bff', ic: 'boss' }, { t: '传说卡 + 大量信用点', tag: '传说', c: '#ffd27a', ic: 'elite' }] },
+];
+const MAP_EDGES = [['n1', 'n2'], ['n1', 'n3'], ['n2', 'n4'], ['n3', 'n4'], ['n4', 'n5'], ['n4', 'n6'], ['n5', 'n7'], ['n6', 'n7'], ['n7', 'n8'], ['n7', 'n9'], ['n8', 'n10'], ['n9', 'n10']];
+const TYPE_ATK = { combat: 2, elite: 3, boss: 4 };
+function nodeEnemyCfg(node) {
+  const e = node.enemy; if (!e) return null;
+  const minions = node.type === 'boss' ? [{ name: '炮塔', atk: 3, hp: 4, keywords: ['嘲讽'] }, { name: '截击机', atk: 2, hp: 2 }]
+    : node.type === 'elite' ? [{ name: '僚机', atk: 2, hp: 2, keywords: ['嘲讽'] }] : [];
+  return { name: e.name, hp: e.hp, maxHp: e.hp, armor: e.armor || 0, atk: TYPE_ATK[node.type] || 2, minions };
+}
 
 const CATKEY = { 攻击: 'attack', 防御: 'defense', 维护: 'maintenance', 调度: 'tactics' };
 const TRAIT = { 参谋长: 'cross', 工程主管: 'shield', 舰队长: 'bolt', 情报官: 'gear' };
@@ -33,19 +55,21 @@ function toast(msg) {
 async function openGame() {
   const v = view();
   v.hidden = false; v.classList.add('bg-root');
-  G.screen = 'deploy'; G.squad = []; G.detail = null; G.battle = null; G.pending = null; G.result = null;
+  G.run = { nodes: structuredClone(MAP_NODES), selected: 'n4', flagAt: 'n4', pan: { x: -40, y: -70 }, current: null };
+  G.screen = 'map'; G.squad = []; G.detail = null; G.battle = null; G.pending = null; G.result = null; G.pendingEnemy = null;
   render();
   try {
     const r = await fetch('/api/artists').then((x) => x.json());
     G.artists = (r.artists || []).map((a) => ({ id: a.id, name: a.name, portraitUrl: (a.portraits && a.portraits[0] && a.portraits[0].url) || '' }));
   } catch { G.artists = []; }
-  if (G.screen === 'deploy') render();
+  render();
 }
 function closeGame() { const v = view(); v.hidden = true; v.classList.remove('bg-root'); v.innerHTML = ''; }
 
 // ─────────── 渲染 ───────────
 function render() {
   const v = view();
+  if (G.screen === 'map') { v.innerHTML = renderMap() + '<div class="bg-toast"></div>'; fit(); return; }
   if (G.screen === 'battle') { v.innerHTML = renderBattle() + '<div class="bg-toast"></div>'; fit(); return; }
   if (G.screen === 'deploy') { v.innerHTML = renderDeploy() + '<div class="bg-toast"></div>'; fit(); return; }
   if (G.screen === 'dialogue') { v.innerHTML = renderDialogue() + '<div class="bg-toast"></div>'; fit(); return; }
@@ -54,7 +78,8 @@ function render() {
 function fit() {
   const st = document.getElementById('bg-stage'); if (!st) return;
   const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
-  st.style.transform = `scale(${s > 0 ? s : 1})`;
+  G._scale = s > 0 ? s : 1;
+  st.style.transform = `scale(${G._scale})`;
 }
 
 function renderHud() {
@@ -161,7 +186,7 @@ function renderDeploy() {
         <div style="margin-top:12px"><div style="display:flex;justify-content:space-between;font-size:10px;letter-spacing:1px;margin-bottom:5px"><span style="color:#ff7a6a">进攻 ${atkPct}%</span><span style="color:#7fb6ff">防御/续航 ${defPct}%</span></div><div style="height:10px;border-radius:5px;overflow:hidden;display:flex;border:1px solid rgba(79,214,230,.2)"><div style="width:${atkPct}%;background:linear-gradient(90deg,#ff5a3c,#ff8a6a)"></div><div style="width:${defPct}%;background:linear-gradient(90deg,#7fb6ff,#4d9fff)"></div></div><div style="text-align:center;font-size:11px;letter-spacing:2px;color:#cfe0ee;margin-top:7px">${tLabel}</div></div>
       </div>
       <div style="flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:14px">${deckGroupsHtml}</div>
-      <div style="padding:14px 18px;border-top:1px solid rgba(79,214,230,.2)"><button data-act="deploy" style="width:100%;display:flex;align-items:center;justify-content:center;gap:12px;padding:15px;cursor:pointer;background:linear-gradient(180deg,#5fe8c0,#3fd0e0);border:2px solid #d6fff4;clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);box-shadow:0 0 26px rgba(79,230,200,.5)"><span style="font-weight:900;font-size:18px;letter-spacing:3px;color:#06202a">确认出战 · 海盗前锋</span><span style="font-size:13px;color:#06202a;opacity:.8">▶</span></button></div>
+      <div style="padding:14px 18px;border-top:1px solid rgba(79,214,230,.2)"><button data-act="deploy" style="width:100%;display:flex;align-items:center;justify-content:center;gap:12px;padding:15px;cursor:pointer;background:linear-gradient(180deg,#5fe8c0,#3fd0e0);border:2px solid #d6fff4;clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);box-shadow:0 0 26px rgba(79,230,200,.5)"><span style="font-weight:900;font-size:18px;letter-spacing:3px;color:#06202a">确认出战 · ${esc(G.pendingEnemy?.name || '海盗前锋')}</span><span style="font-size:13px;color:#06202a;opacity:.8">▶</span></button></div>
     </div>
   </div></div>`;
 }
@@ -337,6 +362,103 @@ function renderResult() {
   </div>`;
 }
 
+// ── 星图（1:1 复刻 SC2 comp 星图.dc.html）+ run 循环 ──
+function mapById(id) { return G.run.nodes.find((n) => n.id === id); }
+function unlockAdjacent() {
+  const map = Object.fromEntries(G.run.nodes.map((n) => [n.id, n]));
+  for (const [a, b] of MAP_EDGES) {
+    if (map[a].state === 'cleared' && map[b].state === 'locked') map[b].state = 'available';
+    if (map[b].state === 'cleared' && map[a].state === 'locked') map[a].state = 'available';
+  }
+}
+function clearNode(id) { const n = mapById(id); if (!n) return; n.state = 'cleared'; G.run.flagAt = id; unlockAdjacent(); }
+function nodeGo(id) {
+  const n = mapById(id); if (!n || n.state === 'locked') return;
+  if (n.type === 'supply') { toast('已补给 · 舰体修复、燃料补充'); clearNode(id); return render(); }
+  if (n.type === 'event') { toast('事件：' + (n.rewards?.[0]?.t || '已处理')); clearNode(id); return render(); }
+  G.pendingEnemy = nodeEnemyCfg(n); G.run.current = id; G.screen = 'deploy'; render();
+}
+function returnFromBattle() {
+  if (G.run && G.run.current) {
+    if (G.result === 'won') clearNode(G.run.current);
+    G.run.selected = G.run.current; G.run.current = null; G.pendingEnemy = null;
+    G.battle = null; G.result = null; G.screen = 'map'; return render();
+  }
+  return deploy();
+}
+function renderMapDetail(n) {
+  const fc = FAC[n.fac].color, locked = n.state === 'locked', cleared = n.state === 'cleared';
+  const lvl = n.type === 'boss' ? 5 : n.type === 'elite' ? 3 : n.type === 'combat' ? 2 : 1;
+  const stars = '★'.repeat(lvl) + '☆'.repeat(5 - lvl);
+  const rewards = (n.rewards || []).map((rw) => `<div style="display:flex;align-items:center;gap:11px;padding:10px 12px;background:rgba(10,20,32,.6);border-left:3px solid ${rw.c};border-radius:0 6px 6px 0"><div style="width:22px;height:22px;background-image:url(&quot;${Q(nodeIcon(rw.ic, rw.c))}&quot;);background-size:contain;background-repeat:no-repeat"></div><span style="flex:1;font-size:13px;color:#dce8f4">${esc(rw.t)}</span><span style="font-size:11px;color:${rw.c};letter-spacing:1px">${esc(rw.tag)}</span></div>`).join('');
+  const actionLabel = cleared ? '已清剿 · 重新出击' : n.state === 'available' ? (n.type === 'supply' ? '进入港口' : n.type === 'event' ? '进入事件' : '出击') : '🔒 需先清剿前置节点';
+  const enemyBlock = n.enemy ? `<div><div style="font-size:11px;letter-spacing:3px;color:#7a93a8;margin-bottom:9px">敌军预览</div><div style="display:flex;align-items:center;gap:14px;padding:14px;background:rgba(8,18,30,.7);border:1px solid ${fc}55;border-radius:8px"><div style="width:120px;height:90px;flex:none;background-image:url(&quot;${Q(enemyThumb(fc))}&quot;);background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(0 0 12px ${fc}55)"></div><div style="flex:1"><div style="font-weight:700;font-size:15px;color:#ffd9c8">${esc(n.enemy.name)}</div><div style="display:flex;gap:14px;margin-top:6px;font-size:12px"><span style="color:#ff8a6a">HP <span style="font-family:Oxanium;font-weight:800;font-size:15px">${n.enemy.hp}</span></span><span style="color:#9fb6c6">护甲 <span style="font-family:Oxanium;font-weight:800;font-size:15px;color:#cfe6ff">${n.enemy.armor}</span></span></div><div style="margin-top:8px;display:flex;align-items:center;gap:7px;padding:5px 10px;background:rgba(40,16,16,.7);border:1px solid rgba(255,90,60,.4);border-radius:6px;width:fit-content"><span style="width:15px;height:15px;background-image:url(&quot;${Q(nodeIcon('combat', '#ff7a5a'))}&quot;);background-size:contain;background-repeat:no-repeat"></span><span style="font-size:11px;color:#ffb0a0">下回合意图 · ${esc(n.enemy.intent)}</span></div></div></div></div>` : '';
+  return `<div style="position:absolute;top:84px;right:28px;width:436px;bottom:24px;background:linear-gradient(160deg,rgba(12,26,42,.9),rgba(8,16,28,.94));border:1px solid rgba(79,214,230,.34);clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);z-index:38;display:flex;flex-direction:column;box-shadow:0 12px 50px rgba(0,0,0,.5),inset 0 0 30px rgba(60,160,200,.08)">
+    <div style="padding:18px 20px 16px;border-bottom:1px solid ${fc}33;background:linear-gradient(160deg,${fc}1f,transparent)">
+      <div style="display:flex;align-items:center;gap:10px"><span style="width:9px;height:9px;background:${fc};transform:rotate(45deg);box-shadow:0 0 8px ${fc}"></span><span style="font-size:11px;letter-spacing:2px;color:${fc}">${esc(n.region)} · ${esc(FAC[n.fac].name)}</span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px"><span style="font-weight:800;font-size:24px;letter-spacing:1px;color:#fff">${esc(n.name)}</span><span style="font-size:11px;font-weight:700;letter-spacing:2px;padding:4px 12px;color:${fc};background:${fc}1a;border:1px solid ${fc};border-radius:4px">${TYPE_META[n.type]}</span></div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:8px"><span style="font-size:11px;color:#8a9aa8;letter-spacing:1px">威胁等级</span><span style="font-size:14px;letter-spacing:2px;color:#ffb86a">${stars}</span></div>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:18px 20px;display:flex;flex-direction:column;gap:18px"><p style="margin:0;font-size:13px;line-height:1.65;color:#aebfce">${esc(n.desc)}</p>${enemyBlock}<div><div style="font-size:11px;letter-spacing:3px;color:#7a93a8;margin-bottom:9px">清剿奖励</div><div style="display:flex;flex-direction:column;gap:8px">${rewards}</div></div></div>
+    <div style="padding:16px 20px;border-top:1px solid rgba(79,214,230,.2)"><button ${locked ? '' : `data-act="node-go" data-id="${n.id}"`} style="width:100%;padding:15px;cursor:${locked ? 'not-allowed' : 'pointer'};font-weight:900;font-size:17px;letter-spacing:3px;clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);background:${locked ? 'rgba(40,48,58,.7)' : 'linear-gradient(180deg,#5fe8c0,#3fd0e0)'};color:${locked ? '#7a8794' : '#06202a'};border:${locked ? '1px solid #4a5560' : '2px solid #d6fff4'};box-shadow:${locked ? 'none' : '0 0 24px rgba(79,230,200,.5)'}">${actionLabel}</button></div>
+  </div>`;
+}
+function renderMap() {
+  const r = G.run; STARS = STARS || starfield();
+  const map = Object.fromEntries(r.nodes.map((n) => [n.id, n]));
+  const routes = MAP_EDGES.map(([a, b]) => {
+    const A = map[a], B = map[b];
+    const cleared = A.state === 'cleared' && (B.state === 'cleared' || B.state === 'available');
+    const active = (A.state === 'cleared' || A.state === 'available') && B.state === 'available';
+    const stroke = cleared ? '#5fe0ee' : active ? '#ffb86a' : 'rgba(120,150,180,.3)';
+    return `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${stroke}" stroke-width="${cleared || active ? 2.4 : 1.6}" stroke-dasharray="${cleared ? '0' : '6 8'}" opacity="${cleared || active ? 0.8 : 0.4}"/>`;
+  }).join('');
+  const nodes = r.nodes.map((n) => {
+    const fc = FAC[n.fac].color, avail = n.state === 'available', locked = n.state === 'locked', sel = r.selected === n.id, boss = n.type === 'boss';
+    const size = boss ? 96 : avail ? 84 : 72;
+    return `<div data-act="node" data-id="${n.id}" style="position:absolute;left:${n.x}px;top:${n.y}px;transform:translate(-50%,-50%);width:${size + 40}px;display:flex;flex-direction:column;align-items:center;cursor:pointer;z-index:${sel ? 20 : 10};opacity:${locked ? 0.62 : 1}">
+      <div style="position:absolute;top:${20 - size / 2 + (boss ? 2 : 6)}px;width:${size + 22}px;height:${size + 22}px;border-radius:50%;border:1.5px ${avail ? 'solid' : 'dashed'} ${sel ? '#fff' : fc};opacity:${avail ? 0.9 : 0.5};${avail ? 'animation:ringSpin 14s linear infinite;' : ''}${sel ? `box-shadow:0 0 22px ${fc}` : ''}"></div>
+      <div style="width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 40% 35%, ${fc}33, rgba(8,14,24,.95));border:2px solid ${sel ? '#fff' : fc};box-shadow:${avail ? `0 0 30px ${fc}66, inset 0 0 18px ${fc}44` : `0 0 14px ${fc}33`};${avail ? 'animation:nodePulse 2.6s ease-in-out infinite;' : ''}">
+        <div style="width:${boss ? 44 : 34}px;height:${boss ? 44 : 34}px;background-image:url(&quot;${Q(nodeIcon(n.type, boss ? '#e8c8ff' : fc))}&quot;);background-size:contain;background-repeat:no-repeat"></div>
+      </div>
+      <div style="margin-top:10px;font-size:${boss ? 16 : 14}px;font-weight:700;letter-spacing:1px;color:${locked ? '#8a9aa8' : '#eaf4ff'};text-shadow:0 2px 6px rgba(0,0,0,.8);white-space:nowrap">${esc(n.name)}</div>
+      <div style="margin-top:3px;font-size:10px;letter-spacing:2px;padding:1px 8px;color:${fc};background:${fc}1a;border:1px solid ${fc}66;border-radius:8px">${TYPE_META[n.type]}</div>
+      ${n.state === 'cleared' ? '<div style="position:absolute;top:-6px;right:-6px;width:26px;height:26px;border-radius:50%;background:#0c2a1e;border:1px solid #3ff0a0;color:#7fffc0;font-size:13px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px rgba(63,240,160,.5)">✓</div>' : ''}
+      ${locked ? '<div style="position:absolute;top:-4px;right:-4px;font-size:15px;opacity:.85">🔒</div>' : ''}
+    </div>`;
+  }).join('');
+  const fa = map[r.flagAt];
+  const flag = `<div style="position:absolute;left:${fa.x + 58}px;top:${fa.y - 58}px;transform:translate(-50%,-50%);width:72px;height:54px;z-index:25;animation:flagFloat 3.4s ease-in-out infinite"><div style="width:72px;height:54px;background-image:url(&quot;${Q(flagSvg)}&quot;);background-size:contain;background-repeat:no-repeat;filter:drop-shadow(0 0 14px rgba(95,224,238,.6))"></div><div style="position:absolute;top:-22px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10px;letter-spacing:1px;color:#9fe6f4;background:rgba(6,16,26,.8);padding:2px 8px;border-radius:8px;border:1px solid rgba(95,210,235,.4)">旗舰 · 奥德赛号</div></div>`;
+  const legend = Object.values(FAC).map((f) => `<div style="display:flex;align-items:center;gap:7px;font-size:11px;letter-spacing:1px;color:#b6c6d4"><span style="width:10px;height:10px;background:${f.color};transform:rotate(45deg);box-shadow:0 0 6px ${f.color}"></span>${f.name}</div>`).join('');
+  return `<div class="bg-fit"><div class="bg-stage" id="bg-stage">
+    <div id="bg-mapwrap" style="position:absolute;inset:0;overflow:hidden;cursor:grab;background:radial-gradient(ellipse 70% 60% at 30% 40%,rgba(40,80,130,.16),transparent 60%),radial-gradient(ellipse 60% 60% at 80% 60%,rgba(120,70,200,.14),transparent 60%),#05070f">
+      <div id="bg-map" style="position:absolute;left:0;top:0;width:2600px;height:1320px;transform:translate(${r.pan.x}px,${r.pan.y}px)">
+        <div style="position:absolute;left:60px;top:380px;width:560px;height:560px;border-radius:50%;background:radial-gradient(circle,rgba(95,224,238,.12),transparent 70%)"></div>
+        <div style="position:absolute;left:760px;top:300px;width:680px;height:700px;border-radius:50%;background:radial-gradient(circle,rgba(255,138,74,.1),transparent 70%)"></div>
+        <div style="position:absolute;left:1640px;top:300px;width:840px;height:760px;border-radius:50%;background:radial-gradient(circle,rgba(192,123,255,.13),transparent 70%)"></div>
+        <div style="position:absolute;left:230px;top:330px;font-size:14px;letter-spacing:8px;color:rgba(95,224,238,.5)">自 由 港 湾</div>
+        <div style="position:absolute;left:980px;top:270px;font-size:14px;letter-spacing:8px;color:rgba(255,168,110,.5)">争 议 星 域</div>
+        <div style="position:absolute;left:1900px;top:270px;font-size:14px;letter-spacing:8px;color:rgba(200,140,255,.5)">虚 空 回 廊</div>
+        <div style="position:absolute;inset:0;background-image:url(&quot;${Q(STARS)}&quot;);opacity:.8;pointer-events:none"></div>
+        <svg width="2600" height="1320" style="position:absolute;left:0;top:0;pointer-events:none">${routes}</svg>
+        ${nodes}${flag}
+      </div>
+    </div>
+    <div style="position:absolute;top:0;left:0;width:1920px;height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:linear-gradient(180deg,rgba(8,16,28,.96),rgba(8,16,28,.2));border-bottom:1px solid rgba(79,214,230,.26);z-index:40;pointer-events:none">
+      <div style="display:flex;align-items:center;gap:16px;pointer-events:auto">
+        <button data-act="close" style="width:40px;height:40px;border:1px solid rgba(79,214,230,.4);background:rgba(12,30,44,.85);color:#7fd6e6;border-radius:3px;cursor:pointer;font-size:18px">✕</button>
+        <div><div style="font-family:Oxanium;font-weight:700;font-size:19px;letter-spacing:3px;color:#d6f3ff;text-shadow:0 0 14px rgba(95,230,255,.45)">星域航图</div><div style="font-size:11px;letter-spacing:3px;color:#5a93ad">星舰协同作战 · 第一章</div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;pointer-events:auto;font-size:12px;letter-spacing:1px;color:#9fb6c6">
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 14px;background:rgba(8,22,34,.85);border:1px solid rgba(79,214,230,.3);border-radius:3px"><span style="width:7px;height:7px;background:#5fe0ee;transform:rotate(45deg)"></span>跃迁燃料 <span style="font-family:Oxanium;font-weight:800;color:#7fe6ff">8</span>/10</div>
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 14px;background:rgba(8,22,34,.85);border:1px solid rgba(255,176,32,.3);border-radius:3px"><span style="width:7px;height:7px;background:#ffd27a;transform:rotate(45deg)"></span>信用点 <span style="font-family:Oxanium;font-weight:800;color:#ffd27a">1,240</span></div>
+      </div>
+    </div>
+    <div style="position:absolute;bottom:24px;left:28px;display:flex;gap:16px;padding:10px 18px;background:rgba(8,16,28,.82);border:1px solid rgba(79,214,230,.22);border-radius:8px;z-index:35">${legend}<div style="width:1px;background:rgba(79,214,230,.2)"></div><span style="font-size:11px;letter-spacing:1px;color:#6a8090">拖动平移星图</span></div>
+    ${renderMapDetail(map[r.selected])}
+  </div></div>`;
+}
+
 // ── 对话界面（1:1 复刻 SC2 comp 对话界面.dc.html）──
 const DLG_TAG = { 好感: { color: '#ff6fae', glow: 'rgba(255,111,174,.5)', icon: 'heart' }, 能力: { color: '#4fd6e6', glow: 'rgba(79,214,230,.5)', icon: 'chip' }, 协同: { color: '#ffcc4d', glow: 'rgba(255,204,77,.5)', icon: 'link' } };
 const DLG_NODES = {
@@ -446,7 +568,10 @@ function onClick(e) {
   if (act === 'pick') return togglePick(id);
   if (act === 'slot-remove') { G.squad.splice(+el.dataset.idx, 1); return render(); }
   if (act === 'detail') { G.detail = id; return render(); }
-  if (act === 'deploy' || act === 'deploy-again') return deploy();
+  if (act === 'node') { if (!G._moved) { G.run.selected = id; render(); } return; }
+  if (act === 'node-go') return nodeGo(id);
+  if (act === 'deploy') return deploy();
+  if (act === 'deploy-again') return returnFromBattle();
   if (act === 'talk') { const a = G.artists.find((x) => x.id === id); if (a) enterDialogue(a); return; }
   if (act === 'close-dialogue') return exitDialogue();
   if (act === 'dlg-advance') return advanceDialogue();
@@ -469,10 +594,10 @@ function togglePick(idStr) {
 }
 
 function deploy() {
-  if (G.screen !== 'result' && G.squad.length === 0) return toast('至少选 1 名核心船员');
+  if (G.squad.length === 0) return toast('至少选 1 名核心船员');
   const cast = G.squad.length ? G.squad : G.artists.slice(0, 2);
   if (!cast.length) return toast('还没有艺人可作为船员');
-  G.battle = newBattle({ cards: CARDS, deck: starterDeck(), crew: crewFromCast(cast), enemy: ENEMIES.海盗前锋, rng: Math.random });
+  G.battle = newBattle({ cards: CARDS, deck: starterDeck(), crew: crewFromCast(cast), enemy: G.pendingEnemy || ENEMIES.海盗前锋, rng: Math.random });
   G.screen = 'battle'; G.pending = null; G.result = null;
   render();
 }
@@ -512,7 +637,28 @@ function hijack() {
   if (!btn) return;
   btn.addEventListener('click', (e) => { e.stopImmediatePropagation(); e.preventDefault(); openGame(); }, true);
   document.addEventListener('click', onClick);
-  window.addEventListener('resize', () => { if (G.screen === 'battle') fit(); });
+  document.addEventListener('mousedown', onPanDown);
+  window.addEventListener('mousemove', onPanMove);
+  window.addEventListener('mouseup', () => { G._panning = false; });
+  window.addEventListener('resize', () => { if (G.screen) fit(); });
+}
+function onPanDown(e) {
+  if (G.screen !== 'map' || !G.run) return;
+  if (e.target.closest('[data-act="node"]')) { G._moved = false; return; }  // 节点交给 click
+  if (!e.target.closest('#bg-mapwrap')) return;
+  G._panning = true; G._moved = false;
+  G._panStart = { mx: e.clientX, my: e.clientY, px: G.run.pan.x, py: G.run.pan.y };
+}
+function onPanMove(e) {
+  if (!G._panning || !G.run) return;
+  const s = G._scale || 1;
+  if (Math.abs(e.clientX - G._panStart.mx) + Math.abs(e.clientY - G._panStart.my) > 4) G._moved = true;
+  let x = G._panStart.px + (e.clientX - G._panStart.mx) / s;
+  let y = G._panStart.py + (e.clientY - G._panStart.my) / s;
+  x = Math.max(-(2600 - 1920), Math.min(80, x));
+  y = Math.max(-(1320 - 1080), Math.min(60, y));
+  G.run.pan = { x, y };
+  const m = document.getElementById('bg-map'); if (m) m.style.transform = `translate(${x}px,${y}px)`;
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hijack);
 else hijack();

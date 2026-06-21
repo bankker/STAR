@@ -77,6 +77,22 @@ export const CAT = {
   tactics: { label: '战术', color: '#ffcc4d', glow: 'rgba(255,204,77,.5)' },
 };
 
+// 星图节点图标（战斗/精英/Boss/事件/补给）
+export const nodeIcon = (t, c) => {
+  const m = {
+    combat: `<g stroke='${c}' stroke-width='3.4' fill='none' stroke-linecap='round'><path d='M12 36L34 14M28 14h8v8'/><path d='M36 36L14 14M20 14h-8v8'/></g>`,
+    elite: `<path d='M24 6l5 13 14 1-11 9 4 14-12-8-12 8 4-14-11-9 14-1z' fill='${c}'/>`,
+    boss: `<g fill='none' stroke='${c}' stroke-width='3'><circle cx='24' cy='24' r='12'/><path d='M24 12v24M12 24h24M15 15l18 18M33 15L15 33'/></g>`,
+    event: `<g fill='none' stroke='${c}' stroke-width='3.6' stroke-linecap='round'><path d='M18 19a6 6 0 1 1 9 5c-2 1.5-3 2.5-3 5'/><circle cx='24' cy='35' r='1.6' fill='${c}'/></g>`,
+    supply: `<g fill='none' stroke='${c}' stroke-width='3.6' stroke-linecap='round'><path d='M24 14v20M14 24h20'/></g>`,
+  };
+  return uri(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'>${m[t] || m.combat}</svg>`);
+};
+export const enemyThumb = (c) => uri(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 120'><ellipse cx='80' cy='60' rx='70' ry='34' fill='${c}' opacity='.16'/><path d='M20 40 L60 50 L60 70 L26 80 Z' fill='#2a2436' stroke='${c}' stroke-width='1.6'/><path d='M140 40 L100 50 L100 70 L134 80 Z' fill='#2a2436' stroke='${c}' stroke-width='1.6'/><path d='M60 38 L100 38 L116 60 L92 84 L68 84 L44 60 Z' fill='#2a2436' stroke='${c}' stroke-width='2.4'/><polygon points='80,46 96,60 80,74 64,60' fill='${c}'/><circle cx='80' cy='60' r='8' fill='#fff'/></svg>`);
+export const flagSvg = uri(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 90'><ellipse cx='60' cy='46' rx='52' ry='24' fill='#5fe0ee' opacity='.18'/><path d='M18 36 L66 28 L96 46 L66 64 L18 56 Z' fill='#13344a' stroke='#5fe0ee' stroke-width='2.2'/><path d='M18 36 L66 28 L70 46 L18 46 Z' fill='#1e5168' opacity='.7'/><polygon points='90,40 104,46 90,52' fill='#5fe0ee'/><circle cx='60' cy='46' r='6' fill='#d6f6ff'/><circle cx='60' cy='46' r='12' fill='none' stroke='#5fe0ee' stroke-width='1.4' opacity='.6'/></svg>`);
+export const FAC = { free: { name: '自由舰队', color: '#5fe0ee' }, raider: { name: '掠夺者', color: '#ff8a4a' }, void: { name: '虚空教团', color: '#c07bff' }, neutral: { name: '中立', color: '#8fa6b6' } };
+export const TYPE_META = { combat: '战斗', elite: '精英', boss: 'BOSS', event: '事件', supply: '补给' };
+
 // 舰桥结构示意图（出战编成中央，取自 comp）
 export const shipSchematic = (() => {
   const e = '#5fd2eb', e2 = 'rgba(95,210,235,.4)', hull = '#16273a', hullL = '#22384e';
