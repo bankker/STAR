@@ -189,6 +189,7 @@ function render() {
   if (G.screen === 'dialogue') { v.innerHTML = renderDialogue() + '<div class="bg-toast"></div>'; fit(); return; }
   if (G.screen === 'reward') { v.innerHTML = renderReward() + '<div class="bg-toast"></div>'; fit(); return; }
   if (G.screen === 'defeat') { v.innerHTML = renderDefeat() + '<div class="bg-toast"></div>'; fit(); return; }
+  if (G.screen === 'chapclear') { v.innerHTML = renderChapterClear() + '<div class="bg-toast"></div>'; fit(); return; }
   if (G.screen === 'armory') { v.innerHTML = renderArmory() + '<div class="bg-toast"></div>'; fit(); return; }
   if (G.screen === 'event') { v.innerHTML = renderEvent() + '<div class="bg-toast"></div>'; fit(); return; }
   v.innerHTML = `<div class="bg-wrap">${renderHud()}${renderResult()}</div><div class="bg-toast"></div>`;
@@ -605,7 +606,11 @@ function renderEvent() {
 function returnFromBattle() {
   if (G.run && G.run.current) {
     if (G.result === 'lost') return enterDefeat();          // §5：败北结算
-    if (G.result === 'won') { clearNode(G.run.current); G.run.flagAt = G.run.current; }   // 旗舰推进到刚清剿的节点
+    if (G.result === 'won') {
+      clearNode(G.run.current); G.run.flagAt = G.run.current;   // 旗舰推进到刚清剿的节点
+      const node = mapById(G.run.current);
+      if (node && node.type === 'boss') { G.battle = null; G.result = null; G.pendingEnemy = null; return enterChapterClear(); }   // 章节 BOSS 通关
+    }
     G.run.selected = G.run.current; G.run.current = null; G.pendingEnemy = null;
     G.battle = null; G.result = null; G.screen = 'map'; return render();
   }
@@ -635,6 +640,36 @@ function renderDefeat() {
     <div style="max-width:680px;text-align:center;font-size:18px;line-height:1.8;color:#e8d6d0">${d.loading ? '（通讯切回舰桥……）' : esc(d.line)}</div>
     <div style="font-size:12px;letter-spacing:2px;color:#9a8a86">遗物与改装已散佚 · 关系与羁绊毫发无损 · 退回章节入口</div>
     <button data-act="defeat-continue" style="padding:13px 30px;font-family:Oxanium;font-weight:700;font-size:16px;letter-spacing:2px;color:#06202a;background:linear-gradient(180deg,#5fe8c0,#3fd0e0);border:2px solid #d6fff4;clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);cursor:pointer;box-shadow:0 0 24px rgba(79,230,200,.5)">重整旗鼓 ▸</button>
+  </div></div>`;
+}
+// ── 章节通关：击破 BOSS 后的庆功 + 再次启航（永久升级保留）──
+const VICTORY_LINES = [
+  '「涅墨西斯」的核心熄灭于眼前，舰桥爆发出欢呼。失落的星门重新亮起——我们做到了。',
+  '母舰在远方碎成漫天流光。陈恩珠回过头，眼里有泪也有笑：「队长，我们……回家了。」',
+  '虚空退潮，航路尽通。这一程的伤痕与并肩，都化作刻进船体的勋章。',
+];
+function enterChapterClear() { G.chapclear = { line: rndPick(VICTORY_LINES) }; G.screen = 'chapclear'; render(); }
+function newRun() {
+  G.run = { nodes: structuredClone(MAP_NODES), selected: 'n4', flagAt: 'n2', pan: { x: -40, y: -70 }, current: null, relics: [], credits: 0, upgrades: [] };
+  G.squad = []; G.detail = null; G.battle = null; G.result = null; G.pendingEnemy = null; G.pendingTerrain = null; G.chapclear = null;
+  G.screen = 'map'; render();
+}
+function renderChapterClear() {
+  STARS = STARS || starfield();
+  const c = G.chapclear || {};
+  const chip = (color, txt) => `<span style="padding:6px 14px;background:${color}1a;border:1px solid ${color}66;border-radius:6px;color:${color}">${txt}</span>`;
+  return `<div class="bg-fit"><div class="bg-stage" id="bg-stage" style="background:radial-gradient(ellipse 90% 72% at 50% 36%,#241f10,#08090c 76%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:40px">
+    <div style="position:absolute;inset:0;background-image:url(&quot;${Q(STARS)}&quot;);opacity:.5;pointer-events:none"></div>
+    <div style="position:absolute;inset:0;background:radial-gradient(ellipse 50% 40% at 50% 38%,rgba(255,200,90,.12),transparent 70%);pointer-events:none"></div>
+    <div style="font-size:13px;letter-spacing:8px;color:#ffd27a;z-index:1">CHAPTER ONE · CLEARED</div>
+    <div style="font-family:Oxanium;font-weight:800;font-size:52px;letter-spacing:10px;color:#ffe6a8;text-shadow:0 0 40px rgba(255,200,90,.5);z-index:1">第 一 章 · 通 关</div>
+    <div style="max-width:680px;text-align:center;font-size:18px;line-height:1.85;color:#eee0c8;z-index:1">${esc(c.line || '')}</div>
+    <div style="display:flex;gap:12px;font-size:12px;letter-spacing:1px;z-index:1">${chip('#ffd27a', '★ 击破 虚空母舰·涅墨西斯')}${chip('#c07bff', '✦ 夺回失落的星门')}${chip('#5fe0ee', '⚙ 永久升级 · 已保留')}</div>
+    <div style="display:flex;gap:18px;margin-top:6px;z-index:1">
+      <button data-act="chap-continue" style="padding:14px 32px;font-family:Oxanium;font-weight:800;font-size:17px;letter-spacing:2px;color:#1a1206;background:linear-gradient(180deg,#ffe08a,#ffc24d);border:2px solid #fff0c0;clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);cursor:pointer;box-shadow:0 0 28px rgba(255,200,90,.55)">继续征程 · 再次启航 ▸</button>
+      <button data-act="close" style="padding:14px 26px;font-size:15px;letter-spacing:2px;color:#cfe0ee;background:rgba(12,30,44,.85);border:1px solid rgba(95,210,235,.4);border-radius:4px;cursor:pointer">凯旋 · 返回工作台</button>
+    </div>
+    <div style="font-size:11px;letter-spacing:2px;color:#8a8466;margin-top:2px;z-index:1">第二章「虚空之外」· 敬请扩展　｜　改装坞的永久升级与船员羁绊将延续到下一程</div>
   </div></div>`;
 }
 function renderMapDetail(n) {
@@ -894,6 +929,7 @@ function onClick(e) {
   if (act === 'deploy-again') { if (G.run?.current && G.result === 'won') { genReward(); G.screen = 'reward'; return render(); } return returnFromBattle(); }
   if (act === 'reward-pick') return applyReward(+el.dataset.idx);
   if (act === 'defeat-continue') { G.screen = 'map'; return render(); }
+  if (act === 'chap-continue') return newRun();
   if (act === 'open-armory') { G.screen = 'armory'; return render(); }
   if (act === 'armory-back') { G.screen = 'map'; return render(); }
   if (act === 'route-toggle') {
