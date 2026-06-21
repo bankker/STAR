@@ -174,6 +174,50 @@ button { font-family: inherit; cursor: pointer; }
 .st-ending-meta { font-size: 12.5px; color: #a8a2c4; margin: 14px 0 4px; }
 .st-blood { color: #ff6b8a; font-size: 15px; letter-spacing: 2px; }
 
+/* ══ 星际争霸风格主题：深空底 + 青/金金属角切框 + 辉光 ══ */
+#storyView { background: radial-gradient(120% 90% at 50% -10%, #0e2742 0%, #07101e 55%, #03060d 100%); color: #cfe3f0; }
+.st-home { background: radial-gradient(120% 90% at 50% -10%, #102a46, #05080f 62%); }
+.st-logo { background: linear-gradient(100deg, #5fe6e0, #e8b54a); -webkit-background-clip: text; background-clip: text; color: transparent; letter-spacing: .06em; }
+.st-sub { color: #8fb4cc; }
+/* 角切金属框（裁掉左上、右下角，像 SC 面板） */
+.st-dialogue, .st-result, .st-member, .st-card, .st-vn-stage, .st-pick, .st-scene-empty {
+  border-radius: 0; border: 1px solid rgba(74,200,224,.38);
+  background: linear-gradient(180deg, rgba(18,42,66,.62), rgba(8,20,36,.66));
+  clip-path: polygon(0 13px, 13px 0, 100% 0, 100% calc(100% - 13px), calc(100% - 13px) 100%, 0 100%);
+  box-shadow: inset 0 0 26px rgba(18,60,96,.32);
+}
+.st-hud { border-bottom: 1px solid rgba(74,200,224,.3); background: linear-gradient(180deg, rgba(14,34,58,.85), rgba(8,18,32,.4)); }
+.st-res { color: #8fb4cc; }
+.st-chip { border-radius: 0; clip-path: polygon(0 5px,5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%); }
+/* 目标/相位条 → 任务简报式金色 objectives 面板 */
+.st-goal { background: linear-gradient(180deg, rgba(46,34,10,.55), rgba(22,16,6,.45)); border-bottom: 1px solid rgba(232,181,74,.4); border-left: 3px solid #e8b54a; border-radius: 0; color: #f0dca8; }
+.st-goal b { color: #ffd36a; }
+.st-speaker { color: #5fe6e0; }
+.st-av { border-radius: 0; border: 1px solid rgba(74,200,224,.55); background: #14344c; clip-path: polygon(0 5px,5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%); }
+.st-av img { border-radius: 0; }
+.st-portrait { filter: drop-shadow(0 0 12px rgba(74,200,224,.4)); }
+.st-env-tag { border-radius: 0; border: 1px solid rgba(74,200,224,.45); background: rgba(6,16,30,.75); color: #9fdce0; clip-path: polygon(0 5px,5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%); }
+/* 选项：青辉光角面按钮 + 〔序号〕 */
+.st-choices button { position: relative; border-radius: 0; color: #d6ecf5; padding-left: 40px;
+  background: linear-gradient(180deg, rgba(16,40,64,.72), rgba(10,24,42,.72)); border: 1px solid rgba(74,200,224,.4);
+  clip-path: polygon(0 8px,8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%); transition: border-color .12s, box-shadow .12s, background .12s; }
+.st-choices button:hover { border-color: #5fe6e0; background: linear-gradient(180deg, rgba(30,72,104,.85), rgba(16,40,64,.85)); box-shadow: 0 0 14px rgba(74,200,224,.3); color: #fff; }
+.st-key { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #06121f; background: #5fe6e0; clip-path: polygon(0 4px,4px 0,100% 0,100% calc(100% - 4px),calc(100% - 4px) 100%,0 100%); }
+.st-btn-primary { border-radius: 0; background: linear-gradient(180deg, #2aa6b8, #1d6f8a); border: 1px solid #5fe6e0; box-shadow: 0 0 14px rgba(74,200,224,.3); clip-path: polygon(0 9px,9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%); letter-spacing: .04em; }
+.st-mini { border-radius: 0; border: 1px solid #e8b54a; color: #ffd36a; background: rgba(60,44,10,.45); clip-path: polygon(0 5px,5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%); }
+.st-mini:hover { box-shadow: 0 0 12px rgba(232,181,74,.35); }
+.st-tabs { border-bottom: 1px solid rgba(74,200,224,.2); }
+.st-tabs button.on { background: rgba(74,200,224,.16); color: #5fe6e0; border-radius: 0; box-shadow: inset 0 -2px 0 #5fe6e0; }
+.st-card:hover { border-color: #5fe6e0; }
+.st-card-name { color: #cfe3f0; }
+.st-new input, .st-new select { border-radius: 0; background: rgba(8,20,36,.8); border-color: rgba(74,200,224,.4); color: #cfe3f0; clip-path: polygon(0 6px,6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%); }
+.st-result.win { border-color: rgba(95,230,224,.65); }
+.st-result.lose { border-color: rgba(255,90,110,.55); }
+.st-result-h { color: #cfe3f0; letter-spacing: .03em; }
+.st-aff-bar i { background: #34e1e8; }
+.st-splash { border-radius: 0; clip-path: polygon(0 13px,13px 0,100% 0,100% calc(100% - 13px),calc(100% - 13px) 100%,0 100%); }
+.st-map svg { border-radius: 0; border: 1px solid rgba(74,200,224,.3); }
+
 /* ── 主区：对话即界面（中等宽度，给右栏让出空间）── */
 .main { flex: 1 1 0; display: flex; flex-direction: column; min-width: 380px; position: relative; }
 

@@ -1316,7 +1316,7 @@ function renderEventTab(s) {
     <div class="st-dialogue">
       <div class="st-speaker">${avatarHtml(sp)}${esc(sp?.name || '旁白')}${sp ? ` · 好感 ${sp.affinity || 0}` : ''}</div>
       ${(ev.lines || []).map((l) => `<p class="st-line">${esc(l)}</p>`).join('')}
-      <div class="st-choices">${(ev.choices || []).map((c, i) => `<button onclick="storyChoose(${i})">${esc(c.text)}</button>`).join('')}</div>
+      <div class="st-choices">${(ev.choices || []).map((c, i) => `<button onclick="storyChoose(${i})"><span class="st-key">${i + 1}</span>${esc(c.text)}</button>`).join('')}</div>
     </div></div>`;
 }
 function renderCouncilTab(s) {
@@ -1377,7 +1377,7 @@ function updateStreamBody() {
   const el = document.querySelector('#st-stream'); if (!el || !storyState.streaming) return;
   const { lines, choices } = splitStream(storyState.streaming.text);
   el.innerHTML = (lines.map((l) => `<p class="st-line">${esc(l)}</p>`).join('') || '<p class="st-line st-dim">…</p>')
-    + (choices.length ? `<div class="st-choices">${choices.map((c) => `<button class="st-streaming" disabled>${esc(c)}</button>`).join('')}</div>` : '');
+    + (choices.length ? `<div class="st-choices">${choices.map((c, i) => `<button class="st-streaming" disabled><span class="st-key">${i + 1}</span>${esc(c)}</button>`).join('')}</div>` : '');
 }
 async function storyGenEvent() {
   storyState.streaming = { text: '', speakerArtistId: '' };
