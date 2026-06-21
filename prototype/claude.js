@@ -1214,18 +1214,22 @@ async function openStoryHome() {
   const v = $('#storyView'); v.hidden = false; v.innerHTML = '<div class="st-loading">载入星海…</div>';
   const r = await api('/api/stories');
   const list = r.stories || [];
-  v.innerHTML = `<div class="st-home"><button class="st-close" onclick="closeStory()">✕</button>
-    <div class="st-home-inner">
-      <div class="st-logo">✦ 故事 · 银河史诗</div>
-      <div class="st-sub">以你的虚拟艺人为主演，崛起于星海乱世。</div>
-      <div class="st-list">${list.map((s) => `<button class="st-card" onclick="openStory('${s.id}')">
-        <div class="st-card-name">${esc(s.name)}</div>
-        <div class="st-card-meta">${esc(s.era)} · 第 ${s.turn} 回合 · ${esc(s.faction || '')} · ${s.castCount} 名角色</div></button>`).join('') || '<div class="st-empty">还没有存档，开一局新的。</div>'}</div>
-      <div class="st-new">
-        <input id="stName" placeholder="指挥官名（如 杨威利）"/>
-        <select id="stFaction"><option value="自由同盟">自由同盟</option><option value="新帝国">新帝国</option></select>
-        <button class="st-btn-primary" onclick="newStoryGame()">开新局 →</button>
-      </div></div></div>`;
+  const saves = list.map((s) => `<button class="st-menu-item" onclick="openStory('${s.id}')">
+      <span class="st-menu-key">▸</span>
+      <span class="st-menu-main"><span class="st-menu-label">继续 · ${esc(s.name)}</span>
+      <span class="st-menu-meta">${esc(s.era)} · ${esc(s.faction || '')} · ${s.castCount} 名角色</span></span></button>`).join('');
+  v.innerHTML = `<div class="st-menu">
+    <button class="st-close" onclick="closeStory()">✕</button>
+    <div class="st-menu-title">✦ 银河史诗</div>
+    <div class="st-menu-sub">STAR&nbsp;SAGA · 以你的虚拟艺人为主演，崛起于星海乱世</div>
+    <div class="st-menu-list">
+      <div class="st-menu-item st-menu-new">
+        <span class="st-menu-key">N</span>
+        <span class="st-menu-main"><span class="st-menu-label">新的征程</span>
+        <span class="st-menu-form"><input id="stName" placeholder="指挥官名（如 杨威利）"/><select id="stFaction"><option value="自由同盟">自由同盟</option><option value="新帝国">新帝国</option></select><button class="st-btn-primary" onclick="newStoryGame()">出击 →</button></span></span>
+      </div>
+      ${saves}
+    </div></div>`;
 }
 function storyLoading(msg) { $('#storyView').hidden = false; $('#storyView').innerHTML = `<div class="st-home"><div class="st-loading">✦ ${esc(msg)}</div></div>`; }
 async function newStoryGame() {
@@ -1272,14 +1276,22 @@ function renderStory() {
 }
 function renderBattleResult(s) {
   const b = storyState.battleView || {}; const win = b.result?.win;
-  $('#storyView').innerHTML = `<div class="st-game">
-    <div class="st-hud"><span class="st-blood">${bloodHtml(s)}</span><span class="st-res">战功 ${s.battlesWon || 0}/${s.winTarget || 3}</span><button class="st-close" onclick="closeStory()">✕</button></div>
-    <div class="st-body"><div class="st-battle">
-      ${b.image ? `<img class="st-splash" src="${esc(b.image)}" alt=""/>` : ''}
-      <div class="st-result ${win ? 'win' : 'lose'}"><div class="st-result-h">${win ? '会战胜利 ✓' : '会战失利 ✕'} · 战备 ${b.result?.prep}/${b.result?.threshold}${win ? '' : ' · 失去 1 格血'}</div>
-        <p class="st-narration">${esc(b.strategy || '')}</p></div>
-      <button class="st-btn-primary" onclick="storyContinueAfterBattle()">继续 →</button>
-    </div></div></div>`;
+  const pct = Math.min(100, Math.round((b.result?.prep || 0) / (b.result?.threshold || 1) * 100));
+  const rows = (s.cast || []).map((c) => `<div class="st-vrow"><span class="st-vname">${esc(c.name || '')}</span><span class="st-vrole">${esc(c.role || '')}</span><span>好感 ${c.affinity || 0}</span><span>统率 ${c.stats?.统率 ?? '-'}</span></div>`).join('');
+  $('#storyView').innerHTML = `<div class="st-victory">
+    <button class="st-close" onclick="closeStory()">✕</button>
+    <div class="st-victory-banner ${win ? 'win' : 'lose'}">${win ? 'VICTORY' : 'DEFEAT'}<span>${win ? '会战胜利' : '会战失利'}</span></div>
+    <div class="st-victory-body">
+      ${b.image ? `<img class="st-victory-img" src="${esc(b.image)}" alt=""/>` : ''}
+      <div class="st-victory-panel">
+        <div class="st-vbar-label">战备 <b>${b.result?.prep ?? 0}</b> / 门槛 ${b.result?.threshold ?? 0}</div>
+        <div class="st-vbar"><i class="${win ? 'win' : 'lose'}" style="width:${pct}%"></i></div>
+        <div class="st-vmeta">战功 ${s.battlesWon || 0}/${s.winTarget || 3} · 生命 <span class="st-blood">${bloodHtml(s)}</span>${win ? '' : ' · 失去 1 格'}</div>
+        <div class="st-vrows">${rows || '<div class="st-empty">（无在场角色）</div>'}</div>
+        <p class="st-narration">${esc(b.strategy || '')}</p>
+        <button class="st-btn-primary" onclick="storyContinueAfterBattle()">继续 →</button>
+      </div>
+    </div></div>`;
 }
 function renderEnding(s) {
   const e = s.endings || {};
@@ -1316,17 +1328,25 @@ function renderEventTab(s) {
     <div class="st-actions" id="st-actions">${choices}</div>
   </div>`;
 }
+function storyCouncilSelect(id) { storyState.councilSel = id; renderStory(); }
 function renderCouncilTab(s) {
-  const inCast = new Set((s.cast || []).map((c) => c.artistId));
-  const roster = (s.cast || []).map((c) => `<div class="st-member">
-    ${avatarHtml(c, 'big')}
-    <div class="st-member-main"><div class="st-member-name">${esc(c.name || c.artistId)} <span class="st-role">${esc(c.role || '')} · ${esc(c.faction || '')}</span></div>
-      <div class="st-aff"><div class="st-aff-bar"><i style="width:${c.affinity || 0}%"></i></div><span>好感 ${c.affinity || 0} · ${affStage(c.affinity || 0)}</span></div>
-      <div class="st-stats">统率 ${c.stats?.统率 ?? '-'} · 谋略 ${c.stats?.谋略 ?? '-'} · 政务 ${c.stats?.政务 ?? '-'} · 魅力 ${c.stats?.魅力 ?? '-'} · 忠诚 ${c.stats?.忠诚 ?? '-'}</div>
-    </div></div>`).join('') || '<div class="st-empty">还没有角色。从下面把艺人选入剧本。</div>';
+  const cast = s.cast || [];
+  if (!storyState.councilSel || !cast.find((c) => c.artistId === storyState.councilSel)) storyState.councilSel = cast[0]?.artistId || '';
+  const inCast = new Set(cast.map((c) => c.artistId));
+  const tiles = cast.map((c) => `<button class="st-cmd-tile ${c.artistId === storyState.councilSel ? 'sel' : ''}" onclick="storyCouncilSelect('${c.artistId}')">
+    ${c.portraitUrl ? `<img src="${esc(c.portraitUrl)}" alt=""/>` : `<span class="st-cmd-ph">${esc((c.name || '?')[0])}</span>`}
+    <span class="st-cmd-tname">${esc(c.name || '')}</span></button>`).join('');
   const avail = (state.artists || []).filter((a) => !inCast.has(a.id));
-  const pick = avail.length ? `<div class="st-pick"><div class="st-pick-label">选艺人入局（LLM 依其人设评定数值）</div>${avail.map((a) => `<button onclick="storyAddCast('${a.id}')">＋ ${esc(a.name)}</button>`).join('')}</div>` : '';
-  return `<div class="st-council">${roster}${pick}</div>`;
+  const addTiles = avail.map((a) => `<button class="st-cmd-tile add" onclick="storyAddCast('${a.id}')" title="选入剧本（LLM 评定数值）"><span class="st-cmd-ph">＋</span><span class="st-cmd-tname">${esc(a.name)}</span></button>`).join('');
+  const sel = cast.find((c) => c.artistId === storyState.councilSel);
+  const statRow = (k) => { const v = sel?.stats?.[k] ?? 0; return `<div class="st-stat-row"><span class="st-stat-k">${k}</span><div class="st-stat-bar"><i style="width:${v}%"></i></div><span class="st-stat-v">${v}</span></div>`; };
+  const detail = sel ? `<div class="st-cmd-detail">
+    <div class="st-cmd-head">${sel.portraitUrl ? `<img class="st-cmd-big" src="${esc(sel.portraitUrl)}" alt=""/>` : `<span class="st-cmd-big st-cmd-ph">${esc((sel.name || '?')[0])}</span>`}
+      <div class="st-cmd-id"><div class="st-cmd-name">${esc(sel.name || '')}</div><div class="st-cmd-role">${esc(sel.role || '')} · ${esc(sel.faction || '')}</div>
+        <div class="st-aff"><div class="st-aff-bar"><i style="width:${sel.affinity || 0}%"></i></div><span>好感 ${sel.affinity || 0} · ${affStage(sel.affinity || 0)}</span></div></div></div>
+    <div class="st-cmd-stats">${['统率', '谋略', '政务', '魅力', '忠诚'].map(statRow).join('')}</div>
+  </div>` : '<div class="st-empty">还没有角色，从上面把艺人选入剧本。</div>';
+  return `<div class="st-coop"><div class="st-cmd-grid">${tiles}${addTiles}</div>${detail}</div>`;
 }
 function renderBattleTab(s) {
   const enemy = (s.map?.systems || []).filter((x) => x.faction !== s.player.faction);

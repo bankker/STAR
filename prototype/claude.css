@@ -242,6 +242,64 @@ button { font-family: inherit; cursor: pointer; }
   clip-path: polygon(0 8px,8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%); transition: border-color .12s, box-shadow .12s, background .12s; }
 .st-actions button:hover:not(:disabled) { border-color: #5fe6e0; background: linear-gradient(180deg, rgba(30,72,104,.85), rgba(16,40,64,.85)); box-shadow: 0 0 14px rgba(74,200,224,.3); color: #fff; }
 
+/* ══ 主菜单（仿 SC1 太空菜单）══ */
+.st-menu { position: relative; min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; background: radial-gradient(130% 100% at 50% -10%, #0e2742, #05080f 65%); }
+.st-menu-title { font-size: 38px; font-weight: 800; letter-spacing: .1em; background: linear-gradient(100deg,#5fe6e0,#e8b54a); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.st-menu-sub { color: #8fb4cc; font-size: 13px; margin: 8px 0 30px; text-align: center; }
+.st-menu-list { width: min(94vw, 460px); display: flex; flex-direction: column; gap: 10px; }
+.st-menu-item { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; padding: 14px 16px; cursor: pointer; color: #d6ecf5;
+  background: linear-gradient(180deg, rgba(16,40,64,.55), rgba(8,20,36,.6)); border: 1px solid rgba(74,200,224,.3);
+  clip-path: polygon(0 10px,10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%); transition: border-color .15s, box-shadow .15s; }
+.st-menu-item:hover { border-color: #5fe6e0; box-shadow: 0 0 16px rgba(74,200,224,.25); }
+.st-menu-new { align-items: flex-start; }
+.st-menu-key { width: 30px; height: 30px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #06121f; background: #5fe6e0; clip-path: polygon(0 5px,5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%); }
+.st-menu-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.st-menu-label { font-size: 16px; font-weight: 600; letter-spacing: .03em; }
+.st-menu-meta { font-size: 12px; color: #8fb4cc; }
+.st-menu-form { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+
+/* ══ 议事厅（仿 SC2 指挥官选择）══ */
+.st-coop { display: flex; flex-direction: column; gap: 14px; }
+.st-cmd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; }
+.st-cmd-tile { padding: 6px; cursor: pointer; background: rgba(10,24,40,.5); border: 1px solid rgba(74,200,224,.25); color: #cfe3f0; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  clip-path: polygon(0 7px,7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%); transition: border-color .12s; }
+.st-cmd-tile:hover { border-color: #5fe6e0; }
+.st-cmd-tile.sel { border-color: #e8b54a; box-shadow: 0 0 12px rgba(232,181,74,.4); }
+.st-cmd-tile img, .st-cmd-tile .st-cmd-ph { width: 60px; height: 60px; object-fit: cover; display: flex; align-items: center; justify-content: center; background: #12304a; color: #5fe6e0; font-size: 20px; }
+.st-cmd-tname { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.st-cmd-detail { border: 1px solid rgba(74,200,224,.35); background: linear-gradient(180deg, rgba(18,42,66,.6), rgba(8,20,36,.65)); padding: 16px; clip-path: polygon(0 13px,13px 0,100% 0,100% calc(100% - 13px),calc(100% - 13px) 100%,0 100%); }
+.st-cmd-head { display: flex; gap: 14px; margin-bottom: 14px; }
+.st-cmd-big { width: 80px; height: 80px; object-fit: cover; flex-shrink: 0; border: 1px solid rgba(74,200,224,.5); background: #12304a; color: #5fe6e0; font-size: 30px; display: flex; align-items: center; justify-content: center; clip-path: polygon(0 8px,8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%); }
+.st-cmd-name { font-size: 18px; font-weight: 600; color: #e6f1f8; }
+.st-cmd-role { font-size: 12px; color: #8fb4cc; margin: 2px 0 6px; }
+.st-cmd-stats { display: flex; flex-direction: column; gap: 7px; }
+.st-stat-row { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.st-stat-k { width: 32px; color: #8fb4cc; }
+.st-stat-bar { flex: 1; height: 8px; background: rgba(255,255,255,.08); overflow: hidden; clip-path: polygon(0 2px,2px 0,100% 0,100% calc(100% - 2px),calc(100% - 2px) 100%,0 100%); }
+.st-stat-bar i { display: block; height: 100%; background: linear-gradient(90deg,#2aa6b8,#5fe6e0); }
+.st-stat-v { width: 26px; text-align: right; color: #cfe3f0; }
+
+/* ══ 会战结果（仿 SC2 胜利结算）══ */
+.st-victory { position: relative; min-height: 100%; display: flex; flex-direction: column; padding: 0 0 20px; background: radial-gradient(130% 100% at 50% -10%, #0e2742, #04060d 65%); }
+.st-victory-banner { text-align: center; font-size: 30px; font-weight: 800; letter-spacing: .14em; padding: 22px 0 6px; }
+.st-victory-banner.win { color: #5fe6e0; text-shadow: 0 0 24px rgba(74,200,224,.5); }
+.st-victory-banner.lose { color: #ff6b8a; text-shadow: 0 0 24px rgba(255,90,110,.45); }
+.st-victory-banner span { display: block; font-size: 14px; font-weight: 500; letter-spacing: .06em; color: #8fb4cc; }
+.st-victory-body { display: flex; flex-wrap: wrap; gap: 16px; padding: 14px 22px; max-width: 820px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+.st-victory-img { width: 280px; max-width: 100%; height: auto; object-fit: cover; border: 1px solid rgba(74,200,224,.35); clip-path: polygon(0 13px,13px 0,100% 0,100% calc(100% - 13px),calc(100% - 13px) 100%,0 100%); }
+.st-victory-panel { flex: 1; min-width: 260px; }
+.st-vbar-label { font-size: 13px; color: #cfe3f0; margin-bottom: 5px; }
+.st-vbar-label b { color: #5fe6e0; }
+.st-vbar { height: 12px; background: rgba(255,255,255,.08); overflow: hidden; margin-bottom: 8px; clip-path: polygon(0 3px,3px 0,100% 0,100% calc(100% - 3px),calc(100% - 3px) 100%,0 100%); }
+.st-vbar i { display: block; height: 100%; }
+.st-vbar i.win { background: linear-gradient(90deg,#2aa6b8,#5fe6e0); }
+.st-vbar i.lose { background: linear-gradient(90deg,#a3324a,#ff6b8a); }
+.st-vmeta { font-size: 12.5px; color: #8fb4cc; margin-bottom: 10px; }
+.st-vrows { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.st-vrow { display: flex; gap: 10px; font-size: 12px; color: #cfe3f0; padding: 6px 8px; background: rgba(10,24,40,.5); border-left: 2px solid rgba(74,200,224,.4); }
+.st-vrow .st-vname { font-weight: 600; min-width: 56px; }
+.st-vrow .st-vrole { color: #8fb4cc; flex: 1; }
+
 /* ── 主区：对话即界面（中等宽度，给右栏让出空间）── */
 .main { flex: 1 1 0; display: flex; flex-direction: column; min-width: 380px; position: relative; }
 
