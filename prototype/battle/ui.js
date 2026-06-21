@@ -115,14 +115,16 @@ async function openGame() {
   G.run = { nodes: structuredClone(MAP_NODES), selected: 'n4', flagAt: 'n4', pan: { x: -40, y: -70 }, current: null, relics: [], credits: 0, upgrades: [] };
   G.meta = loadMeta();              // 永久升级（localStorage，§3.1/§3.2）
   G.maxSlots = G.meta.slots;        // 核心仓位随永久升级成长
-  G.screen = 'map'; G.squad = []; G.detail = null; G.battle = null; G.pending = null; G.result = null; G.pendingEnemy = null;
+  G.squad = []; G.detail = null; G.battle = null; G.pending = null; G.result = null; G.pendingEnemy = null;
+  G.introEnded = false;
+  G.screen = introSkipped() ? 'map' : 'intro';   // 跳过过则直接进游戏
   render();
+  loadShips();
   try {
     const r = await fetch('/api/artists').then((x) => x.json());
     G.artists = (r.artists || []).map((a) => ({ id: a.id, name: a.name, portraitUrl: (a.portraits && a.portraits[0] && a.portraits[0].url) || '' }));
   } catch { G.artists = []; }
-  loadShips();
-  render();
+  if (G.screen && G.screen !== 'intro') render();   // intro 期间不重绘（会重启视频）
 }
 // 星舰图鉴 manifest（预生成底图）：命中则用照片，否则前端回退 SVG
 async function loadShips() {
@@ -130,14 +132,48 @@ async function loadShips() {
   G.ships = {};
   try {
     const m = await fetch('/battle/ships/manifest.json', { cache: 'no-store' }).then((x) => (x.ok ? x.json() : {}));
-    if (m && typeof m === 'object') { G.ships = m; if (G.screen) render(); }
+    if (m && typeof m === 'object') { G.ships = m; if (G.screen && G.screen !== 'intro') render(); }
   } catch { /* 无图鉴时保持 SVG */ }
+}
+// ── 开场影片 ──
+const INTRO_SKIP_KEY = 'starfall_intro_skip';
+function introSkipped() { try { return localStorage.getItem(INTRO_SKIP_KEY) === '1'; } catch { return false; } }
+function renderIntro() {
+  const ended = !!G.introEnded;
+  const btn = (act, label, color, sub) => `<button data-act="${act}" style="display:flex;flex-direction:column;align-items:center;gap:2px;min-width:150px;padding:12px 26px;cursor:pointer;background:linear-gradient(180deg,rgba(14,26,40,.94),rgba(8,16,26,.94));border:1px solid ${color};border-radius:6px;color:${color};font-family:Oxanium;font-weight:700;font-size:16px;letter-spacing:2px;box-shadow:0 0 20px ${color}44">${label}${sub ? `<span style="font-size:10px;font-weight:500;letter-spacing:1px;color:#8fa6b6">${sub}</span>` : ''}</button>`;
+  return `<div style="position:absolute;inset:0;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden">
+    <video id="introVideo" src="/battle/intro.mp4" playsinline preload="auto" style="width:100%;height:100%;object-fit:contain;background:#000"></video>
+    <button data-act="close" style="position:absolute;top:18px;right:20px;width:38px;height:38px;border:1px solid rgba(120,140,160,.4);background:rgba(8,14,22,.55);color:#9fb0c4;font-size:17px;cursor:pointer;border-radius:4px;z-index:3">✕</button>
+    <div id="introBar" style="position:absolute;left:0;right:0;bottom:7%;display:flex;justify-content:center;gap:20px;z-index:3;opacity:${ended ? '1' : '0'};pointer-events:${ended ? 'auto' : 'none'};transition:opacity .6s ease">
+      ${btn('intro-replay', '↻ 重复播放', '#5fe0ee')}
+      ${btn('intro-skip', '⏭ 跳过', '#9fb0c4', '今后不再显示')}
+      ${btn('intro-enter', '▶ 进入游戏', '#ffd27a')}
+    </div>
+  </div>`;
+}
+function wireIntro() {
+  const vid = document.getElementById('introVideo'); if (!vid) return;
+  vid.onended = () => { G.introEnded = true; const bar = document.getElementById('introBar'); if (bar) { bar.style.opacity = '1'; bar.style.pointerEvents = 'auto'; } };
+  // 由点击「故事」的手势链触发，先尝试有声播放；被自动播放策略拦截则回退静音
+  vid.play().catch(() => { vid.muted = true; vid.play().catch(() => {}); });
+}
+function introReplay() {
+  const vid = document.getElementById('introVideo'); if (!vid) return;
+  G.introEnded = false;
+  const bar = document.getElementById('introBar'); if (bar) { bar.style.opacity = '0'; bar.style.pointerEvents = 'none'; }
+  vid.currentTime = 0; vid.play().catch(() => { vid.muted = true; vid.play().catch(() => {}); });
+}
+function introEnter(skip) {
+  if (skip) { try { localStorage.setItem(INTRO_SKIP_KEY, '1'); } catch {} }
+  const vid = document.getElementById('introVideo'); if (vid) { try { vid.pause(); } catch {} }
+  G.screen = 'map'; render();
 }
 function closeGame() { const v = view(); v.hidden = true; v.classList.remove('bg-root'); v.innerHTML = ''; }
 
 // ─────────── 渲染 ───────────
 function render() {
   const v = view();
+  if (G.screen === 'intro') { v.innerHTML = renderIntro() + '<div class="bg-toast"></div>'; wireIntro(); return; }
   if (G.screen === 'map') { v.innerHTML = renderMap() + '<div class="bg-toast"></div>'; fit(); return; }
   if (G.screen === 'battle') { v.innerHTML = renderBattle() + '<div class="bg-toast"></div>'; fit(); return; }
   if (G.screen === 'deploy') { v.innerHTML = renderDeploy() + '<div class="bg-toast"></div>'; fit(); return; }
@@ -763,6 +799,9 @@ function onClick(e) {
   if (!el || !view().contains(el)) return;
   const act = el.dataset.act; const id = el.dataset.id;
   if (act === 'close') return closeGame();
+  if (act === 'intro-replay') return introReplay();
+  if (act === 'intro-skip') return introEnter(true);
+  if (act === 'intro-enter') return introEnter(false);
   if (act === 'pick') return togglePick(id);
   if (act === 'slot-remove') { G.squad.splice(+el.dataset.idx, 1); return render(); }
   if (act === 'detail') { G.detail = id; return render(); }
