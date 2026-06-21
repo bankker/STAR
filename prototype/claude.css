@@ -631,3 +631,56 @@ button { font-family: inherit; cursor: pointer; }
 @media (max-width: 720px) {
   .rail { display: none; }
 }
+
+/* ════════ 故事界面 · 完全重做为星际争霸 SC2 指挥控制台皮肤 ════════ */
+#storyView {
+  background:
+    repeating-linear-gradient(0deg, transparent 0 26px, rgba(54,160,200,.045) 26px 27px),
+    repeating-linear-gradient(90deg, transparent 0 26px, rgba(54,160,200,.045) 26px 27px),
+    radial-gradient(150% 110% at 50% -25%, #0e2c44 0%, #07182a 50%, #020810 100%);
+  color: #bfe2f0;
+}
+.st-hud { background: linear-gradient(180deg,#123952,#0a2236 60%,#08192a); border-bottom: 2px solid #2fb9d6; box-shadow: inset 0 1px 0 rgba(120,220,245,.18), 0 2px 10px rgba(0,0,0,.5); }
+.st-blood { color: #ff5a6e; text-shadow: 0 0 10px rgba(255,90,110,.6); }
+.st-res { color: #7fb6cf; }
+.st-chip { clip-path: none; border-radius: 0; border: 1px solid currentColor; background: rgba(0,0,0,.25); }
+.st-goal { background: linear-gradient(180deg, rgba(60,44,8,.7), rgba(34,24,6,.6)); border-bottom: 1px solid #d9a13a; border-left: 4px solid #f0c14a; color: #f4dca0; box-shadow: inset 0 0 18px rgba(120,80,10,.3); }
+.st-goal b { color: #ffd770; }
+/* 厚金属框 + 青色双角支架 */
+.st-brief-stage, .st-cmd-detail, .st-victory-panel, .st-scene-empty {
+  position: relative; clip-path: none; overflow: visible; border-radius: 0;
+  border: 2px solid #1f4f6b; background: linear-gradient(180deg, rgba(16,42,64,.88), rgba(6,18,31,.94));
+  box-shadow: inset 0 0 0 1px rgba(80,205,235,.22), inset 0 0 36px rgba(8,36,64,.7), 0 0 0 4px #050f1b, 0 6px 22px rgba(0,0,0,.5);
+}
+.st-brief-stage::before, .st-cmd-detail::before, .st-victory-panel::before, .st-scene-empty::before {
+  content: ''; position: absolute; top: -3px; left: -3px; width: 22px; height: 22px; border-top: 3px solid #36d6e8; border-left: 3px solid #36d6e8; pointer-events: none; }
+.st-brief-stage::after, .st-cmd-detail::after, .st-victory-panel::after, .st-scene-empty::after {
+  content: ''; position: absolute; bottom: -3px; right: -3px; width: 22px; height: 22px; border-bottom: 3px solid #36d6e8; border-right: 3px solid #36d6e8; pointer-events: none; }
+/* 通讯面板 + 斜切金属头条 */
+.st-transmission { clip-path: none; background: linear-gradient(180deg, rgba(6,18,31,.5), rgba(6,18,31,.92)); border-top: 2px solid #2fb9d6; }
+.st-tx-head { display: inline-block; background: linear-gradient(180deg,#1f6480,#0c3850); color: #d6f2fa; padding: 6px 28px 6px 14px; margin-bottom: 8px; clip-path: polygon(0 0,100% 0,calc(100% - 18px) 100%,0 100%); box-shadow: 0 0 12px rgba(47,185,214,.35); font-weight: 600; letter-spacing: .05em; }
+/* 斜端命令板按钮 + 顶部高光 + 辉光 */
+.st-actions button, .st-btn-primary {
+  clip-path: polygon(10px 0,100% 0,calc(100% - 10px) 100%,0 100%); border-radius: 0; color: #dff1f8;
+  background: linear-gradient(180deg,#1a5168,#0a2c3e); border: 1px solid #2e8aa6;
+  box-shadow: inset 0 1px 0 rgba(140,230,250,.32), inset 0 -3px 8px rgba(0,0,0,.45), 0 0 0 2px #050f1b; transition: box-shadow .12s, border-color .12s; }
+.st-actions button:hover:not(:disabled), .st-btn-primary:hover { border-color: #36d6e8; box-shadow: inset 0 1px 0 rgba(140,230,250,.45), 0 0 18px rgba(47,185,214,.5), 0 0 0 2px #050f1b; color: #fff; }
+.st-key { background: linear-gradient(180deg,#5fe6e0,#2aa6b8); color: #05121f; box-shadow: 0 0 8px rgba(54,214,232,.5); clip-path: none; }
+/* 立绘 / 指挥官格 厚框 */
+.st-pframe > img, .st-pframe > span { clip-path: none; border: 2px solid #20455f; }
+.st-pframe.lit > img, .st-pframe.lit > span { border: 2px solid #36d6e8; box-shadow: 0 0 16px rgba(54,214,232,.5); }
+.st-cmd-tile { clip-path: none; border: 2px solid #1f4863; }
+.st-cmd-tile.sel { border-color: #f0c14a; box-shadow: 0 0 14px rgba(240,193,74,.5); }
+.st-cmd-big { clip-path: none; border: 2px solid #36d6e8; }
+.st-stat-bar i { box-shadow: 0 0 8px rgba(54,214,232,.4); }
+/* 主菜单命令板 */
+.st-menu-item { clip-path: none; border: 2px solid #1f4f6b; background: linear-gradient(180deg, rgba(18,46,68,.7), rgba(8,22,37,.8)); box-shadow: inset 0 1px 0 rgba(120,220,245,.15), 0 0 0 2px #050f1b; }
+.st-menu-item:hover { border-color: #36d6e8; box-shadow: 0 0 18px rgba(47,185,214,.35), 0 0 0 2px #050f1b; }
+.st-menu-key { clip-path: none; background: linear-gradient(180deg,#5fe6e0,#2aa6b8); color: #05121f; }
+.st-menu-title { text-shadow: 0 0 30px rgba(47,185,214,.4); }
+/* 胜利结算 */
+.st-victory-banner.win { color: #42e6dc; }
+.st-vbar i.win { background: linear-gradient(90deg,#1d7f93,#5fe6e0); box-shadow: 0 0 12px rgba(54,214,232,.5); }
+.st-new input, .st-new select, .st-menu-form input, .st-menu-form select { clip-path: none; border-radius: 0; border: 1px solid #2e7d96; background: rgba(6,18,31,.85); color: #d6ecf5; }
+.st-close { color: #7fb6cf; }
+.st-close:hover { color: #36d6e8; }
