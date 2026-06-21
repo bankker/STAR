@@ -255,7 +255,7 @@ function flagshipShowcase() {
     const hex = pr
       ? `<div data-act="detail" data-id="${esc(a.id)}" style="position:relative;width:58px;height:65px;clip-path:${hexClip};${port};box-shadow:0 0 14px ${accent}88,0 2px 8px rgba(0,0,0,.6);cursor:pointer"><div style="position:absolute;inset:0;clip-path:${hexClip};border:1.5px solid ${accent};pointer-events:none"></div><button data-act="slot-remove" data-idx="${i}" style="position:absolute;top:-7px;right:-4px;width:20px;height:20px;border-radius:50%;background:rgba(40,12,12,.96);border:1px solid #ff6a4a;color:#ff9a7a;font-size:11px;cursor:pointer;z-index:5">✕</button></div>`
       : `<div style="width:58px;height:65px;clip-path:${hexClip};background:rgba(8,18,30,.66);outline:2px dashed rgba(95,210,235,.45);outline-offset:-6px;animation:slotGlow 2.8s ease-in-out infinite"></div>`;
-    return `<div style="position:absolute;left:${x}px;top:236px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:4px;width:118px;z-index:6">
+    return `<div style="position:absolute;left:${x}px;top:262px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:4px;width:118px;z-index:6">
       ${hex}
       <div style="text-align:center;text-shadow:0 1px 5px rgba(2,8,16,.95),0 0 8px rgba(2,8,16,.8)">
         <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:${pr ? accent : '#a9c8d8'};white-space:nowrap">${station}</div>
@@ -273,7 +273,10 @@ function flagshipShowcase() {
 
     <div style="position:absolute;top:208px;left:480px;width:880px;height:150px;pointer-events:none;background:radial-gradient(ellipse 58% 66% at 50% 50%,rgba(60,140,200,.2),transparent 70%)"></div>
     <div style="position:absolute;top:206px;left:440px;width:960px;height:188px;pointer-events:none;animation:bgfloat 7s ease-in-out infinite">${ship}</div>
-    ${markers}`;
+    ${markers}
+    <div style="position:absolute;top:438px;left:392px;width:1040px;height:46px;display:flex;align-items:center;background:linear-gradient(180deg,rgba(12,28,42,.7),rgba(8,16,28,.7));border:1px solid rgba(79,214,230,.22);border-radius:6px">
+      ${[['舰长', '1 200m'], ['舰员', '3 200'], ['能量', '100%'], ['护盾', '100%'], ['结构', '100%']].map(([k, val], i) => `<div style="flex:1;display:flex;flex-direction:column;align-items:center;${i ? 'border-left:1px solid rgba(79,214,230,.14)' : ''}"><span style="font-size:10px;letter-spacing:2px;color:#6f93a8">${k}</span><span style="font-family:Oxanium;font-weight:700;font-size:15px;color:#d6f3ff;margin-top:1px">${val}</span></div>`).join('')}
+    </div>`;
 }
 function renderDeploy() {
   STARS = STARS || starfield();
