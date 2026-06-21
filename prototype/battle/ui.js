@@ -240,26 +240,28 @@ function flagshipShowcase() {
   const ship = flagUrl
     ? `<div style="position:absolute;inset:0;background-image:url('${esc(flagUrl)}');background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(0 0 28px rgba(95,200,240,.42))"></div>`
     : `<div style="position:absolute;inset:0;filter:drop-shadow(0 0 28px rgba(95,200,240,.42))">${warshipSVG({ ally: true })}</div>`;
-  const STATIONS = ['主炮塔', '护盾环', '维生舱', '导航席', '机库', '工程舱'];
-  const SUBS = ['火力覆盖全船前方扇形区域', '多层能量护盾发生器', '生命维持与医疗舱', '深空探测与跃迁计算核心', '舰载机与无人机库', '结构维护与能量分配'];
+  // 舰艏在右：主炮塔在右、工程/机库在左（左=舰艉，右=舰艏）
+  const FRONT_TO_REAR = ['主炮塔', '护盾环', '导航席', '维生舱', '机库', '工程舱'];
   const hexClip = 'polygon(50% 0,100% 26%,100% 74%,50% 100%,0 74%,0 26%)';
   const n = G.maxSlots;
+  const order = FRONT_TO_REAR.slice(0, n).reverse();   // 左→右展开，主炮塔落在最右
   const markers = Array.from({ length: n }, (_, i) => {
     const a = G.squad[i];
     const pr = a ? profile(a, Math.max(0, G.artists.findIndex((y) => y.id === a.id))) : null;
-    const x = Math.round(440 + (960 / n) * (i + 0.5));
-    const station = (pr && pr.station) || STATIONS[i] || ('战位' + (i + 1));
-    const accent = pr ? pr.accent : '#7fa0b2';
+    const x = Math.round(452 + (936 / n) * (i + 0.5));   // 沿舰体铺开
+    const station = order[i];
+    const accent = pr ? pr.accent : '#8fb4c6';
     const port = pr ? (a.portraitUrl ? `background-image:url('${esc(a.portraitUrl)}');background-size:cover;background-position:top center` : `background-image:url(&quot;${Q(portrait(pr.pal))}&quot;);background-size:cover;background-position:top center`) : '';
     const hex = pr
-      ? `<div data-act="detail" data-id="${esc(a.id)}" style="position:relative;width:60px;height:67px;clip-path:${hexClip};${port};box-shadow:0 0 13px ${accent}66;cursor:pointer"><div style="position:absolute;inset:0;clip-path:${hexClip};border:1px solid ${accent};pointer-events:none"></div><button data-act="slot-remove" data-idx="${i}" style="position:absolute;top:-7px;right:-3px;width:20px;height:20px;border-radius:50%;background:rgba(40,12,12,.95);border:1px solid #ff6a4a;color:#ff9a7a;font-size:11px;cursor:pointer;z-index:5">✕</button></div>`
-      : `<div style="width:60px;height:67px;clip-path:${hexClip};background:rgba(10,22,36,.55);outline:2px dashed rgba(95,210,235,.4);outline-offset:-6px;display:flex;align-items:center;justify-content:center;animation:slotGlow 2.8s ease-in-out infinite"><span style="font-size:9px;letter-spacing:1px;color:rgba(140,180,210,.75)">空缺</span></div>`;
-    return `<div style="position:absolute;left:${x - 3}px;top:357px;width:6px;height:6px;border-radius:50%;background:${pr ? accent : '#9fe9ff'};box-shadow:0 0 8px ${pr ? accent : '#7fe6ff'};pointer-events:none"></div>
-      <div style="position:absolute;left:${x}px;top:363px;width:1px;height:17px;background:linear-gradient(180deg,${pr ? accent : 'rgba(95,210,235,.6)'},transparent);pointer-events:none"></div>
-      <div style="position:absolute;left:${x}px;top:382px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px;width:120px">
-        ${hex}
-        <div style="text-align:center"><div style="font-size:12px;font-weight:700;color:${accent};white-space:nowrap">${pr ? esc(a.name) : station}</div><div style="font-size:9px;letter-spacing:1px;color:#6f93a8;white-space:nowrap">${pr ? station : (SUBS[i] ? '待编入' : '待编入')}</div></div>
-      </div>`;
+      ? `<div data-act="detail" data-id="${esc(a.id)}" style="position:relative;width:58px;height:65px;clip-path:${hexClip};${port};box-shadow:0 0 14px ${accent}88,0 2px 8px rgba(0,0,0,.6);cursor:pointer"><div style="position:absolute;inset:0;clip-path:${hexClip};border:1.5px solid ${accent};pointer-events:none"></div><button data-act="slot-remove" data-idx="${i}" style="position:absolute;top:-7px;right:-4px;width:20px;height:20px;border-radius:50%;background:rgba(40,12,12,.96);border:1px solid #ff6a4a;color:#ff9a7a;font-size:11px;cursor:pointer;z-index:5">✕</button></div>`
+      : `<div style="width:58px;height:65px;clip-path:${hexClip};background:rgba(8,18,30,.66);outline:2px dashed rgba(95,210,235,.45);outline-offset:-6px;animation:slotGlow 2.8s ease-in-out infinite"></div>`;
+    return `<div style="position:absolute;left:${x}px;top:236px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:4px;width:118px;z-index:6">
+      ${hex}
+      <div style="text-align:center;text-shadow:0 1px 5px rgba(2,8,16,.95),0 0 8px rgba(2,8,16,.8)">
+        <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:${pr ? accent : '#a9c8d8'};white-space:nowrap">${station}</div>
+        <div style="font-size:11px;color:${pr ? '#eaf4ff' : '#6f93a8'};white-space:nowrap;margin-top:1px">${pr ? esc(a.name) : '空缺 · 待编入'}</div>
+      </div>
+    </div>`;
   }).join('');
   return `
     <div style="position:absolute;top:88px;left:392px;font-size:11px;letter-spacing:4px;color:#7a93a8">旗舰信息 · FLAGSHIP　<span style="color:#5a93ad">点击左侧船员编入战位</span></div>
@@ -269,8 +271,8 @@ function flagshipShowcase() {
     </div>
     <div style="position:absolute;top:150px;left:392px;font-size:12px;letter-spacing:1px;color:#9fc4d6;padding:3px 12px;border:1px solid rgba(95,210,235,.3);border-radius:3px;background:rgba(10,24,36,.5)">战略战列巡洋舰 · 旗舰级</div>
 
-    <div style="position:absolute;top:198px;left:480px;width:880px;height:150px;pointer-events:none;background:radial-gradient(ellipse 58% 66% at 50% 50%,rgba(60,140,200,.18),transparent 70%)"></div>
-    <div style="position:absolute;top:182px;left:440px;width:960px;height:188px;pointer-events:none;animation:bgfloat 7s ease-in-out infinite">${ship}</div>
+    <div style="position:absolute;top:208px;left:480px;width:880px;height:150px;pointer-events:none;background:radial-gradient(ellipse 58% 66% at 50% 50%,rgba(60,140,200,.2),transparent 70%)"></div>
+    <div style="position:absolute;top:206px;left:440px;width:960px;height:188px;pointer-events:none;animation:bgfloat 7s ease-in-out infinite">${ship}</div>
     ${markers}`;
 }
 function renderDeploy() {
