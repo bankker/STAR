@@ -240,36 +240,38 @@ function flagshipShowcase() {
   const ship = flagUrl
     ? `<div style="position:absolute;inset:0;background-image:url('${esc(flagUrl)}');background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(0 0 28px rgba(95,200,240,.42))"></div>`
     : `<div style="position:absolute;inset:0;filter:drop-shadow(0 0 28px rgba(95,200,240,.42))">${warshipSVG({ ally: true })}</div>`;
-  const co = (x, dir, title, sub) => {
-    const dotY = dir === 'up' ? 255 : 366;
-    const labelTop = dir === 'up' ? 178 : 412;
-    const lineTop = dir === 'up' ? 206 : 366;
-    const lineH = dir === 'up' ? dotY - 206 : 412 - 366;
-    return `<div style="position:absolute;left:${x}px;top:${lineTop}px;width:1px;height:${lineH}px;background:linear-gradient(180deg,rgba(95,210,235,.55),rgba(95,210,235,.15));pointer-events:none"></div>
-      <div style="position:absolute;left:${x - 3}px;top:${dotY - 3}px;width:7px;height:7px;border-radius:50%;background:#9fe9ff;box-shadow:0 0 9px #7fe6ff;pointer-events:none"></div>
-      <div style="position:absolute;left:${x}px;top:${labelTop}px;transform:translateX(-50%);text-align:center;white-space:nowrap;pointer-events:none"><div style="font-size:13px;font-weight:700;letter-spacing:1px;color:#d3ecf6">◇ ${title}</div><div style="font-size:10px;color:#6f93a8;margin-top:2px">${sub}</div></div>`;
-  };
-  const stats = [['舰长', '1 200m'], ['舰员', '3 200'], ['能量', '100%'], ['护盾', '100%'], ['结构', '100%']];
+  const STATIONS = ['主炮塔', '护盾环', '维生舱', '导航席', '机库', '工程舱'];
+  const SUBS = ['火力覆盖全船前方扇形区域', '多层能量护盾发生器', '生命维持与医疗舱', '深空探测与跃迁计算核心', '舰载机与无人机库', '结构维护与能量分配'];
+  const hexClip = 'polygon(50% 0,100% 26%,100% 74%,50% 100%,0 74%,0 26%)';
+  const n = G.maxSlots;
+  const markers = Array.from({ length: n }, (_, i) => {
+    const a = G.squad[i];
+    const pr = a ? profile(a, Math.max(0, G.artists.findIndex((y) => y.id === a.id))) : null;
+    const x = Math.round(440 + (960 / n) * (i + 0.5));
+    const station = (pr && pr.station) || STATIONS[i] || ('战位' + (i + 1));
+    const accent = pr ? pr.accent : '#7fa0b2';
+    const port = pr ? (a.portraitUrl ? `background-image:url('${esc(a.portraitUrl)}');background-size:cover;background-position:top center` : `background-image:url(&quot;${Q(portrait(pr.pal))}&quot;);background-size:cover;background-position:top center`) : '';
+    const hex = pr
+      ? `<div data-act="detail" data-id="${esc(a.id)}" style="position:relative;width:60px;height:67px;clip-path:${hexClip};${port};box-shadow:0 0 13px ${accent}66;cursor:pointer"><div style="position:absolute;inset:0;clip-path:${hexClip};border:1px solid ${accent};pointer-events:none"></div><button data-act="slot-remove" data-idx="${i}" style="position:absolute;top:-7px;right:-3px;width:20px;height:20px;border-radius:50%;background:rgba(40,12,12,.95);border:1px solid #ff6a4a;color:#ff9a7a;font-size:11px;cursor:pointer;z-index:5">✕</button></div>`
+      : `<div style="width:60px;height:67px;clip-path:${hexClip};background:rgba(10,22,36,.55);outline:2px dashed rgba(95,210,235,.4);outline-offset:-6px;display:flex;align-items:center;justify-content:center;animation:slotGlow 2.8s ease-in-out infinite"><span style="font-size:9px;letter-spacing:1px;color:rgba(140,180,210,.75)">空缺</span></div>`;
+    return `<div style="position:absolute;left:${x - 3}px;top:357px;width:6px;height:6px;border-radius:50%;background:${pr ? accent : '#9fe9ff'};box-shadow:0 0 8px ${pr ? accent : '#7fe6ff'};pointer-events:none"></div>
+      <div style="position:absolute;left:${x}px;top:363px;width:1px;height:17px;background:linear-gradient(180deg,${pr ? accent : 'rgba(95,210,235,.6)'},transparent);pointer-events:none"></div>
+      <div style="position:absolute;left:${x}px;top:382px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px;width:120px">
+        ${hex}
+        <div style="text-align:center"><div style="font-size:12px;font-weight:700;color:${accent};white-space:nowrap">${pr ? esc(a.name) : station}</div><div style="font-size:9px;letter-spacing:1px;color:#6f93a8;white-space:nowrap">${pr ? station : (SUBS[i] ? '待编入' : '待编入')}</div></div>
+      </div>`;
+  }).join('');
   return `
-    <div style="position:absolute;top:88px;left:392px;font-size:11px;letter-spacing:4px;color:#7a93a8">旗舰信息 · FLAGSHIP</div>
+    <div style="position:absolute;top:88px;left:392px;font-size:11px;letter-spacing:4px;color:#7a93a8">旗舰信息 · FLAGSHIP　<span style="color:#5a93ad">点击左侧船员编入战位</span></div>
     <div style="position:absolute;top:104px;left:392px;display:flex;align-items:flex-end;gap:14px">
       <div style="font-family:Oxanium;font-weight:800;font-size:34px;letter-spacing:2px;color:#eaf6ff;text-shadow:0 0 18px rgba(95,200,240,.45);line-height:1">拍穹者号</div>
       <div style="font-size:11px;letter-spacing:2px;color:#5a93ad;padding-bottom:5px">H.C-01 · HARVESTER CLASS</div>
     </div>
     <div style="position:absolute;top:150px;left:392px;font-size:12px;letter-spacing:1px;color:#9fc4d6;padding:3px 12px;border:1px solid rgba(95,210,235,.3);border-radius:3px;background:rgba(10,24,36,.5)">战略战列巡洋舰 · 旗舰级</div>
 
-    <div style="position:absolute;top:230px;left:480px;width:880px;height:160px;pointer-events:none;background:radial-gradient(ellipse 58% 66% at 50% 50%,rgba(60,140,200,.18),transparent 70%)"></div>
-    <div style="position:absolute;top:212px;left:440px;width:960px;height:198px;pointer-events:none;animation:bgfloat 7s ease-in-out infinite">${ship}</div>
-    ${co(640, 'up', '维护舱', '自动化维修与无人机库')}
-    ${co(905, 'up', '护盾环', '多层能量护盾发生器')}
-    ${co(1165, 'up', '主炮塔', '火力覆盖全船前方扇形区域')}
-    ${co(620, 'down', '导航阵列', '深空探测与跃迁计算核心')}
-    ${co(890, 'down', '维修舱', '结构维护与能量分配')}
-    ${co(1150, 'down', '引擎组', '四联矢量推进引擎')}
-
-    <div style="position:absolute;top:452px;left:392px;width:1040px;height:48px;display:flex;align-items:center;background:linear-gradient(180deg,rgba(12,28,42,.7),rgba(8,16,28,.7));border:1px solid rgba(79,214,230,.22);border-radius:6px">
-      ${stats.map(([k, v], i) => `<div style="flex:1;display:flex;flex-direction:column;align-items:center;${i ? 'border-left:1px solid rgba(79,214,230,.14)' : ''}"><span style="font-size:10px;letter-spacing:2px;color:#6f93a8">${k}</span><span style="font-family:Oxanium;font-weight:700;font-size:15px;color:#d6f3ff;margin-top:1px">${v}</span></div>`).join('')}
-    </div>`;
+    <div style="position:absolute;top:198px;left:480px;width:880px;height:150px;pointer-events:none;background:radial-gradient(ellipse 58% 66% at 50% 50%,rgba(60,140,200,.18),transparent 70%)"></div>
+    <div style="position:absolute;top:182px;left:440px;width:960px;height:188px;pointer-events:none;animation:bgfloat 7s ease-in-out infinite">${ship}</div>
+    ${markers}`;
 }
 function renderDeploy() {
   STARS = STARS || starfield();
