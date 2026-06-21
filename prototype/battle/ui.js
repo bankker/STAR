@@ -289,6 +289,7 @@ function renderBattle() {
       <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(8,20,34,0),rgba(20,50,74,.25),rgba(8,20,34,0))"></div>
       <div style="position:absolute;top:50%;left:0;width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(79,214,230,.5),transparent)"></div>
       <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:9px;letter-spacing:8px;color:rgba(120,170,200,.45)">— 交战空域 · DMZ —</div>
+      ${G.beam ? `<div style="position:absolute;top:50%;left:14%;width:72%;height:4px;transform-origin:left center;background:linear-gradient(90deg,transparent,${G.beam.color},#fff,${G.beam.color});box-shadow:0 0 18px ${G.beam.color},0 0 6px #fff;border-radius:3px;animation:beamfly .7s cubic-bezier(.4,0,.2,1) forwards"></div>` : ''}
     </div>
 
     <div style="position:absolute;top:462px;left:0;width:1920px;height:310px;display:flex;align-items:center;justify-content:center;gap:18px;padding:0 70px">
@@ -426,6 +427,11 @@ function renderDialogue() {
 }
 
 // ─────────── 交互 ───────────
+function flashBeam(color) {
+  G.beam = { color };
+  clearTimeout(G._beamT);
+  G._beamT = setTimeout(() => { G.beam = null; if (G.screen === 'battle') render(); }, 720);
+}
 function apply(next) {
   G.battle = next; G.pending = null;
   if (next.status === 'won' || next.status === 'lost') { G.result = next.status; G.screen = 'result'; }
@@ -450,7 +456,7 @@ function onClick(e) {
   if (act === 'unit') return clickUnit(id);
   if (act === 'foe-unit') return clickFoe(id);
   if (act === 'foe-face') return clickFoe('face');
-  if (act === 'hero') return apply(heroPower(b));
+  if (act === 'hero') { flashBeam('#ffd27a'); return apply(heroPower(b)); }
   if (act === 'endturn') return apply(endTurn(b));
 }
 
@@ -479,6 +485,7 @@ function clickCard(iid) {
   if (G.pending?.kind === 'card' && G.pending.iid === iid) {     // 第二次点同一张 → 打出
     if (needs) return toast('选择一个敌方单位');
     G.log = `打出「${card.name}」 — ${card.text || ''}`;
+    if (CATKEY[card.cat] === 'attack') flashBeam(CAT.attack.color);
     return apply(playCard(b, iid));
   }
   G.pending = { kind: 'card', iid, needs: needs ? 'enemyUnit' : null };
@@ -495,8 +502,8 @@ function clickUnit(iid) {
 
 function clickFoe(foeId) {
   const b = G.battle; const p = G.pending; if (!p) return;
-  if (p.kind === 'attack') { if (!isLegalTarget(b, foeId)) return toast('必须先攻击嘲讽单位'); return apply(attack(b, p.iid, foeId === 'face' ? 'enemyFace' : foeId)); }
-  if (p.kind === 'card' && p.needs === 'enemyUnit' && foeId !== 'face') return apply(playCard(b, p.iid, { targetId: foeId }));
+  if (p.kind === 'attack') { if (!isLegalTarget(b, foeId)) return toast('必须先攻击嘲讽单位'); flashBeam('#5fe6ff'); return apply(attack(b, p.iid, foeId === 'face' ? 'enemyFace' : foeId)); }
+  if (p.kind === 'card' && p.needs === 'enemyUnit' && foeId !== 'face') { const card = b.hand.find((c) => c.instanceId === p.iid); if (card && CATKEY[card.cat] === 'attack') flashBeam(CAT.attack.color); return apply(playCard(b, p.iid, { targetId: foeId })); }
 }
 
 // ─────────── 接管「故事」入口 ───────────
