@@ -1,7 +1,7 @@
 // 星舰炉石 · 前端（出战编成 + 战斗界面 + 结算）。引擎在浏览器端运行，无服务器往返。
 import { newBattle, canPlay, playCard, attack, endTurn, heroPower } from './engine.js';
 import { CARDS, starterDeck, crewFromCast, ENEMIES, CREW_ROLES, CREW_TRAITS } from './cards.js';
-import { CAT, PALETTES, portrait, crack, drone, friendlyDrone, enemyShip, traitIcon, cardArt, starfield, shipSchematic } from './assets.js';
+import { CAT, PALETTES, portrait, crack, drone, friendlyDrone, enemyShip, traitIcon, cardArt, starfield, shipSchematic, tagIcon, dialoguePortrait } from './assets.js';
 
 const CATKEY = { 攻击: 'attack', 防御: 'defense', 维护: 'maintenance', 调度: 'tactics' };
 const TRAIT = { 参谋长: 'cross', 工程主管: 'shield', 舰队长: 'bolt', 情报官: 'gear' };
@@ -48,6 +48,7 @@ function render() {
   const v = view();
   if (G.screen === 'battle') { v.innerHTML = renderBattle() + '<div class="bg-toast"></div>'; fit(); return; }
   if (G.screen === 'deploy') { v.innerHTML = renderDeploy() + '<div class="bg-toast"></div>'; fit(); return; }
+  if (G.screen === 'dialogue') { v.innerHTML = renderDialogue() + '<div class="bg-toast"></div>'; fit(); return; }
   v.innerHTML = `<div class="bg-wrap">${renderHud()}${renderResult()}</div><div class="bg-toast"></div>`;
 }
 function fit() {
@@ -142,7 +143,7 @@ function renderDeploy() {
     <div style="position:absolute;top:474px;left:392px;width:1040px;height:30px;display:flex;align-items:center;gap:10px;padding-left:8px"><span style="font-size:11px;letter-spacing:3px;color:#5fe0ee;animation:bgblink 2.4s ease-in-out infinite">▸ 当前阵容生成的牌库 →</span><div style="flex:1;height:1px;background:linear-gradient(90deg,rgba(95,210,235,.5),transparent)"></div></div>
 
     <div style="position:absolute;top:524px;left:392px;width:1040px;bottom:28px;background:linear-gradient(160deg,rgba(12,28,42,.72),rgba(8,16,28,.8));border:1px solid rgba(79,214,230,.26);clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);display:flex;overflow:hidden">
-      ${d ? `<div style="position:relative;width:300px;flex:none;border-right:1px solid rgba(79,214,230,.2);overflow:hidden;background:radial-gradient(ellipse 80% 70% at 50% 30%,${d.accent}26,rgba(8,16,26,.6))"><div style="position:absolute;inset:0;${dPort}"></div><div style="position:absolute;left:0;right:0;bottom:0;padding:14px 18px;background:linear-gradient(180deg,transparent,rgba(6,14,24,.95))"><div style="font-weight:800;font-size:22px;color:#fff;letter-spacing:1px">${esc(d.name)}</div><div style="font-size:12px;letter-spacing:2px;color:${d.accent};margin-top:2px">${esc(d.role)}</div></div></div>
+      ${d ? `<div style="position:relative;width:300px;flex:none;border-right:1px solid rgba(79,214,230,.2);overflow:hidden;background:radial-gradient(ellipse 80% 70% at 50% 30%,${d.accent}26,rgba(8,16,26,.6))"><div style="position:absolute;inset:0;${dPort}"></div><div style="position:absolute;left:0;right:0;bottom:0;padding:14px 18px;background:linear-gradient(180deg,transparent,rgba(6,14,24,.95))"><div style="font-weight:800;font-size:22px;color:#fff;letter-spacing:1px">${esc(d.name)}</div><div style="font-size:12px;letter-spacing:2px;color:${d.accent};margin-top:2px">${esc(d.role)}</div><button data-act="talk" data-id="${esc(selArtist.id)}" style="margin-top:10px;padding:8px 16px;font-size:13px;font-weight:700;letter-spacing:1px;color:#06202a;background:linear-gradient(180deg,#ff9ec2,#ff6fae);border:0;border-radius:4px;cursor:pointer;box-shadow:0 0 16px rgba(255,111,174,.5)">✦ 与 ${esc(d.name)} 交流</button></div></div></div>
       <div style="flex:1;padding:22px 26px;display:flex;flex-direction:column;gap:16px">
         <div style="display:flex;gap:14px">
           <div style="flex:1;padding:12px 16px;background:rgba(58,20,10,.4);border:1px solid rgba(255,176,32,.4);border-radius:6px"><div style="font-size:10px;letter-spacing:2px;color:#d7a76a">火力</div><div style="font-family:Oxanium;font-weight:800;font-size:30px;color:#ffd27a;line-height:1;margin-top:4px">${d.atk}</div></div>
@@ -335,6 +336,95 @@ function renderResult() {
   </div>`;
 }
 
+// ── 对话界面（1:1 复刻 SC2 comp 对话界面.dc.html）──
+const DLG_TAG = { 好感: { color: '#ff6fae', glow: 'rgba(255,111,174,.5)', icon: 'heart' }, 能力: { color: '#4fd6e6', glow: 'rgba(79,214,230,.5)', icon: 'chip' }, 协同: { color: '#ffcc4d', glow: 'rgba(255,204,77,.5)', icon: 'link' } };
+const DLG_NODES = {
+  start: { mood: 'neutral', text: '（她放下手里的炮管校准仪，侧过头看你）这一轮齐射……要不是你替我压住了节奏，我差点就让主炮过载了。', next: 'q1' },
+  q1: { mood: 'neutral', text: '……该怎么说呢。和你并肩站在舰桥上的时候，我总觉得很安心。', choices: [
+    { text: '你的判断，我从来都信得过。', tag: '好感', delta: 5, goto: 'a_aff' },
+    { text: '过载阈值，我已经帮你重算过一遍了。', tag: '能力', delta: 5, goto: 'a_abi' },
+    { text: '因为我们配合得越来越默契了。', tag: '协同', delta: 5, goto: 'a_syn' }] },
+  a_aff: { mood: 'blush', text: '……哼，被舰长这样直白地说出来，还真有点招架不住。', next: 'mid' },
+  a_abi: { mood: 'smile', text: '认真的？那下次主炮校准就交给你了——可别让我失望。', next: 'mid' },
+  a_syn: { mood: 'smile', text: '默契啊……嗯，是这个词没错。', next: 'mid' },
+  mid: { mood: 'neutral', text: '对了，舰桥刚传来消息——前方那片星云里探测到了异常信号。要不要……一起去看看？', choices: [
+    { text: '走，我陪你去。', tag: '好感', delta: 8, goto: 'b_aff' },
+    { text: '先让我调出传感器阵列的数据。', tag: '能力', delta: 6, goto: 'b_abi' }] },
+  b_aff: { mood: 'bright', text: '成交。……有你在，再深的星渊，我也敢闯。', next: 'end' },
+  b_abi: { mood: 'smile', text: '稳重，我欣赏。数据我们边走边看吧。', next: 'end' },
+  end: { mood: 'smile', text: '（这段对话先到这里。点击可重新开始，或右上角返回编成。）', restart: 'start' },
+};
+const dlgStage = (a) => (a >= 86 ? '羁绊' : a >= 70 ? '心动' : a >= 50 ? '信赖' : '熟识');
+function enterDialogue(artist) { G.screen = 'dialogue'; G.dialogue = { artist, node: 'start', shown: 0, typing: true, affinity: 64, floats: [], fid: 0 }; render(); startType(); }
+function exitDialogue() { clearInterval(G._typer); G.screen = 'deploy'; render(); }
+function startType() {
+  clearInterval(G._typer);
+  const d = G.dialogue; d.shown = 0; d.typing = true;
+  G._typer = setInterval(() => {
+    const node = DLG_NODES[d.node]; if (!node || G.screen !== 'dialogue') return clearInterval(G._typer);
+    if (d.shown < node.text.length) { d.shown++; const el = document.getElementById('bg-typed'); if (el) el.textContent = node.text.slice(0, d.shown); }
+    else { d.typing = false; clearInterval(G._typer); render(); }
+  }, 24);
+}
+function advanceDialogue() {
+  const d = G.dialogue, node = DLG_NODES[d.node];
+  if (d.typing) { clearInterval(G._typer); d.shown = node.text.length; d.typing = false; return render(); }
+  if (node.choices) return;
+  if (node.next) { d.node = node.next; render(); startType(); }
+  else if (node.restart) { d.affinity = 64; d.node = node.restart; render(); startType(); }
+}
+function chooseDialogue(idx) {
+  const d = G.dialogue, node = DLG_NODES[d.node], opt = (node.choices || [])[idx]; if (!opt) return;
+  const meta = DLG_TAG[opt.tag];
+  if (opt.tag === '好感') d.affinity = Math.min(100, d.affinity + opt.delta);
+  const fid = d.fid++; d.floats.push({ id: fid, text: `${opt.tag} +${opt.delta}`, color: meta.color });
+  setTimeout(() => { if (G.dialogue) { G.dialogue.floats = G.dialogue.floats.filter((f) => f.id !== fid); if (G.screen === 'dialogue') render(); } }, 1500);
+  d.node = opt.goto; render(); startType();
+}
+function renderDialogue() {
+  const d = G.dialogue, node = DLG_NODES[d.node], a = d.artist;
+  const isChoice = !!node.choices, stage = dlgStage(d.affinity);
+  const portBg = a.portraitUrl ? `background-image:url('${esc(a.portraitUrl)}');background-size:cover;background-position:top center` : `background-image:url(&quot;${Q(dialoguePortrait(node.mood || 'neutral'))}&quot;);background-size:contain;background-repeat:no-repeat;background-position:bottom center`;
+  const avBg = a.portraitUrl ? `background-image:url('${esc(a.portraitUrl)}');background-size:cover` : `background-image:url(&quot;${Q(dialoguePortrait('smile'))}&quot;);background-size:260%;background-position:48% 12%`;
+  const opts = isChoice ? node.choices.map((o, i) => { const m = DLG_TAG[o.tag]; return `<button data-act="dlg-choose" data-idx="${i}" style="display:flex;align-items:center;gap:16px;padding:15px 18px 15px 24px;cursor:pointer;background:linear-gradient(110deg,rgba(16,30,48,.92),rgba(10,18,30,.88));border:1px solid rgba(95,210,235,.4);border-left:3px solid ${m.color};clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px));box-shadow:0 6px 20px rgba(0,0,0,.4);animation:optIn .3s ease both"><span style="flex:1;text-align:left;font-size:17px;letter-spacing:.5px;color:#eaf4ff;line-height:1.3">${esc(o.text)}</span><span style="display:flex;align-items:center;gap:7px;flex:none;padding:6px 13px;font-size:13px;font-weight:700;letter-spacing:1px;color:${m.color};background:${m.color}1a;border:1px solid ${m.color};border-radius:14px;box-shadow:0 0 12px ${m.glow}"><span style="width:17px;height:17px;background-image:url(&quot;${Q(tagIcon(m.icon, m.color))}&quot;);background-size:contain;background-repeat:no-repeat"></span>${o.tag} +${o.delta}</span></button>`; }).join('') : '';
+  const floats = d.floats.map((f) => `<div style="position:absolute;right:0;top:0;white-space:nowrap;padding:4px 12px;font-size:14px;font-weight:800;letter-spacing:1px;color:${f.color};background:${f.color}22;border:1px solid ${f.color};border-radius:12px;box-shadow:0 0 16px ${f.color}88;animation:statFloat 1.5s ease-out forwards">${esc(f.text)}</div>`).join('');
+  return `<div class="bg-fit"><div class="bg-stage" id="bg-stage" style="background:#06060f">
+    <div style="position:absolute;inset:0;background:radial-gradient(ellipse 120% 80% at 50% 30%,#181233,#0a0a1c 70%,#06060f)"></div>
+    <div style="position:absolute;top:66px;left:54px;right:54px;height:560px;clip-path:polygon(36px 0,calc(100% - 36px) 0,100% 36px,100% calc(100% - 18px),calc(100% - 60px) 100%,60px 100%,0 calc(100% - 18px),0 36px);overflow:hidden;box-shadow:inset 0 0 120px rgba(0,0,0,.7)">
+      <div style="position:absolute;inset:-60px;animation:nebDrift 26s ease-in-out infinite;background:radial-gradient(ellipse 42% 52% at 28% 38%,rgba(255,86,148,.55),transparent 62%),radial-gradient(ellipse 50% 44% at 64% 26%,rgba(150,92,255,.5),transparent 62%),radial-gradient(ellipse 46% 56% at 52% 60%,rgba(58,196,214,.34),transparent 62%),radial-gradient(ellipse 32% 34% at 80% 64%,rgba(255,168,92,.34),transparent 60%),#0c0a22"></div>
+      <div style="position:absolute;left:11%;top:50%;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle at 36% 32%,#ffd9a8,#e07a4a 46%,#7a2f3a 78%,#2a1230);box-shadow:0 0 60px rgba(255,140,90,.4),inset -12px -10px 30px rgba(0,0,0,.55)"></div>
+      <div style="position:absolute;left:8%;top:54%;width:200px;height:46px;border-radius:50%;border:2px solid rgba(255,200,150,.4);transform:rotate(-18deg)"></div>
+      <div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(120,200,230,0) 0,rgba(120,200,230,0) 3px,rgba(90,170,210,.04) 4px)"></div>
+    </div>
+    <div style="position:absolute;top:66px;left:54px;right:54px;height:560px;pointer-events:none;clip-path:polygon(36px 0,calc(100% - 36px) 0,100% 36px,100% calc(100% - 18px),calc(100% - 60px) 100%,60px 100%,0 calc(100% - 18px),0 36px);border:2px solid rgba(95,210,235,.34)"></div>
+    <div style="position:absolute;left:0;right:0;top:560px;bottom:0;background:linear-gradient(180deg,rgba(20,16,34,.2),#0a0814 60%)"></div>
+    <div style="position:absolute;left:0;right:0;top:560px;height:2px;background:linear-gradient(90deg,transparent,rgba(255,150,110,.4),rgba(95,210,235,.3),transparent)"></div>
+    <div style="position:absolute;right:0;bottom:0;width:1100px;height:900px;background:radial-gradient(ellipse 60% 60% at 70% 60%,rgba(255,150,90,.16),transparent 65%);pointer-events:none"></div>
+    <div style="position:absolute;right:150px;bottom:-26px;width:720px;height:1060px;${portBg};filter:drop-shadow(0 12px 40px rgba(0,0,0,.6)) drop-shadow(-18px 0 50px rgba(255,150,90,.18));z-index:10"></div>
+    <div style="position:absolute;right:300px;bottom:8px;width:560px;height:60px;background:radial-gradient(ellipse 50% 50% at 50% 50%,rgba(0,0,0,.5),transparent 70%)"></div>
+    <div style="position:absolute;top:84px;left:78px;display:flex;align-items:center;gap:14px;padding:11px 22px 11px 12px;background:linear-gradient(160deg,rgba(14,22,36,.82),rgba(8,14,24,.78));border:1px solid rgba(95,210,235,.32);clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);box-shadow:0 6px 24px rgba(0,0,0,.45),inset 0 0 20px rgba(60,180,220,.1);z-index:30">
+      <div style="width:56px;height:56px;flex:none;border-radius:8px;border:1px solid rgba(255,143,182,.5);${avBg};box-shadow:0 0 16px rgba(255,143,182,.3)"></div>
+      <div style="display:flex;flex-direction:column;gap:5px;min-width:236px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between"><span style="font-weight:700;font-size:16px;letter-spacing:1px;color:#f3ead8">${esc(a.name)}</span><span style="font-size:11px;letter-spacing:2px;color:#ff8fb6">核心船员</span></div>
+        <div style="position:relative;height:9px;background:rgba(8,16,26,.9);border:1px solid rgba(255,143,182,.4);border-radius:5px;overflow:hidden"><div style="height:100%;width:${d.affinity}%;background:linear-gradient(90deg,#ff6fae,#ffb0cf);box-shadow:0 0 12px rgba(255,111,174,.7);transition:width .5s cubic-bezier(.3,.9,.3,1)"></div></div>
+        <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:10px;letter-spacing:2px;color:#9a8aa0">好感度</span><span style="font-size:11px;letter-spacing:1px;color:#ffb0cf;font-weight:700">${stage} · <span style="font-family:Oxanium">${d.affinity}%</span></span></div>
+      </div>
+      <div style="position:absolute;right:18px;top:-6px">${floats}</div>
+    </div>
+    <div style="position:absolute;top:84px;right:78px;display:flex;flex-direction:column;align-items:flex-end;gap:8px;z-index:30">
+      <div style="display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:2px;color:#7fb6c8"><span style="width:6px;height:6px;background:#ff9a5a;transform:rotate(45deg);box-shadow:0 0 8px #ff9a5a"></span>「奥德赛」号 · 武器甲板 · 休整区</div>
+      <button data-act="close-dialogue" style="padding:6px 14px;font-size:12px;letter-spacing:2px;color:#8fd0de;background:rgba(12,24,38,.8);border:1px solid rgba(95,210,235,.3);border-radius:3px;cursor:pointer">‹ 返回编成</button>
+    </div>
+    ${isChoice ? `<div style="position:absolute;left:120px;bottom:332px;display:flex;flex-direction:column;gap:14px;width:660px;z-index:25">${opts}</div>` : ''}
+    <div data-act="dlg-advance" style="position:absolute;left:70px;right:70px;bottom:54px;height:236px;z-index:20;cursor:pointer">
+      <div style="position:absolute;top:-26px;left:46px;z-index:6;display:flex;align-items:center;gap:10px;padding:8px 26px;background:linear-gradient(120deg,rgba(255,120,80,.32),rgba(14,24,38,.95));border:1px solid rgba(255,150,110,.55);clip-path:polygon(14px 0,100% 0,calc(100% - 14px) 100%,0 100%);box-shadow:0 4px 16px rgba(0,0,0,.5),0 0 22px rgba(255,140,90,.2)"><span style="width:7px;height:7px;background:#ff9a5a;transform:rotate(45deg);box-shadow:0 0 10px #ff9a5a"></span><span style="font-weight:700;font-size:19px;letter-spacing:2px;color:#ffd9b8;text-shadow:0 0 14px rgba(255,150,90,.5)">${esc(a.name)}</span></div>
+      <div style="position:absolute;inset:0;background:linear-gradient(160deg,rgba(14,26,42,.84),rgba(8,14,26,.9));border:1px solid rgba(95,210,235,.36);clip-path:polygon(24px 0,100% 0,100% calc(100% - 24px),calc(100% - 24px) 100%,0 100%,0 24px);box-shadow:inset 0 0 50px rgba(50,150,200,.1),0 10px 40px rgba(0,0,0,.55)"></div>
+      <div style="position:absolute;top:40px;left:54px;right:80px;font-size:25px;line-height:1.62;color:#e8f1fb;letter-spacing:.5px;text-shadow:0 1px 4px rgba(0,0,0,.5)"><span id="bg-typed">${esc(node.text.slice(0, d.shown))}</span><span style="color:#5fe0ee;margin-left:2px;animation:caret 1s step-end infinite;opacity:${d.typing ? 1 : 0}">▌</span></div>
+      <div style="position:absolute;bottom:18px;right:40px;font-size:14px;letter-spacing:2px;color:#7fd6e6;display:${(!isChoice && !d.typing) ? 'block' : 'none'};animation:contBob 1.3s ease-in-out infinite">▼ 点击继续</div>
+    </div>
+  </div></div>`;
+}
+
 // ─────────── 交互 ───────────
 function apply(next) {
   G.battle = next; G.pending = null;
@@ -351,6 +441,10 @@ function onClick(e) {
   if (act === 'slot-remove') { G.squad.splice(+el.dataset.idx, 1); return render(); }
   if (act === 'detail') { G.detail = id; return render(); }
   if (act === 'deploy' || act === 'deploy-again') return deploy();
+  if (act === 'talk') { const a = G.artists.find((x) => x.id === id); if (a) enterDialogue(a); return; }
+  if (act === 'close-dialogue') return exitDialogue();
+  if (act === 'dlg-advance') return advanceDialogue();
+  if (act === 'dlg-choose') return chooseDialogue(+el.dataset.idx);
   const b = G.battle; if (!b || b.status !== 'active' || b.active !== 'player') return;
   if (act === 'card') return clickCard(id);
   if (act === 'unit') return clickUnit(id);

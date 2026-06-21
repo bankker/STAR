@@ -49,6 +49,26 @@ export const cardArt = (cat, c) => {
   return uri(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 104'>${m[cat] || m.attack}</svg>`);
 };
 
+// 对话选项标签图标（好感/能力/协同）
+export const tagIcon = (type, c) => {
+  const m = {
+    heart: `<path d='M24 40C10 30 6 20 12 13c4-5 10-3 12 2 2-5 8-7 12-2 6 7 2 17-12 27z' fill='${c}'/>`,
+    chip: `<g fill='none' stroke='${c}' stroke-width='3.4'><rect x='14' y='14' width='20' height='20' rx='2'/><path d='M20 8v6M28 8v6M20 34v6M28 34v6M8 20h6M8 28h6M34 20h6M34 28h6' stroke-linecap='round'/></g>`,
+    link: `<g fill='none' stroke='${c}' stroke-width='3.6' stroke-linecap='round'><path d='M20 28l8-8'/><path d='M26 14l3-3a7 7 0 0 1 10 10l-6 6a7 7 0 0 1-10 0'/><path d='M22 34l-3 3a7 7 0 0 1-10-10l6-6a7 7 0 0 1 10 0'/></g>`,
+  };
+  return uri(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'>${m[type] || m.heart}</svg>`);
+};
+
+// 对话立绘兜底（无真人照片时）：表情驱动 SVG（取自 comp 对话界面）
+export const dialoguePortrait = (mood) => {
+  const skin = '#f6cda2', skinL = '#ffe8c8', skinD = '#d49a6e', hair = '#ff8a4a', hairD = '#cf551c', hairL = '#ffc089',
+    jacket = '#22384e', jacketL = '#34546f', collar = '#16273a', cyan = '#5fe0ee', iris = '#356a78', brow = '#a85528', lip = '#d97a64', under = '#bfe0db';
+  const blush = (mood === 'blush' || mood === 'bright') ? 0.42 : 0;
+  const mouth = (mood === 'smile') ? 'M250 360 q30 20 58 -2' : (mood === 'bright') ? 'M246 358 q32 26 62 -4' : (mood === 'blush') ? 'M256 364 q24 13 48 -1' : 'M254 366 q26 11 52 -1';
+  const eyeH = (mood === 'bright') ? 6 : 4;
+  return uri(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 560 840'><ellipse cx='282' cy='320' rx='250' ry='320' fill='${hair}' opacity='.1'/><ellipse cx='282' cy='250' rx='150' ry='170' fill='${cyan}' opacity='.06'/><path d='M150 360 Q116 168 282 150 Q448 168 414 360 L426 540 Q360 486 282 486 Q204 486 138 540 Z' fill='${hairD}'/><path d='M70 840 L70 600 Q92 498 184 470 L378 470 Q470 498 492 600 L492 840 Z' fill='${jacket}'/><path d='M70 840 L70 600 Q92 498 184 470 L214 470 L150 840 Z' fill='${jacketL}' opacity='.55'/><path d='M205 472 L282 566 L359 472 L341 472 L282 538 L222 472 Z' fill='${collar}'/><path d='M236 472 L282 548 L328 472 Z' fill='${under}' opacity='.85'/><path d='M250 402 L314 402 L316 474 L248 474 Z' fill='${skinD}'/><path d='M258 406 L304 406 L302 466 L260 466 Z' fill='${skin}'/><path d='M180 272 Q180 162 282 160 Q384 162 384 272 Q384 384 322 420 Q282 438 240 420 Q180 384 180 272 Z' fill='${skin}'/><path d='M210 300 Q230 364 272 386 Q236 348 224 300 Q218 290 210 300 Z' fill='${skinL}' opacity='.6'/><ellipse cx='234' cy='342' rx='20' ry='13' fill='${lip}' opacity='${blush}'/><ellipse cx='332' cy='338' rx='18' ry='12' fill='${lip}' opacity='${blush}'/><path d='M218 266 q24 -11 48 -3' fill='none' stroke='${brow}' stroke-width='6' stroke-linecap='round'/><path d='M300 260 q22 -9 42 0' fill='none' stroke='${brow}' stroke-width='6' stroke-linecap='round'/><path d='M222 288 q24 -13 50 -2 q-7 17 -30 17 q-17 0 -20 -15 Z' fill='#fdf7ee'/><path d='M304 284 q22 -11 42 -2 q-6 15 -26 15 q-15 0 -16 -13 Z' fill='#fdf7ee'/><circle cx='250' cy='292' r='11' fill='${iris}'/><circle cx='250' cy='292' r='5.5' fill='#16242b'/><circle cx='246' cy='288' r='3' fill='#fff'/><circle cx='326' cy='289' r='10' fill='${iris}'/><circle cx='326' cy='289' r='5' fill='#16242b'/><circle cx='322' cy='285' r='2.6' fill='#fff'/><path d='M222 288 q24 -13 50 -2' fill='none' stroke='#3a2a22' stroke-width='${eyeH}' stroke-linecap='round'/><path d='M304 284 q22 -11 42 -2' fill='none' stroke='#3a2a22' stroke-width='${eyeH}' stroke-linecap='round'/><path d='${mouth}' fill='none' stroke='${lip}' stroke-width='6' stroke-linecap='round'/><path d='M180 272 Q174 150 282 150 Q400 150 388 286 Q374 212 320 190 Q300 234 260 226 Q300 212 298 188 Q248 198 226 236 Q210 256 206 214 Q194 246 192 286 Q186 254 180 272 Z' fill='${hair}'/><path d='M300 190 Q352 206 384 282 Q380 220 350 186 Q328 184 300 190 Z' fill='${hairL}' opacity='.55'/><path d='M188 274 Q172 384 200 472 Q184 384 200 286 Z' fill='${hair}'/></svg>`);
+};
+
 // 卡牌类别配色（攻/防/维/战术）
 export const CAT = {
   attack: { label: '攻击', color: '#ff4d4d', glow: 'rgba(255,77,77,.55)' },
