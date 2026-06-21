@@ -1,0 +1,9 @@
+{
+  "ally-flagship": "/battle/ships/ally-flagship.png",
+  "ally-escort": "/battle/ships/ally-escort.png",
+  "enemy-empire": "/battle/ships/enemy-empire.png",
+  "enemy-raider": "/battle/ships/enemy-raider.png",
+  "enemy-void": "/battle/ships/enemy-void.png",
+  "enemy-drone": "/battle/ships/enemy-drone.png",
+  "enemy-boss": "/battle/ships/enemy-boss.png"
+}

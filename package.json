@@ -9,6 +9,7 @@
     "start": "node server.js",
     "check": "node scripts/check.mjs",
     "test": "node --test",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "gen:ships": "node scripts/gen-ships.mjs"
   }
 }

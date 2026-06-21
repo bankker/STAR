@@ -2,6 +2,7 @@
 import { newBattle, canPlay, playCard, attack, endTurn, heroPower } from './engine.js';
 import { CARDS, starterDeck, crewFromCast, ENEMIES, CREW_ROLES, CREW_TRAITS } from './cards.js';
 import { CAT, PALETTES, portrait, crack, drone, friendlyDrone, enemyShip, traitIcon, cardArt, starfield, shipSchematic, tagIcon, dialoguePortrait, nodeIcon, enemyThumb, flagSvg, FAC, TYPE_META, warshipSVG, planetSVG, shipTopSVG } from './assets.js';
+import { enemyShipId, ALLY_FLAGSHIP_ID } from './ships.js';
 
 // 星图节点数据（取自 comp 星图.dc.html）
 const MAP_NODES = [
@@ -120,7 +121,17 @@ async function openGame() {
     const r = await fetch('/api/artists').then((x) => x.json());
     G.artists = (r.artists || []).map((a) => ({ id: a.id, name: a.name, portraitUrl: (a.portraits && a.portraits[0] && a.portraits[0].url) || '' }));
   } catch { G.artists = []; }
+  loadShips();
   render();
+}
+// 星舰图鉴 manifest（预生成底图）：命中则用照片，否则前端回退 SVG
+async function loadShips() {
+  if (G.ships) return;
+  G.ships = {};
+  try {
+    const m = await fetch('/battle/ships/manifest.json', { cache: 'no-store' }).then((x) => (x.ok ? x.json() : {}));
+    if (m && typeof m === 'object') { G.ships = m; if (G.screen) render(); }
+  } catch { /* 无图鉴时保持 SVG */ }
 }
 function closeGame() { const v = view(); v.hidden = true; v.classList.remove('bg-root'); v.innerHTML = ''; }
 
@@ -329,7 +340,7 @@ function renderBattle() {
   const summons = b.board.filter((u) => u.type === 'summon');
   const faceHit = p?.kind === 'attack' && isLegalTarget(b, 'face');
   const enemyBoss = b.enemy.isBoss || (b.enemy.maxHp || 0) >= 60 || /涅墨西斯|旗舰|母舰|boss/i.test(b.enemy.name || '');
-  const enemyShipUrl = G.visuals && G.visuals['enemyship:' + (enemyBoss ? 'boss' : 'default')];
+  const enemyShipUrl = (G.ships && G.ships[enemyShipId(b.enemy)]) || (G.visuals && G.visuals['enemyship:' + (enemyBoss ? 'boss' : 'default')]) || '';
   const intent = b.intent || { type: 'attack', value: 0, target: 'ship' };
   const intentTarget = intent.target && intent.target !== 'ship' ? (b.board.find((u) => u.instanceId === intent.target)?.name || '船员') : '舰体';
   const enemyPct = Math.max(0, Math.min(100, b.enemy.hp / b.enemy.maxHp * 100));
@@ -582,7 +593,11 @@ function renderMap() {
     </div>`;
   }).join('');
   const fa = map[r.flagAt];
-  const flag = `<div style="position:absolute;left:${fa.x + 58}px;top:${fa.y - 58}px;transform:translate(-50%,-50%);width:92px;height:40px;z-index:25;animation:flagFloat 3.4s ease-in-out infinite"><div style="width:92px;height:40px;filter:drop-shadow(0 0 14px rgba(95,224,238,.6))">${warshipSVG({ ally: true })}</div><div style="position:absolute;top:-20px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10px;letter-spacing:1px;color:#9fe6f4;background:rgba(6,16,26,.8);padding:2px 8px;border-radius:8px;border:1px solid rgba(95,210,235,.4)">旗舰 · 奥德赛号</div></div>`;
+  const allyUrl = G.ships && G.ships[ALLY_FLAGSHIP_ID];
+  const allyInner = allyUrl
+    ? `<div style="width:108px;height:62px;background-image:url('${esc(allyUrl)}');background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(0 0 14px rgba(95,224,238,.6))"></div>`
+    : `<div style="width:92px;height:40px;filter:drop-shadow(0 0 14px rgba(95,224,238,.6))">${warshipSVG({ ally: true })}</div>`;
+  const flag = `<div style="position:absolute;left:${fa.x + 58}px;top:${fa.y - 58}px;transform:translate(-50%,-50%);z-index:25;animation:flagFloat 3.4s ease-in-out infinite">${allyInner}<div style="position:absolute;top:-20px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10px;letter-spacing:1px;color:#9fe6f4;background:rgba(6,16,26,.8);padding:2px 8px;border-radius:8px;border:1px solid rgba(95,210,235,.4)">旗舰 · 奥德赛号</div></div>`;
   const legend = Object.values(FAC).map((f) => `<div style="display:flex;align-items:center;gap:7px;font-size:11px;letter-spacing:1px;color:#b6c6d4"><span style="width:10px;height:10px;background:${f.color};transform:rotate(45deg);box-shadow:0 0 6px ${f.color}"></span>${f.name}</div>`).join('');
   return `<div class="bg-fit"><div class="bg-stage" id="bg-stage">
     <div id="bg-mapwrap" style="position:absolute;inset:0;overflow:hidden;cursor:grab;background:radial-gradient(ellipse 70% 60% at 30% 40%,rgba(40,80,130,.16),transparent 60%),radial-gradient(ellipse 60% 60% at 80% 60%,rgba(120,70,200,.14),transparent 60%),#05070f">
@@ -794,8 +809,11 @@ function deploy() {
   if (!cast.length) return toast('还没有艺人可作为船员');
   G.battle = newBattle({ cards: runCards(), deck: starterDeck(), crew: crewFromCast(cast.slice(0, G.maxSlots)), enemy: G.pendingEnemy || ENEMIES.海盗前锋, rng: Math.random, maxSlots: G.maxSlots, terrain: G.pendingTerrain || null, relics: [...(G.run?.relics || []), ...equippedRelics()] });
   G.screen = 'battle'; G.pending = null; G.result = null; G.log = '舰长，下达指令。';
-  const eb = G.battle.enemy.isBoss || (G.battle.enemy.maxHp || 0) >= 60 || /涅墨西斯|旗舰|母舰|boss/i.test(G.battle.enemy.name || '');
-  fetchVisual('enemyship', eb ? 'boss' : 'default');   // 异步取写实底图，到了再重绘
+  const eid = enemyShipId(G.battle.enemy);
+  if (!(G.ships && G.ships[eid])) {   // 图鉴未命中才临时联网生成兜底
+    const eb = G.battle.enemy.isBoss || (G.battle.enemy.maxHp || 0) >= 60 || /涅墨西斯|旗舰|母舰|boss/i.test(G.battle.enemy.name || '');
+    fetchVisual('enemyship', eb ? 'boss' : 'default');
+  }
   render();
 }
 
