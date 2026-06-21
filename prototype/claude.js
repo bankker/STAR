@@ -1257,21 +1257,15 @@ function renderStory() {
   const s = storyState.story; if (!s) return;
   if (s.status && s.status !== 'active' && s.endings) return renderEnding(s);
   if (storyState.battleView) return renderBattleResult(s);
-  const round = Math.min(s.cycle?.round || 0, 5);
-  const thr = 50 + ((s.cycle?.index || 1) - 1) * 18;
   const hud = `<div class="st-hud">
-    <span class="st-blood" title="生命">${bloodHtml(s)}</span>
-    <span class="st-chip" style="--fc:${FACTION_COLOR[s.player.faction] || '#888'}">${esc(s.player.faction)}</span>
-    <span class="st-res">${esc(s.player.rank || '')} · 战功 ${s.battlesWon || 0}/${s.winTarget || 3} · 战备 ${s.cycle?.prep || 0}/${thr} · 第 ${round}/5 轮</span>
+    <span class="st-fac">◆ ${esc(s.player.faction)}</span>
+    <span class="st-res" style="margin-left:auto">声望 ${s.player.renown || 0} · 军衔 ${esc(s.player.rank || '')}</span>
     <button class="st-close" onclick="closeStory()">✕</button></div>`;
-  const phase = round >= 5
-    ? `<div class="st-goal">第 ${s.cycle?.index || 1} 场会战 · 战前筹备已满 —— <button class="st-mini" onclick="storyStrategy()">⚔ 制定会战策略</button></div>`
-    : `<div class="st-goal">第 ${s.cycle?.index || 1} 场会战筹备中 · 还需 ${5 - round} 轮战前对话（选择会累积战备）</div>`;
   const tabs = { event: '事件', council: '议事厅', map: '星图' };
   const tab = tabs[storyState.tab] ? storyState.tab : 'event';
   const nav = `<div class="st-tabs">${Object.entries(tabs).map(([t, n]) => `<button class="${tab === t ? 'on' : ''}" onclick="setStoryTab('${t}')">${n}</button>`).join('')}</div>`;
   const body = { event: renderEventTab, council: renderCouncilTab, map: renderMapTab }[tab](s);
-  $('#storyView').innerHTML = `<div class="st-game">${hud}${phase}${nav}<div class="st-body">${body}</div></div>`;
+  $('#storyView').innerHTML = `<div class="st-game">${hud}${nav}<div class="st-body">${body}</div></div>`;
   if (storyState.streaming) updateStreamBody();
 }
 function renderBattleResult(s) {
@@ -1316,6 +1310,20 @@ function renderEventTab(s) {
     || '<div class="st-pframe lit"><span>✦</span><div class="st-pname">旗舰</div></div>';
   const lines = streaming ? '' : (ev.lines || []).map((l) => `<p class="st-line">${esc(l)}</p>`).join('');
   const choices = streaming ? '' : (ev.choices || []).map((c, i) => `<button onclick="storyChoose(${i})"><span class="st-key">${i + 1}</span>${esc(c.text)}</button>`).join('');
+  const round = Math.min(s.cycle?.round || 0, 5);
+  const thr = 50 + ((s.cycle?.index || 1) - 1) * 18;
+  const objAction = round >= 5
+    ? `<button class="st-mini" onclick="storyStrategy()">⚔ 制定会战策略</button>`
+    : `<div class="st-obj-hint">还需 ${5 - round} 轮战前对话</div>`;
+  const objectives = `<div class="st-objectives">
+    <div class="st-obj-head">◣ 作战目标</div>
+    <div class="st-obj-body">
+      <div>⚔ 第 ${s.cycle?.index || 1} 场会战 · 第 ${round}/5 轮</div>
+      <div>战备 <b>${s.cycle?.prep || 0}</b> / 门槛 ${thr}</div>
+      <div>战损容限 <span class="st-blood">${bloodHtml(s)}</span></div>
+      <div>战功 ${s.battlesWon || 0} / ${s.winTarget || 3}</div>
+      ${objAction}
+    </div></div>`;
   return `<div class="st-brief">
     <div class="st-pframes">${staff}</div>
     <div class="st-brief-stage ${envImg ? 'has-bg' : ''}" ${envImg ? `style="background-image:url('${esc(envImg)}')"` : ''}>
@@ -1325,7 +1333,10 @@ function renderEventTab(s) {
         <div id="st-stream" class="st-tx-body">${lines}</div>
       </div>
     </div>
-    <div class="st-actions" id="st-actions">${choices}</div>
+    <div class="st-brief-bottom">
+      ${objectives}
+      <div class="st-actions" id="st-actions">${choices}</div>
+    </div>
   </div>`;
 }
 function storyCouncilSelect(id) { storyState.councilSel = id; renderStory(); }

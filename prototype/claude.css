@@ -684,3 +684,18 @@ button { font-family: inherit; cursor: pointer; }
 .st-new input, .st-new select, .st-menu-form input, .st-menu-form select { clip-path: none; border-radius: 0; border: 1px solid #2e7d96; background: rgba(6,18,31,.85); color: #d6ecf5; }
 .st-close { color: #7fb6cf; }
 .st-close:hover { color: #36d6e8; }
+.st-fac { color: #cfe7f1; font-size: 13px; letter-spacing: .04em; }
+/* 简报底部：金框作战目标面板 + 命令按钮列（对齐已确认的 mockup）*/
+.st-brief-bottom { display: flex; gap: 13px; align-items: stretch; flex-wrap: wrap; margin-top: 12px; }
+.st-objectives { position: relative; flex: 1 1 220px; max-width: 286px; padding: 13px 15px; border: 2px solid #7a5a18;
+  background: linear-gradient(180deg, rgba(46,34,8,.85), rgba(20,14,4,.9));
+  box-shadow: inset 0 0 0 1px rgba(240,193,74,.25), inset 0 0 22px rgba(80,55,8,.5), 0 0 0 4px #050f1b; }
+.st-objectives::before { content: ''; position: absolute; top: -3px; left: -3px; width: 20px; height: 20px; border-top: 3px solid #f0c14a; border-left: 3px solid #f0c14a; pointer-events: none; }
+.st-objectives::after { content: ''; position: absolute; bottom: -3px; right: -3px; width: 20px; height: 20px; border-bottom: 3px solid #f0c14a; border-right: 3px solid #f0c14a; pointer-events: none; }
+.st-obj-head { display: inline-block; background: linear-gradient(180deg,#9a7420,#5c4310); color: #ffe6a8; padding: 5px 24px 5px 12px; font-size: 12px; font-weight: 600; margin-bottom: 11px; clip-path: polygon(0 0,100% 0,calc(100% - 15px) 100%,0 100%); box-shadow: 0 0 12px rgba(240,193,74,.3); }
+.st-obj-body { font-size: 12.5px; color: #f0dca8; line-height: 1.5; }
+.st-obj-body > div { margin-bottom: 7px; }
+.st-obj-body b { color: #5fe6e0; font-weight: 600; }
+.st-obj-hint { color: #9a8a60; }
+.st-objectives .st-mini { margin-top: 2px; border: 1px solid #f0c14a; color: #ffd770; background: linear-gradient(180deg, rgba(120,86,16,.6), rgba(60,44,10,.6)); }
+.st-brief-bottom .st-actions { flex: 2 1 300px; display: flex; flex-direction: column; gap: 9px; justify-content: center; }
