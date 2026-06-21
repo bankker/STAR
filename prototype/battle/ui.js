@@ -131,6 +131,7 @@ function render() {
   if (G.screen === 'deploy') { v.innerHTML = renderDeploy() + '<div class="bg-toast"></div>'; fit(); return; }
   if (G.screen === 'dialogue') { v.innerHTML = renderDialogue() + '<div class="bg-toast"></div>'; fit(); return; }
   if (G.screen === 'reward') { v.innerHTML = renderReward() + '<div class="bg-toast"></div>'; fit(); return; }
+  if (G.screen === 'defeat') { v.innerHTML = renderDefeat() + '<div class="bg-toast"></div>'; fit(); return; }
   v.innerHTML = `<div class="bg-wrap">${renderHud()}${renderResult()}</div><div class="bg-toast"></div>`;
 }
 function fit() {
@@ -440,11 +441,38 @@ function nodeGo(id) {
 }
 function returnFromBattle() {
   if (G.run && G.run.current) {
+    if (G.result === 'lost') return enterDefeat();          // §5：败北结算
     if (G.result === 'won') clearNode(G.run.current);
     G.run.selected = G.run.current; G.run.current = null; G.pendingEnemy = null;
     G.battle = null; G.result = null; G.screen = 'map'; return render();
   }
   return deploy();
+}
+// §5 失败规则：败北丢遗物/改装、信用点保留 25%、章节地图退回入口；关系/主线不动 + 余波
+function enterDefeat() {
+  const crew = (G.squad[0] || {});
+  G.run.relics = []; G.run.upgrades = []; G.run.credits = Math.floor((G.run.credits || 0) * 0.25);
+  G.run.nodes = structuredClone(MAP_NODES); G.run.flagAt = 'n4'; G.run.selected = 'n4'; G.run.current = null;
+  G.pendingEnemy = null; G.pendingTerrain = null; G.battle = null; G.result = null;
+  G.defeat = { line: '', loading: true, artist: crew };
+  G.screen = 'defeat'; render(); fetchAftermath();
+}
+async function fetchAftermath() {
+  const d = G.defeat;
+  try {
+    const r = await fetch('/api/game/aftermath', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ artistId: d.artist.id, name: d.artist.name }) }).then((x) => x.json());
+    d.line = r.line || '队长，船还在，我们也都还在——下次再来。';
+  } catch { d.line = '（船员们围拢过来）队长，船还在，我们也都还在——下次再来。'; }
+  d.loading = false; if (G.screen === 'defeat') render();
+}
+function renderDefeat() {
+  const d = G.defeat;
+  return `<div class="bg-fit"><div class="bg-stage" id="bg-stage" style="background:radial-gradient(ellipse 90% 70% at 50% 40%,#2a0e14,#0a0608 75%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px;padding:40px">
+    <div style="font-family:Oxanium;font-weight:800;font-size:46px;letter-spacing:8px;color:#ff6b6b;text-shadow:0 0 40px rgba(255,90,60,.4)">撤退重整</div>
+    <div style="max-width:680px;text-align:center;font-size:18px;line-height:1.8;color:#e8d6d0">${d.loading ? '（通讯切回舰桥……）' : esc(d.line)}</div>
+    <div style="font-size:12px;letter-spacing:2px;color:#9a8a86">遗物与改装已散佚 · 关系与羁绊毫发无损 · 退回章节入口</div>
+    <button data-act="defeat-continue" style="padding:13px 30px;font-family:Oxanium;font-weight:700;font-size:16px;letter-spacing:2px;color:#06202a;background:linear-gradient(180deg,#5fe8c0,#3fd0e0);border:2px solid #d6fff4;clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);cursor:pointer;box-shadow:0 0 24px rgba(79,230,200,.5)">重整旗鼓 ▸</button>
+  </div></div>`;
 }
 function renderMapDetail(n) {
   const fc = FAC[n.fac].color, locked = n.state === 'locked', cleared = n.state === 'cleared';
@@ -637,6 +665,7 @@ function onClick(e) {
   if (act === 'deploy') return deploy();
   if (act === 'deploy-again') { if (G.run?.current && G.result === 'won') { genReward(); G.screen = 'reward'; return render(); } return returnFromBattle(); }
   if (act === 'reward-pick') return applyReward(+el.dataset.idx);
+  if (act === 'defeat-continue') { G.screen = 'map'; return render(); }
   if (act === 'talk') { const a = G.artists.find((x) => x.id === id); if (a) enterDialogue(a); return; }
   if (act === 'close-dialogue') return exitDialogue();
   if (act === 'dlg-advance') return advanceDialogue();

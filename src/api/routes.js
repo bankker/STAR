@@ -202,6 +202,18 @@ export function registerRoutes(route) {
     } catch (e) { sendGatewayError(res, e); }
   });
 
+  // 失败叙事余波（§5.1）：团灭回船，船员一句安慰，把"打输"转成"一起撑过来"（不掉好感，永远兜底）
+  route('POST /api/game/aftermath', async (req, res, { readJsonBody }) => {
+    const body = await readJsonBody();
+    const name = (getArtist(body?.artistId)?.name || body?.name || '船员').slice(0, 24);
+    const fallback = `队长，别自责。船还在，我们也都还在——下次再来。`;
+    const system = `你在为一款星舰恋爱养成游戏写"团灭败退回船"后的一句安慰台词。船员「${name}」对舰长说一句：不掉好感、不责备，把"打输了"转化为"我们一起撑过来了"的温暖羁绊感。25-50字，第一人称，不旁白，只输出这句话本身。`;
+    try {
+      const r = await execute('content', { system, messages: [{ role: 'user', content: '说这句话。' }], maxTokens: 120 });
+      json(res, { line: (r.text || '').trim().replace(/^["「]|["」]$/g, '').slice(0, 100) || fallback });
+    } catch { json(res, { line: fallback }); }
+  });
+
   const TEXT_ENDPOINTS = { '/api/ai/chat': 'chat', '/api/ai/content': 'content', '/api/ai/world': 'world', '/api/ai/plan': 'plan' };
   for (const [p, capability] of Object.entries(TEXT_ENDPOINTS)) {
     route(`POST ${p}`, async (req, res, { readJsonBody }) => {
