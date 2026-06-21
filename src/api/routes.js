@@ -214,6 +214,19 @@ export function registerRoutes(route) {
     } catch { json(res, { line: fallback }); }
   });
 
+  // 地图事件旁白（§Phase3）：为事件节点生成一段有抉择悬念的氛围旁白（永远兜底）
+  route('POST /api/game/event', async (req, res, { readJsonBody }) => {
+    const body = await readJsonBody();
+    const title = String(body?.name || '未知空域').slice(0, 30);
+    const desc = String(body?.desc || '').slice(0, 120);
+    const fallback = `${title}——传感器读数模糊，舰桥一时静默，等你定夺。`;
+    const system = `你为一款星舰 roguelike 写地图事件氛围旁白。地点「${title}」：${desc}。写 1-2 句(40-80字)有画面感、留抉择悬念的旁白；不写选项、不解释，只输出旁白本身。`;
+    try {
+      const r = await execute('content', { system, messages: [{ role: 'user', content: '写这段旁白。' }], maxTokens: 160 });
+      json(res, { line: (r.text || '').trim().slice(0, 160) || fallback });
+    } catch { json(res, { line: fallback }); }
+  });
+
   const TEXT_ENDPOINTS = { '/api/ai/chat': 'chat', '/api/ai/content': 'content', '/api/ai/world': 'world', '/api/ai/plan': 'plan' };
   for (const [p, capability] of Object.entries(TEXT_ENDPOINTS)) {
     route(`POST ${p}`, async (req, res, { readJsonBody }) => {

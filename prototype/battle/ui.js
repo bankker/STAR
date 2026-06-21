@@ -134,6 +134,7 @@ function render() {
   if (G.screen === 'reward') { v.innerHTML = renderReward() + '<div class="bg-toast"></div>'; fit(); return; }
   if (G.screen === 'defeat') { v.innerHTML = renderDefeat() + '<div class="bg-toast"></div>'; fit(); return; }
   if (G.screen === 'armory') { v.innerHTML = renderArmory() + '<div class="bg-toast"></div>'; fit(); return; }
+  if (G.screen === 'event') { v.innerHTML = renderEvent() + '<div class="bg-toast"></div>'; fit(); return; }
   v.innerHTML = `<div class="bg-wrap">${renderHud()}${renderResult()}</div><div class="bg-toast"></div>`;
 }
 function fit() {
@@ -469,8 +470,36 @@ function clearNode(id) { const n = mapById(id); if (!n) return; n.state = 'clear
 function nodeGo(id) {
   const n = mapById(id); if (!n || n.state === 'locked') return;
   if (n.type === 'supply') { G.run.credits += 60; toast('已补给 · 信用点 +60'); clearNode(id); return render(); }
-  if (n.type === 'event') { toast('事件：' + (n.rewards?.[0]?.t || '已处理')); clearNode(id); return render(); }
+  if (n.type === 'event') return enterEvent(n);
   G.pendingEnemy = nodeEnemyCfg(n); G.pendingTerrain = n.terrain || null; G.run.current = id; G.screen = 'deploy'; render();
+}
+// 事件节点（§Phase3）：LLM 旁白 + 抉择
+const EVENT_OPTS = [
+  { label: '搜刮残骸', desc: '信用点 +90（直接收益）', kind: 'credits', amount: 90, color: '#ffd27a' },
+  { label: '谨慎打捞', desc: '获得一件随机遗物（长期收益）', kind: 'relic', color: '#c07bff' },
+];
+function enterEvent(n) { G.event = { node: n, line: '', loading: true }; G.run.current = n.id; G.screen = 'event'; render(); fetchEventLine(); }
+async function fetchEventLine() {
+  const e = G.event;
+  try { const r = await fetch('/api/game/event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: e.node.name, desc: e.node.desc }) }).then((x) => x.json()); e.line = r.line || e.node.desc; }
+  catch { e.line = e.node.desc; }
+  e.loading = false; if (G.screen === 'event') render();
+}
+function eventChoose(idx) {
+  const o = EVENT_OPTS[idx]; if (!o || !G.event) return;
+  if (o.kind === 'credits') { G.run.credits += o.amount; toast('信用点 +' + o.amount); }
+  else if (o.kind === 'relic') { const rl = rndPick(RELICS); G.run.relics.push({ id: rl.id, name: rl.name, kind: rl.kind, amount: rl.amount, desc: rl.desc }); toast('遗物 · ' + rl.name); }
+  clearNode(G.event.node.id);
+  G.run.selected = G.event.node.id; G.run.current = null; G.event = null; G.screen = 'map'; render();
+}
+function renderEvent() {
+  const e = G.event;
+  const opts = EVENT_OPTS.map((o, i) => `<button data-act="event-choose" data-idx="${i}" style="width:288px;padding:18px;cursor:pointer;background:linear-gradient(180deg,rgba(16,30,48,.95),rgba(8,16,26,.98));border:2px solid ${o.color};clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);box-shadow:0 0 18px ${o.color}33;display:flex;flex-direction:column;align-items:center;gap:10px"><div style="font-weight:800;font-size:17px;color:${o.color}">${esc(o.label)}</div><div style="font-size:13px;color:#aebfce;text-align:center">${esc(o.desc)}</div></button>`).join('');
+  return `<div class="bg-fit"><div class="bg-stage" id="bg-stage" style="background:radial-gradient(ellipse 90% 70% at 50% 30%,#1a1233,#06060f 78%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px;padding:50px">
+    <div style="font-family:Oxanium;font-weight:800;font-size:26px;letter-spacing:3px;color:#c79bff;text-shadow:0 0 24px rgba(192,123,255,.4)">${esc(e.node.name)}</div>
+    <div style="max-width:680px;text-align:center;font-size:17px;line-height:1.85;color:#dce8f4">${e.loading ? '（信号解析中……）' : esc(e.line)}</div>
+    <div style="display:flex;gap:22px">${opts}</div>
+  </div></div>`;
 }
 function returnFromBattle() {
   if (G.run && G.run.current) {
@@ -709,6 +738,7 @@ function onClick(e) {
     saveMeta(); return render();
   }
   if (act === 'slot-unlock') { if (G.meta.slots < 6) { G.meta.slots++; G.maxSlots = G.meta.slots; saveMeta(); toast('核心仓位 → ' + G.meta.slots); } return render(); }
+  if (act === 'event-choose') return eventChoose(+el.dataset.idx);
   if (act === 'talk') { const a = G.artists.find((x) => x.id === id); if (a) enterDialogue(a); return; }
   if (act === 'close-dialogue') return exitDialogue();
   if (act === 'dlg-advance') return advanceDialogue();
