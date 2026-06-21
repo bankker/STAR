@@ -1,0 +1,8 @@
+{
+  "earth": "/battle/planets/earth.png",
+  "mars": "/battle/planets/mars.png",
+  "moon": "/battle/planets/moon.png",
+  "gas": "/battle/planets/gas.png",
+  "ice": "/battle/planets/ice.png",
+  "void": "/battle/planets/void.png"
+}

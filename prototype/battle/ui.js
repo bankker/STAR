@@ -112,7 +112,7 @@ function toast(msg) {
 async function openGame() {
   const v = view();
   v.hidden = false; v.classList.add('bg-root');
-  G.run = { nodes: structuredClone(MAP_NODES), selected: 'n4', flagAt: 'n4', pan: { x: -40, y: -70 }, current: null, relics: [], credits: 0, upgrades: [] };
+  G.run = { nodes: structuredClone(MAP_NODES), selected: 'n4', flagAt: 'n2', pan: { x: -40, y: -70 }, current: null, relics: [], credits: 0, upgrades: [] };
   G.meta = loadMeta();              // 永久升级（localStorage，§3.1/§3.2）
   G.maxSlots = G.meta.slots;        // 核心仓位随永久升级成长
   G.squad = []; G.detail = null; G.battle = null; G.pending = null; G.result = null; G.pendingEnemy = null;
@@ -120,6 +120,7 @@ async function openGame() {
   G.screen = introSkipped() ? 'map' : 'intro';   // 跳过过则直接进游戏
   render();
   loadShips();
+  loadPlanets();
   try {
     const r = await fetch('/api/artists').then((x) => x.json());
     G.artists = (r.artists || []).map((a) => ({ id: a.id, name: a.name, portraitUrl: (a.portraits && a.portraits[0] && a.portraits[0].url) || '' }));
@@ -134,6 +135,14 @@ async function loadShips() {
     const m = await fetch('/battle/ships/manifest.json', { cache: 'no-store' }).then((x) => (x.ok ? x.json() : {}));
     if (m && typeof m === 'object') { G.ships = m; if (G.screen && G.screen !== 'intro') render(); }
   } catch { /* 无图鉴时保持 SVG */ }
+}
+async function loadPlanets() {
+  if (G.planets) return;
+  G.planets = {};
+  try {
+    const m = await fetch('/battle/planets/manifest.json', { cache: 'no-store' }).then((x) => (x.ok ? x.json() : {}));
+    if (m && typeof m === 'object') { G.planets = m; if (G.screen && G.screen !== 'intro') render(); }
+  } catch { /* 无图鉴时保持 SVG 行星 */ }
 }
 // ── 开场影片 ──
 const INTRO_SKIP_KEY = 'starfall_intro_skip';
@@ -596,7 +605,7 @@ function renderEvent() {
 function returnFromBattle() {
   if (G.run && G.run.current) {
     if (G.result === 'lost') return enterDefeat();          // §5：败北结算
-    if (G.result === 'won') clearNode(G.run.current);
+    if (G.result === 'won') { clearNode(G.run.current); G.run.flagAt = G.run.current; }   // 旗舰推进到刚清剿的节点
     G.run.selected = G.run.current; G.run.current = null; G.pendingEnemy = null;
     G.battle = null; G.result = null; G.screen = 'map'; return render();
   }
@@ -606,7 +615,7 @@ function returnFromBattle() {
 function enterDefeat() {
   const crew = (G.squad[0] || {});
   G.run.relics = []; G.run.upgrades = []; G.run.credits = Math.floor((G.run.credits || 0) * 0.25);
-  G.run.nodes = structuredClone(MAP_NODES); G.run.flagAt = 'n4'; G.run.selected = 'n4'; G.run.current = null;
+  G.run.nodes = structuredClone(MAP_NODES); G.run.flagAt = 'n2'; G.run.selected = 'n4'; G.run.current = null;
   G.pendingEnemy = null; G.pendingTerrain = null; G.battle = null; G.result = null;
   G.defeat = { line: '', loading: true, artist: crew };
   G.screen = 'defeat'; render(); fetchAftermath();
@@ -666,10 +675,14 @@ function renderMap() {
   const nodes = r.nodes.map((n) => {
     const fc = FAC[n.fac].color, avail = n.state === 'available', locked = n.state === 'locked', sel = r.selected === n.id, boss = n.type === 'boss';
     const size = boss ? 96 : avail ? 84 : 72;
+    const sch = nodeScheme(n);
+    const planetEl = (G.planets && G.planets[sch])
+      ? `<div style="position:absolute;inset:0;background-image:url('${esc(G.planets[sch])}');background-size:contain;background-repeat:no-repeat;background-position:center"></div>`
+      : planetSVG({ scheme: sch });
     return `<div data-act="node" data-id="${n.id}" style="position:absolute;left:${n.x}px;top:${n.y}px;transform:translate(-50%,-50%);width:${size + 40}px;display:flex;flex-direction:column;align-items:center;cursor:pointer;z-index:${sel ? 20 : 10};opacity:${locked ? 0.62 : 1}">
       <div style="position:absolute;top:${20 - size / 2 + (boss ? 2 : 6)}px;width:${size + 22}px;height:${size + 22}px;border-radius:50%;border:1.5px ${avail ? 'solid' : 'dashed'} ${sel ? '#fff' : fc};opacity:${avail ? 0.9 : 0.5};${avail ? 'animation:ringSpin 14s linear infinite;' : ''}${sel ? `box-shadow:0 0 22px ${fc}` : ''}"></div>
       <div style="position:relative;width:${size}px;height:${size}px;${avail ? 'animation:nodePulse 2.6s ease-in-out infinite;' : ''};filter:drop-shadow(0 0 ${avail ? 20 : 11}px ${fc}${avail ? 'aa' : '55'})">
-        ${planetSVG({ scheme: nodeScheme(n) })}
+        ${planetEl}
         ${sel
         ? `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${boss ? 36 : 28}px;color:#ffce6a;text-shadow:0 0 12px rgba(255,200,90,.95)">★</div>`
         : n.state !== 'cleared'
@@ -683,12 +696,24 @@ function renderMap() {
     </div>`;
   }).join('');
   const fa = map[r.flagAt];
+  const tgt = map[r.selected];
+  const flying = tgt && tgt.id !== r.flagAt && tgt.state !== 'locked';
   const allyUrl = G.ships && G.ships[ALLY_FLAGSHIP_ID];
-  const allyInner = allyUrl
-    ? `<div style="width:108px;height:62px;background-image:url('${esc(allyUrl)}');background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(0 0 14px rgba(95,224,238,.6))"></div>`
-    : `<div style="width:92px;height:40px;filter:drop-shadow(0 0 14px rgba(95,224,238,.6))">${warshipSVG({ ally: true })}</div>`;
-  const flag = `<div style="position:absolute;left:${fa.x + 58}px;top:${fa.y - 58}px;transform:translate(-50%,-50%);z-index:25;animation:flagFloat 3.4s ease-in-out infinite">${allyInner}<div style="position:absolute;top:-20px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10px;letter-spacing:1px;color:#9fe6f4;background:rgba(6,16,26,.8);padding:2px 8px;border-radius:8px;border:1px solid rgba(95,210,235,.4)">旗舰 · 奥德赛号</div></div>`;
-  const legend = Object.values(FAC).map((f) => `<div style="display:flex;align-items:center;gap:7px;font-size:11px;letter-spacing:1px;color:#b6c6d4"><span style="width:10px;height:10px;background:${f.color};transform:rotate(45deg);box-shadow:0 0 6px ${f.color}"></span>${f.name}</div>`).join('');
+  const shipW = allyUrl ? 120 : 96, shipH = allyUrl ? 68 : 42;
+  const shipInner = allyUrl
+    ? `<div style="width:${shipW}px;height:${shipH}px;background-image:url('${esc(allyUrl)}');background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(0 0 16px rgba(95,224,238,.7))"></div>`
+    : `<div style="width:${shipW}px;height:${shipH}px;filter:drop-shadow(0 0 14px rgba(95,224,238,.6))">${warshipSVG({ ally: true })}</div>`;
+  let shipX, shipY, ang = 0, traj = '';
+  if (flying) {
+    const dx = tgt.x - fa.x, dy = tgt.y - fa.y;
+    ang = Math.atan2(dy, dx) * 180 / Math.PI;
+    shipX = Math.round(fa.x + dx * 0.46); shipY = Math.round(fa.y + dy * 0.46);
+    traj = `<line x1="${fa.x}" y1="${fa.y}" x2="${tgt.x}" y2="${tgt.y}" stroke="#9fe6f4" stroke-width="2.2" stroke-dasharray="2 11" stroke-linecap="round" opacity="0.6"><animate attributeName="stroke-dashoffset" values="0;-13" dur="0.8s" repeatCount="indefinite"/></line>`;
+  } else { shipX = fa.x + 60; shipY = fa.y - 56; }
+  const flag = `<div style="position:absolute;left:${shipX}px;top:${shipY}px;transform:translate(-50%,-50%) rotate(${ang.toFixed(1)}deg);z-index:25;animation:flagFloat 3.4s ease-in-out infinite">${shipInner}</div>
+    <div style="position:absolute;left:${shipX}px;top:${shipY - 46}px;transform:translateX(-50%);white-space:nowrap;font-size:10px;letter-spacing:1px;color:#9fe6f4;background:rgba(6,16,26,.82);padding:2px 8px;border-radius:8px;border:1px solid rgba(95,210,235,.4);z-index:26;pointer-events:none">${flying ? '航向 · ' + esc(tgt.name) : '旗舰 · 拍穹者号'}</div>`;
+  const LEGEND = [['#5fe0ee', '主线目标'], ['#ff8a5a', '战斗节点'], ['#c07bff', '事件节点'], ['#7fb6ff', '中立星域'], ['#6a7a8a', '无法航行星域']];
+  const legend = LEGEND.map(([c, t]) => `<div style="display:flex;align-items:center;gap:7px;font-size:11px;letter-spacing:1px;color:#b6c6d4"><span style="width:10px;height:10px;background:${c};transform:rotate(45deg);box-shadow:0 0 6px ${c}"></span>${t}</div>`).join('');
   return `<div class="bg-fit"><div class="bg-stage" id="bg-stage">
     <div id="bg-mapwrap" style="position:absolute;inset:0;overflow:hidden;cursor:grab;background:radial-gradient(ellipse 70% 60% at 30% 40%,rgba(40,80,130,.16),transparent 60%),radial-gradient(ellipse 60% 60% at 80% 60%,rgba(120,70,200,.14),transparent 60%),#05070f">
       <div id="bg-map" style="position:absolute;left:0;top:0;width:2600px;height:1320px;transform:translate(${r.pan.x}px,${r.pan.y}px)">
@@ -704,7 +729,7 @@ function renderMap() {
         <div style="position:absolute;left:90px;top:980px;width:250px;height:250px;pointer-events:none;opacity:.6;filter:drop-shadow(0 0 42px rgba(120,180,255,.25))">${planetSVG({ scheme: 'ice' })}</div>
         <div style="position:absolute;left:980px;top:50px;width:360px;height:360px;pointer-events:none;opacity:.85;filter:drop-shadow(0 0 60px rgba(240,160,90,.35))">${planetSVG({ scheme: 'gas' })}</div>
         <div style="position:absolute;left:2200px;top:300px;width:320px;height:320px;pointer-events:none;opacity:.6;filter:drop-shadow(0 0 52px rgba(170,110,255,.3))">${planetSVG({ scheme: 'void' })}</div>
-        <svg width="2600" height="1320" style="position:absolute;left:0;top:0;pointer-events:none">${routes}</svg>
+        <svg width="2600" height="1320" style="position:absolute;left:0;top:0;pointer-events:none">${routes}${traj}</svg>
         ${nodes}${flag}
       </div>
     </div>

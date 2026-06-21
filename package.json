@@ -11,6 +11,7 @@
     "test": "node --test",
     "smoke": "node scripts/smoke.mjs",
     "gen:ships": "node scripts/gen-ships.mjs",
-    "cutout:ships": "node scripts/cutout-ships.mjs"
+    "cutout:ships": "node scripts/cutout-ships.mjs",
+    "gen:planets": "node scripts/gen-planets.mjs"
   }
 }

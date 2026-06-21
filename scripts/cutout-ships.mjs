@@ -23,6 +23,8 @@ const fileIn = arg('file', '');                   // 处理任意单文件（不
 const fileOut = arg('out', '');                   // file 模式输出路径（默认覆盖原文件）
 const NOKEY = process.argv.includes('--nokey');   // 已是透明图：沿用其 alpha，不重新抠
 const TRIM = process.argv.includes('--trim');     // 裁掉四周透明边距（贴合舰体）
+const CIRCLE = process.argv.includes('--circle'); // 圆形遮罩（行星：占满画面、圆内保留圆外透明，抗暗部误删）
+const CR = parseFloat(arg('cr', '0.49'));         // 圆半径占 min(W,H) 比例
 const MB = 1 << 28;
 
 function cutout(srcFile, dstFile) {
@@ -35,7 +37,17 @@ function cutout(srcFile, dstFile) {
   const minc = (i) => { const o = i * 4, r = raw[o], g = raw[o + 1], b = raw[o + 2]; return r < g ? (r < b ? r : b) : (g < b ? g : b); };
   let mode = 'nokey', bestSize = 0;
 
-  if (NOKEY) {
+  if (CIRCLE) {
+    // 圆形遮罩：圆内保留、圆外透明（边缘 1.5px 羽化）
+    mode = 'circle';
+    const cx = (W - 1) / 2, cy = (H - 1) / 2, R = Math.min(W, H) * CR;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = y * W + x, d = Math.hypot(x - cx, y - cy);
+      if (d <= R - 1.5) bestSize++;
+      else if (d >= R + 0.5) raw[i * 4 + 3] = 0;
+      else { raw[i * 4 + 3] = Math.round(255 * (R + 0.5 - d) / 2); bestSize++; }
+    }
+  } else if (NOKEY) {
     // 沿用图片已有 alpha；统计不透明像素
     for (let i = 0; i < N; i++) if (raw[i * 4 + 3] > 16) bestSize++;
   } else {
