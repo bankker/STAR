@@ -214,6 +214,28 @@ export function registerRoutes(route) {
     } catch { json(res, { line: fallback }); }
   });
 
+  // 写实底图：用万相生成写实战舰/行星底图，进程内缓存（每变体只出一次），失败回空→前端用 SVG 兜底
+  const _visualCache = new Map();
+  const VISUAL_PROMPTS = {
+    'enemyship:default': '写实科幻战舰，金属装甲板与外露推进引擎泛着橙红尾焰，侧舷视角，深空星海背景，冷峻硬核工业感，电影级打光，高细节，无文字无UI无水印',
+    'enemyship:boss': '巨型写实科幻旗舰母舰，密布炮塔与厚重装甲，中央紫色能量核心发光，侧舷视角，深邃星空背景，压迫威严，电影级体积光，高细节，无文字无UI',
+    'planet:default': '写实类地行星，橙红与赭色大陆、白色云带与蓝色大气辉光，深空星海背景，电影级，高细节，无文字无UI无水印',
+    'planet:void': '写实紫色气态巨行星，幽紫云带与诡异光环，深邃星空，神秘压抑，电影级，高细节，无文字无UI',
+  };
+  route('POST /api/game/visual', async (req, res, { readJsonBody }) => {
+    const body = await readJsonBody();
+    const kind = String(body?.kind || 'enemyship'), variant = String(body?.variant || 'default');
+    const key = `${kind}:${variant}`;
+    if (_visualCache.has(key)) return json(res, { url: _visualCache.get(key) });
+    const prompt = VISUAL_PROMPTS[key] || VISUAL_PROMPTS['enemyship:default'];
+    try {
+      const ir = await execute('image', { prompt, aspect: kind === 'planet' ? '1:1' : '16:9' });
+      const url = ir.files?.[0]?.url || '';
+      if (url) _visualCache.set(key, url);
+      json(res, { url });
+    } catch { json(res, { url: '' }); }
+  });
+
   // 地图事件旁白（§Phase3）：为事件节点生成一段有抉择悬念的氛围旁白（永远兜底）
   route('POST /api/game/event', async (req, res, { readJsonBody }) => {
     const body = await readJsonBody();

@@ -328,7 +328,8 @@ function renderBattle() {
   const crew = b.board.filter((u) => u.type === 'crew');
   const summons = b.board.filter((u) => u.type === 'summon');
   const faceHit = p?.kind === 'attack' && isLegalTarget(b, 'face');
-  const enemyBoss = (b.enemy.maxHp || 0) >= 60 || /涅墨西斯|旗舰|母舰|boss/i.test(b.enemy.name || '');
+  const enemyBoss = b.enemy.isBoss || (b.enemy.maxHp || 0) >= 60 || /涅墨西斯|旗舰|母舰|boss/i.test(b.enemy.name || '');
+  const enemyShipUrl = G.visuals && G.visuals['enemyship:' + (enemyBoss ? 'boss' : 'default')];
   const intent = b.intent || { type: 'attack', value: 0, target: 'ship' };
   const intentTarget = intent.target && intent.target !== 'ship' ? (b.board.find((u) => u.instanceId === intent.target)?.name || '船员') : '舰体';
   const enemyPct = Math.max(0, Math.min(100, b.enemy.hp / b.enemy.maxHp * 100));
@@ -357,7 +358,7 @@ function renderBattle() {
 
     <div style="position:absolute;top:64px;left:0;width:1920px;height:330px">
       <div style="position:absolute;top:14px;left:50%;transform:translateX(-50%);width:470px;display:flex;flex-direction:column;align-items:center">
-        <div ${faceHit ? 'data-act="foe-face"' : ''} style="width:440px;height:152px;filter:drop-shadow(0 0 26px ${enemyBoss ? 'rgba(180,110,255,.42)' : 'rgba(255,110,60,.4)'});animation:bgfloat 5s ease-in-out infinite;cursor:${faceHit ? 'crosshair' : 'default'};${faceHit ? 'outline:2px solid #ff5a3c;outline-offset:8px;border-radius:8px' : ''}">${warshipSVG({ boss: enemyBoss })}</div>
+        <div ${faceHit ? 'data-act="foe-face"' : ''} style="position:relative;width:440px;height:152px;filter:drop-shadow(0 0 26px ${enemyBoss ? 'rgba(180,110,255,.42)' : 'rgba(255,110,60,.4)'});animation:bgfloat 5s ease-in-out infinite;cursor:${faceHit ? 'crosshair' : 'default'};${faceHit ? 'outline:2px solid #ff5a3c;outline-offset:8px;border-radius:8px' : ''}">${enemyShipUrl ? `<div style="position:absolute;inset:0;background-image:url('${esc(enemyShipUrl)}');background-size:contain;background-repeat:no-repeat;background-position:center"></div><div style="position:absolute;inset:0;background:radial-gradient(ellipse 34% 54% at 17% 50%,${enemyBoss ? 'rgba(192,123,255,.55)' : 'rgba(255,140,80,.55)'},transparent 58%);mix-blend-mode:screen;animation:shipGlow 2s ease-in-out infinite;pointer-events:none"></div>` : warshipSVG({ boss: enemyBoss })}</div>
         <div style="margin-top:-6px;display:flex;flex-direction:column;align-items:center;gap:6px;width:460px">
           <div style="font-family:Oxanium;font-weight:700;font-size:18px;letter-spacing:2px;color:#ffb9a0;text-shadow:0 0 14px rgba(255,90,60,.45)">${esc(b.enemy.name)}</div>
           <div style="position:relative;width:310px;height:18px;background:rgba(6,16,26,.9);border:1px solid rgba(255,90,60,.45);clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);overflow:hidden">
@@ -793,7 +794,21 @@ function deploy() {
   if (!cast.length) return toast('还没有艺人可作为船员');
   G.battle = newBattle({ cards: runCards(), deck: starterDeck(), crew: crewFromCast(cast.slice(0, G.maxSlots)), enemy: G.pendingEnemy || ENEMIES.海盗前锋, rng: Math.random, maxSlots: G.maxSlots, terrain: G.pendingTerrain || null, relics: [...(G.run?.relics || []), ...equippedRelics()] });
   G.screen = 'battle'; G.pending = null; G.result = null; G.log = '舰长，下达指令。';
+  const eb = G.battle.enemy.isBoss || (G.battle.enemy.maxHp || 0) >= 60 || /涅墨西斯|旗舰|母舰|boss/i.test(G.battle.enemy.name || '');
+  fetchVisual('enemyship', eb ? 'boss' : 'default');   // 异步取写实底图，到了再重绘
   render();
+}
+
+// 写实底图（万相生成，后台缓存）：拿到后若仍在战斗界面则重绘换图；SVG 始终即时兜底
+const VIS = G.visuals = G.visuals || {};
+async function fetchVisual(kind, variant) {
+  const key = kind + ':' + variant;
+  if (VIS[key] !== undefined) return;   // 已取或取中
+  VIS[key] = '';
+  try {
+    const r = await fetch('/api/game/visual', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, variant }) }).then((x) => x.json());
+    if (r && r.url) { VIS[key] = r.url; if (G.screen === 'battle') render(); }
+  } catch { /* 保持 SVG 兜底 */ }
 }
 
 function clickCard(iid) {
