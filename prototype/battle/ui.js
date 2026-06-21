@@ -461,55 +461,58 @@ function renderMap() {
 
 // ── 对话界面（1:1 复刻 SC2 comp 对话界面.dc.html）──
 const DLG_TAG = { 好感: { color: '#ff6fae', glow: 'rgba(255,111,174,.5)', icon: 'heart' }, 能力: { color: '#4fd6e6', glow: 'rgba(79,214,230,.5)', icon: 'chip' }, 协同: { color: '#ffcc4d', glow: 'rgba(255,204,77,.5)', icon: 'link' } };
-const DLG_NODES = {
-  start: { mood: 'neutral', text: '（她放下手里的炮管校准仪，侧过头看你）这一轮齐射……要不是你替我压住了节奏，我差点就让主炮过载了。', next: 'q1' },
-  q1: { mood: 'neutral', text: '……该怎么说呢。和你并肩站在舰桥上的时候，我总觉得很安心。', choices: [
-    { text: '你的判断，我从来都信得过。', tag: '好感', delta: 5, goto: 'a_aff' },
-    { text: '过载阈值，我已经帮你重算过一遍了。', tag: '能力', delta: 5, goto: 'a_abi' },
-    { text: '因为我们配合得越来越默契了。', tag: '协同', delta: 5, goto: 'a_syn' }] },
-  a_aff: { mood: 'blush', text: '……哼，被舰长这样直白地说出来，还真有点招架不住。', next: 'mid' },
-  a_abi: { mood: 'smile', text: '认真的？那下次主炮校准就交给你了——可别让我失望。', next: 'mid' },
-  a_syn: { mood: 'smile', text: '默契啊……嗯，是这个词没错。', next: 'mid' },
-  mid: { mood: 'neutral', text: '对了，舰桥刚传来消息——前方那片星云里探测到了异常信号。要不要……一起去看看？', choices: [
-    { text: '走，我陪你去。', tag: '好感', delta: 8, goto: 'b_aff' },
-    { text: '先让我调出传感器阵列的数据。', tag: '能力', delta: 6, goto: 'b_abi' }] },
-  b_aff: { mood: 'bright', text: '成交。……有你在，再深的星渊，我也敢闯。', next: 'end' },
-  b_abi: { mood: 'smile', text: '稳重，我欣赏。数据我们边走边看吧。', next: 'end' },
-  end: { mood: 'smile', text: '（这段对话先到这里。点击可重新开始，或右上角返回编成。）', restart: 'start' },
-};
 const dlgStage = (a) => (a >= 86 ? '羁绊' : a >= 70 ? '心动' : a >= 50 ? '信赖' : '熟识');
-function enterDialogue(artist) { G.screen = 'dialogue'; G.dialogue = { artist, node: 'start', shown: 0, typing: true, affinity: 64, floats: [], fid: 0 }; render(); startType(); }
+const dlgMood = (a) => (a >= 82 ? 'bright' : a >= 70 ? 'blush' : a >= 55 ? 'smile' : 'neutral');
+function enterDialogue(artist) {
+  G.screen = 'dialogue';
+  G.dialogue = { artist, line: '', choices: [], shown: 0, typing: false, loading: true, affinity: 64, floats: [], fid: 0, history: [] };
+  render(); fetchDialogue();
+}
 function exitDialogue() { clearInterval(G._typer); G.screen = 'deploy'; render(); }
+async function fetchDialogue() {
+  const d = G.dialogue; d.loading = true; render();
+  try {
+    const r = await fetch('/api/game/dialogue', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ artistId: d.artist.id, name: d.artist.name, affinity: d.affinity, history: d.history }) }).then((x) => x.json());
+    if (r.error) throw new Error(r.error.message || '生成失败');
+    d.line = r.line || '……'; d.choices = Array.isArray(r.choices) ? r.choices : [];
+  } catch {
+    d.line = '（通讯受到星云干扰，对面的声音断断续续。）'; d.choices = [{ text: '再试一次', tag: '协同', delta: 0 }];
+  }
+  if (G.screen !== 'dialogue') return;
+  d.loading = false; startType();
+}
 function startType() {
   clearInterval(G._typer);
-  const d = G.dialogue; d.shown = 0; d.typing = true;
+  const d = G.dialogue; d.shown = 0; d.typing = true; render();
   G._typer = setInterval(() => {
-    const node = DLG_NODES[d.node]; if (!node || G.screen !== 'dialogue') return clearInterval(G._typer);
-    if (d.shown < node.text.length) { d.shown++; const el = document.getElementById('bg-typed'); if (el) el.textContent = node.text.slice(0, d.shown); }
+    if (G.screen !== 'dialogue') return clearInterval(G._typer);
+    if (d.shown < d.line.length) { d.shown++; const el = document.getElementById('bg-typed'); if (el) el.textContent = d.line.slice(0, d.shown); }
     else { d.typing = false; clearInterval(G._typer); render(); }
   }, 24);
 }
 function advanceDialogue() {
-  const d = G.dialogue, node = DLG_NODES[d.node];
-  if (d.typing) { clearInterval(G._typer); d.shown = node.text.length; d.typing = false; return render(); }
-  if (node.choices) return;
-  if (node.next) { d.node = node.next; render(); startType(); }
-  else if (node.restart) { d.affinity = 64; d.node = node.restart; render(); startType(); }
+  const d = G.dialogue;
+  if (d.loading) return;
+  if (d.typing) { clearInterval(G._typer); d.shown = d.line.length; d.typing = false; return render(); }
+  // 选项驱动推进；无选项时点击 = 再生成一轮
+  if (!d.choices.length) { d.history.push('（沉默）'); fetchDialogue(); }
 }
 function chooseDialogue(idx) {
-  const d = G.dialogue, node = DLG_NODES[d.node], opt = (node.choices || [])[idx]; if (!opt) return;
-  const meta = DLG_TAG[opt.tag];
-  if (opt.tag === '好感') d.affinity = Math.min(100, d.affinity + opt.delta);
-  const fid = d.fid++; d.floats.push({ id: fid, text: `${opt.tag} +${opt.delta}`, color: meta.color });
-  setTimeout(() => { if (G.dialogue) { G.dialogue.floats = G.dialogue.floats.filter((f) => f.id !== fid); if (G.screen === 'dialogue') render(); } }, 1500);
-  d.node = opt.goto; render(); startType();
+  const d = G.dialogue, opt = d.choices[idx]; if (!opt) return;
+  const meta = DLG_TAG[opt.tag] || DLG_TAG['好感'];
+  if (opt.tag === '好感' && opt.delta) d.affinity = Math.min(100, d.affinity + opt.delta);
+  if (opt.delta) { const fid = d.fid++; d.floats.push({ id: fid, text: `${opt.tag} +${opt.delta}`, color: meta.color }); setTimeout(() => { if (G.dialogue) { G.dialogue.floats = G.dialogue.floats.filter((f) => f.id !== fid); if (G.screen === 'dialogue') render(); } }, 1500); }
+  d.history.push(opt.text);
+  fetchDialogue();
 }
 function renderDialogue() {
-  const d = G.dialogue, node = DLG_NODES[d.node], a = d.artist;
-  const isChoice = !!node.choices, stage = dlgStage(d.affinity);
-  const portBg = a.portraitUrl ? `background-image:url('${esc(a.portraitUrl)}');background-size:cover;background-position:top center` : `background-image:url(&quot;${Q(dialoguePortrait(node.mood || 'neutral'))}&quot;);background-size:contain;background-repeat:no-repeat;background-position:bottom center`;
+  const d = G.dialogue, a = d.artist;
+  const isChoice = !d.loading && !d.typing && d.choices.length > 0, stage = dlgStage(d.affinity);
+  const portBg = a.portraitUrl ? `background-image:url('${esc(a.portraitUrl)}');background-size:cover;background-position:top center` : `background-image:url(&quot;${Q(dialoguePortrait(dlgMood(d.affinity)))}&quot;);background-size:contain;background-repeat:no-repeat;background-position:bottom center`;
   const avBg = a.portraitUrl ? `background-image:url('${esc(a.portraitUrl)}');background-size:cover` : `background-image:url(&quot;${Q(dialoguePortrait('smile'))}&quot;);background-size:260%;background-position:48% 12%`;
-  const opts = isChoice ? node.choices.map((o, i) => { const m = DLG_TAG[o.tag]; return `<button data-act="dlg-choose" data-idx="${i}" style="display:flex;align-items:center;gap:16px;padding:15px 18px 15px 24px;cursor:pointer;background:linear-gradient(110deg,rgba(16,30,48,.92),rgba(10,18,30,.88));border:1px solid rgba(95,210,235,.4);border-left:3px solid ${m.color};clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px));box-shadow:0 6px 20px rgba(0,0,0,.4);animation:optIn .3s ease both"><span style="flex:1;text-align:left;font-size:17px;letter-spacing:.5px;color:#eaf4ff;line-height:1.3">${esc(o.text)}</span><span style="display:flex;align-items:center;gap:7px;flex:none;padding:6px 13px;font-size:13px;font-weight:700;letter-spacing:1px;color:${m.color};background:${m.color}1a;border:1px solid ${m.color};border-radius:14px;box-shadow:0 0 12px ${m.glow}"><span style="width:17px;height:17px;background-image:url(&quot;${Q(tagIcon(m.icon, m.color))}&quot;);background-size:contain;background-repeat:no-repeat"></span>${o.tag} +${o.delta}</span></button>`; }).join('') : '';
+  const opts = isChoice ? d.choices.map((o, i) => { const m = DLG_TAG[o.tag] || DLG_TAG['好感']; return `<button data-act="dlg-choose" data-idx="${i}" style="display:flex;align-items:center;gap:16px;padding:15px 18px 15px 24px;cursor:pointer;background:linear-gradient(110deg,rgba(16,30,48,.92),rgba(10,18,30,.88));border:1px solid rgba(95,210,235,.4);border-left:3px solid ${m.color};clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px));box-shadow:0 6px 20px rgba(0,0,0,.4);animation:optIn .3s ease both"><span style="flex:1;text-align:left;font-size:17px;letter-spacing:.5px;color:#eaf4ff;line-height:1.3">${esc(o.text)}</span><span style="display:flex;align-items:center;gap:7px;flex:none;padding:6px 13px;font-size:13px;font-weight:700;letter-spacing:1px;color:${m.color};background:${m.color}1a;border:1px solid ${m.color};border-radius:14px;box-shadow:0 0 12px ${m.glow}"><span style="width:17px;height:17px;background-image:url(&quot;${Q(tagIcon(m.icon, m.color))}&quot;);background-size:contain;background-repeat:no-repeat"></span>${o.tag}${o.delta ? ' +' + o.delta : ''}</span></button>`; }).join('') : '';
+  const bodyText = d.loading ? '正在接通通讯……' : d.line.slice(0, d.shown);
   const floats = d.floats.map((f) => `<div style="position:absolute;right:0;top:0;white-space:nowrap;padding:4px 12px;font-size:14px;font-weight:800;letter-spacing:1px;color:${f.color};background:${f.color}22;border:1px solid ${f.color};border-radius:12px;box-shadow:0 0 16px ${f.color}88;animation:statFloat 1.5s ease-out forwards">${esc(f.text)}</div>`).join('');
   return `<div class="bg-fit"><div class="bg-stage" id="bg-stage" style="background:#06060f">
     <div style="position:absolute;inset:0;background:radial-gradient(ellipse 120% 80% at 50% 30%,#181233,#0a0a1c 70%,#06060f)"></div>
@@ -542,8 +545,8 @@ function renderDialogue() {
     <div data-act="dlg-advance" style="position:absolute;left:70px;right:70px;bottom:54px;height:236px;z-index:20;cursor:pointer">
       <div style="position:absolute;top:-26px;left:46px;z-index:6;display:flex;align-items:center;gap:10px;padding:8px 26px;background:linear-gradient(120deg,rgba(255,120,80,.32),rgba(14,24,38,.95));border:1px solid rgba(255,150,110,.55);clip-path:polygon(14px 0,100% 0,calc(100% - 14px) 100%,0 100%);box-shadow:0 4px 16px rgba(0,0,0,.5),0 0 22px rgba(255,140,90,.2)"><span style="width:7px;height:7px;background:#ff9a5a;transform:rotate(45deg);box-shadow:0 0 10px #ff9a5a"></span><span style="font-weight:700;font-size:19px;letter-spacing:2px;color:#ffd9b8;text-shadow:0 0 14px rgba(255,150,90,.5)">${esc(a.name)}</span></div>
       <div style="position:absolute;inset:0;background:linear-gradient(160deg,rgba(14,26,42,.84),rgba(8,14,26,.9));border:1px solid rgba(95,210,235,.36);clip-path:polygon(24px 0,100% 0,100% calc(100% - 24px),calc(100% - 24px) 100%,0 100%,0 24px);box-shadow:inset 0 0 50px rgba(50,150,200,.1),0 10px 40px rgba(0,0,0,.55)"></div>
-      <div style="position:absolute;top:40px;left:54px;right:80px;font-size:25px;line-height:1.62;color:#e8f1fb;letter-spacing:.5px;text-shadow:0 1px 4px rgba(0,0,0,.5)"><span id="bg-typed">${esc(node.text.slice(0, d.shown))}</span><span style="color:#5fe0ee;margin-left:2px;animation:caret 1s step-end infinite;opacity:${d.typing ? 1 : 0}">▌</span></div>
-      <div style="position:absolute;bottom:18px;right:40px;font-size:14px;letter-spacing:2px;color:#7fd6e6;display:${(!isChoice && !d.typing) ? 'block' : 'none'};animation:contBob 1.3s ease-in-out infinite">▼ 点击继续</div>
+      <div style="position:absolute;top:40px;left:54px;right:80px;font-size:25px;line-height:1.62;color:#e8f1fb;letter-spacing:.5px;text-shadow:0 1px 4px rgba(0,0,0,.5)"><span id="bg-typed">${esc(bodyText)}</span><span style="color:#5fe0ee;margin-left:2px;animation:caret 1s step-end infinite;opacity:${d.typing ? 1 : 0}">▌</span></div>
+      <div style="position:absolute;bottom:18px;right:40px;font-size:14px;letter-spacing:2px;color:#7fd6e6;display:${(!d.loading && !isChoice && !d.typing) ? 'block' : 'none'};animation:contBob 1.3s ease-in-out infinite">▼ 点击继续</div>
     </div>
   </div></div>`;
 }

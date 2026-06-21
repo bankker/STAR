@@ -178,6 +178,30 @@ export function registerRoutes(route) {
 
   route('GET /api/me', async (req, res) => json(res, currentUser(req) || {}));
 
+  // 恋爱养成对话：LLM 实时生成一轮对白 + 带标签选项（好感/能力/协同）。旧故事模式已移除，引擎在 prototype/battle/ 自包含。
+  const looseJson = (t) => { if (!t) return null; const a = t.indexOf('{'), b = t.lastIndexOf('}'); if (a < 0 || b < 0) return null; try { return JSON.parse(t.slice(a, b + 1)); } catch { return null; } };
+  route('POST /api/game/dialogue', async (req, res, { readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(body?.artistId);
+    const name = (artist?.name || body?.name || '船员').slice(0, 24);
+    const persona = (artist?.persona || artist?.positioning || '冷静专业、可靠').slice(0, 120);
+    const affinity = Math.max(0, Math.min(100, Number(body?.affinity) || 60));
+    const last = Array.isArray(body?.history) && body.history.length ? String(body.history[body.history.length - 1]).slice(0, 40) : '';
+    const system = `你在为一款「星舰协同作战 × 恋爱养成」游戏写实时对话。玩家是舰长，对象是核心船员「${name}」（人设：${persona}），当前好感度 ${affinity}/100。\n规则：\n1) 以${name}的第一人称口吻写 1 句对白（25-55 字，科幻舰桥日常 + 暧昧张力，符合人设，不旁白、不出戏）。\n2) 给玩家 2-3 个回应选项，每个带一个标签（好感/能力/协同 三选一）与一个 +N 数值（3-8）。\n只输出 JSON，不要任何多余文字：{"line":"…","choices":[{"text":"…","tag":"好感","delta":5}]}`;
+    const messages = [{ role: 'user', content: last ? `玩家刚回应了「${last}」。顺着这个继续这段对话。` : '开始这段对话。' }];
+    try {
+      const r = await execute('content', { system, messages, maxTokens: 320 });
+      const p = looseJson(r.text);
+      if (!p || !p.line) return json(res, { line: `（${name}静静看了你一眼，似乎在斟酌措辞。）`, choices: [{ text: '我在听。', tag: '协同', delta: 3 }] });
+      const choices = (Array.isArray(p.choices) ? p.choices : []).slice(0, 3).map((c) => ({
+        text: String(c?.text || '……').slice(0, 40),
+        tag: ['好感', '能力', '协同'].includes(c?.tag) ? c.tag : '好感',
+        delta: Math.max(1, Math.min(10, Math.round(Number(c?.delta) || 5))),
+      }));
+      json(res, { line: String(p.line).slice(0, 120), choices: choices.length ? choices : [{ text: '继续。', tag: '协同', delta: 3 }] });
+    } catch (e) { sendGatewayError(res, e); }
+  });
+
   const TEXT_ENDPOINTS = { '/api/ai/chat': 'chat', '/api/ai/content': 'content', '/api/ai/world': 'world', '/api/ai/plan': 'plan' };
   for (const [p, capability] of Object.entries(TEXT_ENDPOINTS)) {
     route(`POST ${p}`, async (req, res, { readJsonBody }) => {
