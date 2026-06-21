@@ -1,7 +1,7 @@
 // 星舰炉石 · 前端（出战编成 + 战斗界面 + 结算）。引擎在浏览器端运行，无服务器往返。
 import { newBattle, canPlay, playCard, attack, endTurn, heroPower } from './engine.js';
 import { CARDS, starterDeck, crewFromCast, ENEMIES, CREW_ROLES, CREW_TRAITS } from './cards.js';
-import { CAT, PALETTES, portrait, crack, drone, friendlyDrone, enemyShip, traitIcon, cardArt, starfield, shipSchematic, tagIcon, dialoguePortrait, nodeIcon, enemyThumb, flagSvg, FAC, TYPE_META, warshipSVG, planetSVG } from './assets.js';
+import { CAT, PALETTES, portrait, crack, drone, friendlyDrone, enemyShip, traitIcon, cardArt, starfield, shipSchematic, tagIcon, dialoguePortrait, nodeIcon, enemyThumb, flagSvg, FAC, TYPE_META, warshipSVG, planetSVG, shipTopSVG } from './assets.js';
 
 // 星图节点数据（取自 comp 星图.dc.html）
 const MAP_NODES = [
@@ -225,7 +225,7 @@ function renderDeploy() {
     </div>
 
     <div style="position:absolute;top:88px;left:392px;font-size:11px;letter-spacing:4px;color:#7a93a8">舰桥战位 · BRIDGE STATIONS</div>
-    <div style="position:absolute;top:150px;left:400px;width:1024px;height:300px;pointer-events:none;background-image:url(&quot;${Q(shipSchematic)}&quot;);background-size:contain;background-repeat:no-repeat;background-position:center;opacity:.9"></div>
+    <div style="position:absolute;top:150px;left:400px;width:1024px;height:300px;pointer-events:none;opacity:.92;animation:bgfloat 7s ease-in-out infinite">${shipTopSVG()}</div>
     <div style="position:absolute;top:150px;left:392px;width:1040px;height:300px">${slots}</div>
     <div style="position:absolute;top:474px;left:392px;width:1040px;height:30px;display:flex;align-items:center;gap:10px;padding-left:8px"><span style="font-size:11px;letter-spacing:3px;color:#5fe0ee;animation:bgblink 2.4s ease-in-out infinite">▸ 当前阵容生成的牌库 →</span><div style="flex:1;height:1px;background:linear-gradient(90deg,rgba(95,210,235,.5),transparent)"></div></div>
 
@@ -593,6 +593,11 @@ function renderMap() {
         <div style="position:absolute;left:980px;top:270px;font-size:14px;letter-spacing:8px;color:rgba(255,168,110,.5)">争 议 星 域</div>
         <div style="position:absolute;left:1900px;top:270px;font-size:14px;letter-spacing:8px;color:rgba(200,140,255,.5)">虚 空 回 廊</div>
         <div style="position:absolute;inset:0;background-image:url(&quot;${Q(STARS)}&quot;);opacity:.8;pointer-events:none"></div>
+        <div style="position:absolute;left:160px;top:140px;width:920px;height:760px;pointer-events:none;background:radial-gradient(ellipse 50% 50% at 42% 42%,rgba(95,180,238,.11),transparent 66%);animation:bgdrift 70s ease-in-out infinite"></div>
+        <div style="position:absolute;left:1280px;top:160px;width:1100px;height:900px;pointer-events:none;background:radial-gradient(ellipse 50% 50% at 58% 40%,rgba(192,123,255,.13),transparent 62%),radial-gradient(ellipse 40% 40% at 28% 72%,rgba(255,138,74,.08),transparent 60%);animation:bgdrift 92s ease-in-out infinite reverse"></div>
+        <div style="position:absolute;left:90px;top:980px;width:250px;height:250px;pointer-events:none;opacity:.6;filter:drop-shadow(0 0 42px rgba(120,180,255,.25))">${planetSVG({ scheme: 'ice' })}</div>
+        <div style="position:absolute;left:1000px;top:110px;width:200px;height:200px;pointer-events:none;opacity:.5;filter:drop-shadow(0 0 36px rgba(255,150,90,.22))">${planetSVG({ scheme: 'default' })}</div>
+        <div style="position:absolute;left:2200px;top:300px;width:320px;height:320px;pointer-events:none;opacity:.6;filter:drop-shadow(0 0 52px rgba(170,110,255,.3))">${planetSVG({ scheme: 'void' })}</div>
         <svg width="2600" height="1320" style="position:absolute;left:0;top:0;pointer-events:none">${routes}</svg>
         ${nodes}${flag}
       </div>

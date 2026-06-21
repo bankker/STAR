@@ -38,6 +38,25 @@ export function warshipSVG(opts = {}) {
       <rect x='198' y='134' width='14' height='10' fill='${hullMid}' stroke='${edge}' stroke-width='1'/><rect x='340' y='134' width='14' height='10' fill='${hullMid}' stroke='${edge}' stroke-width='1'/>
     </g></svg>`;
 }
+// 写实顶视战舰（出战编成舰桥底图）：金属舰体 + 发光脊柱 + 引擎尾焰 + 舱段节点闪烁
+export function shipTopSVG() {
+  const g = sid();
+  return `<svg viewBox='0 0 1024 300' width='100%' height='100%' preserveAspectRatio='xMidYMid meet' xmlns='http://www.w3.org/2000/svg'>
+    <defs>
+      <linearGradient id='${g}h' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#14283a'/><stop offset='.5' stop-color='#2f5878'/><stop offset='1' stop-color='#12243a'/></linearGradient>
+      <radialGradient id='${g}e'><stop offset='0' stop-color='#cff4ff'/><stop offset='.4' stop-color='#5fd2eb'/><stop offset='1' stop-color='#5fd2eb' stop-opacity='0'/></radialGradient>
+      <linearGradient id='${g}s' x1='0' x2='1'><stop offset='0' stop-color='#5fe0ee' stop-opacity='0'/><stop offset='.5' stop-color='#bff4ff'/><stop offset='1' stop-color='#5fe0ee' stop-opacity='0'/></linearGradient>
+    </defs>
+    <ellipse cx='72' cy='150' rx='92' ry='42' fill='url(#${g}e)'><animate attributeName='opacity' values='.55;1;.55' dur='2.1s' repeatCount='indefinite'/><animate attributeName='rx' values='80;100;80' dur='2.1s' repeatCount='indefinite'/></ellipse>
+    <path d='M260 96 L380 68 L424 96 Z' fill='#1a3346' stroke='#3f7d96' stroke-width='1'/><path d='M260 204 L380 232 L424 204 Z' fill='#1a3346' stroke='#3f7d96' stroke-width='1'/>
+    <path d='M122 150 L300 94 L762 120 L932 150 L762 180 L300 206 Z' fill='url(#${g}h)' stroke='#5fd2eb' stroke-width='2'/>
+    <path d='M300 94 L762 120 L932 150 L762 150 L300 150 Z' fill='#2a4a64' opacity='.45'/>
+    <rect x='150' y='147' width='742' height='6' rx='3' fill='url(#${g}s)'><animate attributeName='opacity' values='.5;1;.5' dur='2.4s' repeatCount='indefinite'/></rect>
+    <g stroke='#0c1c2a' stroke-width='1.5' opacity='.5'><path d='M340 108 L340 192 M480 114 L480 186 M620 118 L620 182 M762 124 L762 176'/></g>
+    <g fill='#5fe0ee'><circle cx='430' cy='150' r='3'><animate attributeName='opacity' values='1;.3;1' dur='1.6s' repeatCount='indefinite'/></circle><circle cx='560' cy='150' r='3'><animate attributeName='opacity' values='.3;1;.3' dur='1.9s' repeatCount='indefinite'/></circle><circle cx='690' cy='150' r='3'><animate attributeName='opacity' values='1;.3;1' dur='2.1s' repeatCount='indefinite'/></circle></g>
+    <circle cx='908' cy='150' r='4' fill='#d6f6ff'><animate attributeName='opacity' values='.5;1;.5' dur='1.3s' repeatCount='indefinite'/></circle>
+  </svg>`;
+}
 // 写实行星：大气辉光 + 表面渐变 + 自转云带 + 晨昏线阴影
 export function planetSVG(opts = {}) {
   const g = sid();
