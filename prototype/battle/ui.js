@@ -709,7 +709,26 @@ function flashBeam(color) {
   clearTimeout(G._beamT);
   G._beamT = setTimeout(() => { G.beam = null; if (G.screen === 'battle') render(); }, 720);
 }
+// 船员实时反应台词（§7）：确定性事件触发，喂「共患难 → 羁绊」
+const REACTIONS = {
+  injured: (n) => rndPick([`「${n} 退到维修舱！撑住——会战结束我们就去接你。」`, `「${n} 中弹了！…可恶，掩护她！」`, `「别担心 ${n}，这点伤不算什么，我们扛过去。」`]),
+  bighit: () => rndPick(['「舰体受创——稳住阵脚，别乱！」', '「护盾告急！全员各就各位！」', '「这一下够呛……但我们还站着。」']),
+  kill: () => rndPick(['「目标击破！漂亮！」', '「少一个了，保持节奏！」']),
+  win: () => rndPick(['「干得漂亮，舰长！」', '「我们做到了——和你并肩，什么硬仗都不怕。」']),
+};
+function reactionFor(prev, next) {
+  if (!prev || !next.board) return null;
+  const wasInjured = new Set(prev.board.filter((u) => u.injured).map((u) => u.instanceId));
+  const hurt = next.board.find((u) => u.injured && u.type === 'crew' && !wasInjured.has(u.instanceId));
+  if (next.status === 'won') return REACTIONS.win();
+  if (hurt) return REACTIONS.injured(hurt.name);
+  if (prev.ship.hp - next.ship.hp >= 5) return REACTIONS.bighit();
+  if (prev.enemy.board.length > next.enemy.board.length && next.status === 'active') return REACTIONS.kill();
+  return null;
+}
 function apply(next) {
+  const line = reactionFor(G.battle, next);
+  if (line) G.log = line;
   G.battle = next; G.pending = null;
   if (next.status === 'won' || next.status === 'lost') { G.result = next.status; G.screen = 'result'; }
   render();
@@ -765,7 +784,7 @@ function deploy() {
   const cast = G.squad.length ? G.squad : G.artists.slice(0, 2);
   if (!cast.length) return toast('还没有艺人可作为船员');
   G.battle = newBattle({ cards: runCards(), deck: starterDeck(), crew: crewFromCast(cast.slice(0, G.maxSlots)), enemy: G.pendingEnemy || ENEMIES.海盗前锋, rng: Math.random, maxSlots: G.maxSlots, terrain: G.pendingTerrain || null, relics: [...(G.run?.relics || []), ...equippedRelics()] });
-  G.screen = 'battle'; G.pending = null; G.result = null;
+  G.screen = 'battle'; G.pending = null; G.result = null; G.log = '舰长，下达指令。';
   render();
 }
 
