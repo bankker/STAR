@@ -3,6 +3,8 @@
 
 let _uid = 0;
 const uid = (p) => `${p}_${++_uid}`;
+// 单局遗物加成汇总（§8）：把同类遗物的 amount 相加
+const relicSum = (s, kind) => (s.relics || []).reduce((a, r) => a + (r.kind === kind ? (r.amount || 0) : 0), 0);
 
 function instantiate(cardId, cards) {
   const def = cards[cardId] || { id: cardId, name: cardId, cost: 0, type: 'spell' };
@@ -26,9 +28,9 @@ export function startTurn(state) {
   s.turn += 1;
   s.active = 'player';
   s.energy.max = Math.min(10, s.energy.max + 1);
-  s.energy.current = Math.min(10, s.energy.max + (s.terrain === 'gravity' ? 1 : 0));   // 引力井：+1 可用能量
+  s.energy.current = Math.min(10, s.energy.max + (s.terrain === 'gravity' ? 1 : 0) + (s.turn === 1 ? relicSum(s, 'startEnergy') : 0));   // 引力井 +1 / 遗物起始能量
   s.heroPowerUsed = false;
-  drawOne(s);
+  for (let i = 0, n = 1 + relicSum(s, 'extraDraw'); i < n; i++) drawOne(s);   // 遗物：每回合多摸
   applyAuras(s);
   s.board.forEach((u) => { if (u.onField) u.canAct = true; });
   s.intent = computeIntent(s);
@@ -67,9 +69,10 @@ function applyEffect(s, eff, opts = {}) {
     return;
   }
   if (eff.kind === 'damage') {
-    if (eff.target === 'enemyFace') dealDamage(s.enemy, eff.amount);
-    else if (eff.target === 'allEnemyUnits') s.enemy.board.forEach((u) => dealDamage(u, eff.amount));
-    else if (eff.target === 'enemyUnit') { const u = s.enemy.board.find((x) => x.instanceId === opts.targetId); if (u) dealDamage(u, eff.amount); }
+    const dmg = eff.amount + relicSum(s, 'atkDmg');   // 遗物：伤害牌加成
+    if (eff.target === 'enemyFace') dealDamage(s.enemy, dmg);
+    else if (eff.target === 'allEnemyUnits') s.enemy.board.forEach((u) => dealDamage(u, dmg));
+    else if (eff.target === 'enemyUnit') { const u = s.enemy.board.find((x) => x.instanceId === opts.targetId); if (u) dealDamage(u, dmg); }
   }
 }
 
@@ -227,9 +230,12 @@ export function newBattle(cfg) {
     atk: m.atk ?? 0, hp: m.hp ?? 1, maxHp: m.hp ?? 1,
     keywords: [...(m.keywords || [])], onField: true, canAct: true,
   }));
+  const relics = cfg.relics || [];
+  const startArmor = relics.reduce((a, r) => a + (r.kind === 'startArmor' ? (r.amount || 0) : 0), 0);
   const s = {
     turn: 0, active: 'player', status: 'active',
-    ship: { hp: cfg.ship?.hp ?? 30, maxHp: cfg.ship?.maxHp ?? cfg.ship?.hp ?? 30, armor: 0 },
+    relics,
+    ship: { hp: cfg.ship?.hp ?? 30, maxHp: cfg.ship?.maxHp ?? cfg.ship?.hp ?? 30, armor: startArmor },
     energy: { current: 0, max: 0 },
     cards, deck, hand, board,
     enemy: {

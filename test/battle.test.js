@@ -31,6 +31,7 @@ const baseCfg = (o = {}) => ({
   rng: o.rng || seqRng([0.5]),
   maxSlots: o.maxSlots,
   terrain: o.terrain,
+  relics: o.relics,
 });
 
 test('newBattle: 舰体30/能量1·1/核心船员在场/起手手牌/回合1/active', () => {
@@ -251,6 +252,28 @@ test('法术 定点: 指定敌方单位造成伤害', () => {
   const foe = s.enemy.board[0].instanceId;
   const s2 = playCard(s, s.hand.find((c) => c.cardId === '定点').instanceId, { targetId: foe });
   assert.equal(s2.enemy.board.length, 0);                         // 4hp 受 4 → 死
+});
+
+test('遗物 弹头涂层(§8)：所有伤害牌 +1', () => {
+  const s = newBattle(baseCfg({ deck: ['脉冲', ...deckOf(19, '齐射')], crew: [], enemy: enemyOf(20), relics: [{ kind: 'atkDmg', amount: 1 }] }));
+  const s2 = playCard(s, s.hand.find((c) => c.cardId === '脉冲').instanceId);   // 脉冲3 + 遗物1 = 4
+  assert.equal(s2.enemy.hp, 16);
+});
+
+test('遗物 过载电容(§8)：回合1起始能量 +1', () => {
+  const s = newBattle(baseCfg({ crew: [], relics: [{ kind: 'startEnergy', amount: 1 }] }));
+  assert.equal(s.energy.current, 2);                // 回合1 max1 + 遗物1
+  assert.equal(s.energy.max, 1);
+});
+
+test('遗物 自动装填(§8)：每回合多摸 1 张', () => {
+  const s = newBattle(baseCfg({ deck: deckOf(20, '齐射'), crew: [], relics: [{ kind: 'extraDraw', amount: 1 }] }));
+  assert.equal(s.hand.length, 6);                   // 起手4 + 回合1摸(1+1)
+});
+
+test('遗物 紧固装甲(§8)：开局舰体 +3 护甲', () => {
+  const s = newBattle(baseCfg({ crew: [], relics: [{ kind: 'startArmor', amount: 3 }] }));
+  assert.equal(s.ship.armor, 3);
 });
 
 test('地形 星云(§4.2)：护甲/护盾效果失效', () => {

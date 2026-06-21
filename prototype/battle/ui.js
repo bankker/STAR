@@ -39,6 +39,48 @@ function nodeEnemyCfg(node) {
   return { name: e.name, hp: e.hp, maxHp: e.hp, armor: e.armor || 0, atk: a.atk, minions: a.minions() };
 }
 
+// ── 单局遗物 + 战后三选一 + 卡牌升级（§8）──
+const RELICS = [
+  { id: 'cap', name: '过载电容', kind: 'startEnergy', amount: 1, desc: '每场首回合 +1 能量' },
+  { id: 'autoload', name: '自动装填', kind: 'extraDraw', amount: 1, desc: '每回合多摸 1 张牌' },
+  { id: 'warhead', name: '弹头涂层', kind: 'atkDmg', amount: 1, desc: '所有伤害牌 +1 伤害' },
+  { id: 'plating', name: '紧固装甲', kind: 'startArmor', amount: 3, desc: '开局舰体 +3 护甲' },
+  { id: 'reactor', name: '副反应堆', kind: 'startEnergy', amount: 1, desc: '每场首回合 +1 能量' },
+];
+const UPGRADABLE = ['脉冲炮', '主炮齐射', '过载脉冲', '定点打击', '导弹群射'];
+const rndPick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+// 整趟牌库覆盖：升级过的牌效果 +1
+function runCards() {
+  const c = structuredClone(CARDS);
+  for (const id of (G.run?.upgrades || [])) {
+    if (c[id]?.effect && typeof c[id].effect.amount === 'number') { c[id].effect.amount += 1; c[id].name = c[id].name.replace(/\++$/, '') + '+'; c[id].text = (c[id].text || '') + ' · 已升级'; }
+  }
+  return c;
+}
+function genReward() {
+  const relic = rndPick(RELICS), upId = rndPick(UPGRADABLE);
+  G.rewardOpts = [
+    { type: 'relic', relic, label: '遗物 · ' + relic.name, desc: relic.desc, color: '#c07bff' },
+    { type: 'upgrade', cardId: upId, label: '升级 ·「' + (CARDS[upId]?.name || upId) + '」', desc: '该牌效果 +1（整趟生效）', color: '#5fe0ee' },
+    { type: 'credits', amount: 120, label: '信用点 +120', desc: '补给节点消费', color: '#ffd27a' },
+  ];
+}
+function applyReward(idx) {
+  const o = G.rewardOpts?.[idx]; if (!o) return;
+  if (o.type === 'relic') G.run.relics.push({ id: o.relic.id, name: o.relic.name, kind: o.relic.kind, amount: o.relic.amount, desc: o.relic.desc });
+  else if (o.type === 'upgrade') G.run.upgrades.push(o.cardId);
+  else if (o.type === 'credits') G.run.credits += o.amount;
+  toast(o.label + ' 已获得');
+  returnFromBattle();
+}
+function renderReward() {
+  const opts = (G.rewardOpts || []).map((o, i) => `<button data-act="reward-pick" data-idx="${i}" style="width:300px;min-height:170px;padding:22px 18px;cursor:pointer;background:linear-gradient(180deg,rgba(16,30,48,.95),rgba(8,16,26,.98));border:2px solid ${o.color};clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);box-shadow:0 0 22px ${o.color}44;display:flex;flex-direction:column;align-items:center;gap:14px;transition:transform .14s"><div style="font-family:Oxanium;font-weight:800;font-size:18px;letter-spacing:1px;color:${o.color};text-align:center">${esc(o.label)}</div><div style="font-size:13px;color:#aebfce;line-height:1.6;text-align:center">${esc(o.desc)}</div></button>`).join('');
+  return `<div class="bg-fit"><div class="bg-stage" id="bg-stage" style="background:radial-gradient(ellipse 90% 70% at 50% 30%,#0a1830,#05080f 80%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:34px">
+    <div style="text-align:center"><div style="font-family:Oxanium;font-weight:800;font-size:34px;letter-spacing:4px;color:#5fe6ff;text-shadow:0 0 30px rgba(95,230,255,.4)">会战胜利 · 战利品</div><div style="font-size:13px;letter-spacing:3px;color:#7a93a8;margin-top:8px">三选一 · 强化你这一趟</div></div>
+    <div style="display:flex;gap:24px">${opts}</div>
+  </div></div>`;
+}
+
 const CATKEY = { 攻击: 'attack', 防御: 'defense', 维护: 'maintenance', 调度: 'tactics' };
 const TRAIT = { 参谋长: 'cross', 工程主管: 'shield', 舰队长: 'bolt', 情报官: 'gear' };
 const STATION = { 参谋长: '维生舱', 舰队长: '主炮塔', 工程主管: '护盾环', 情报官: '导航席' };
@@ -69,7 +111,7 @@ function toast(msg) {
 async function openGame() {
   const v = view();
   v.hidden = false; v.classList.add('bg-root');
-  G.run = { nodes: structuredClone(MAP_NODES), selected: 'n4', flagAt: 'n4', pan: { x: -40, y: -70 }, current: null };
+  G.run = { nodes: structuredClone(MAP_NODES), selected: 'n4', flagAt: 'n4', pan: { x: -40, y: -70 }, current: null, relics: [], credits: 0, upgrades: [] };
   G.maxSlots = 4;   // 核心仓位（基础 4，§3.2 永久升级可达 6）
   G.screen = 'map'; G.squad = []; G.detail = null; G.battle = null; G.pending = null; G.result = null; G.pendingEnemy = null;
   render();
@@ -88,6 +130,7 @@ function render() {
   if (G.screen === 'battle') { v.innerHTML = renderBattle() + '<div class="bg-toast"></div>'; fit(); return; }
   if (G.screen === 'deploy') { v.innerHTML = renderDeploy() + '<div class="bg-toast"></div>'; fit(); return; }
   if (G.screen === 'dialogue') { v.innerHTML = renderDialogue() + '<div class="bg-toast"></div>'; fit(); return; }
+  if (G.screen === 'reward') { v.innerHTML = renderReward() + '<div class="bg-toast"></div>'; fit(); return; }
   v.innerHTML = `<div class="bg-wrap">${renderHud()}${renderResult()}</div><div class="bg-toast"></div>`;
 }
 function fit() {
@@ -391,7 +434,7 @@ function unlockAdjacent() {
 function clearNode(id) { const n = mapById(id); if (!n) return; n.state = 'cleared'; G.run.flagAt = id; unlockAdjacent(); }
 function nodeGo(id) {
   const n = mapById(id); if (!n || n.state === 'locked') return;
-  if (n.type === 'supply') { toast('已补给 · 舰体修复、燃料补充'); clearNode(id); return render(); }
+  if (n.type === 'supply') { G.run.credits += 60; toast('已补给 · 信用点 +60'); clearNode(id); return render(); }
   if (n.type === 'event') { toast('事件：' + (n.rewards?.[0]?.t || '已处理')); clearNode(id); return render(); }
   G.pendingEnemy = nodeEnemyCfg(n); G.pendingTerrain = n.terrain || null; G.run.current = id; G.screen = 'deploy'; render();
 }
@@ -468,7 +511,8 @@ function renderMap() {
       </div>
       <div style="display:flex;align-items:center;gap:12px;pointer-events:auto;font-size:12px;letter-spacing:1px;color:#9fb6c6">
         <div style="display:flex;align-items:center;gap:8px;padding:7px 14px;background:rgba(8,22,34,.85);border:1px solid rgba(79,214,230,.3);border-radius:3px"><span style="width:7px;height:7px;background:#5fe0ee;transform:rotate(45deg)"></span>跃迁燃料 <span style="font-family:Oxanium;font-weight:800;color:#7fe6ff">8</span>/10</div>
-        <div style="display:flex;align-items:center;gap:8px;padding:7px 14px;background:rgba(8,22,34,.85);border:1px solid rgba(255,176,32,.3);border-radius:3px"><span style="width:7px;height:7px;background:#ffd27a;transform:rotate(45deg)"></span>信用点 <span style="font-family:Oxanium;font-weight:800;color:#ffd27a">1,240</span></div>
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 14px;background:rgba(8,22,34,.85);border:1px solid rgba(255,176,32,.3);border-radius:3px"><span style="width:7px;height:7px;background:#ffd27a;transform:rotate(45deg)"></span>信用点 <span style="font-family:Oxanium;font-weight:800;color:#ffd27a">${(r.credits || 0).toLocaleString()}</span></div>
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 14px;background:rgba(8,22,34,.85);border:1px solid rgba(192,123,255,.3);border-radius:3px"><span style="width:7px;height:7px;background:#c07bff;transform:rotate(45deg)"></span>遗物 <span style="font-family:Oxanium;font-weight:800;color:#c07bff">${(r.relics || []).length}</span></div>
       </div>
     </div>
     <div style="position:absolute;bottom:24px;left:28px;display:flex;gap:16px;padding:10px 18px;background:rgba(8,16,28,.82);border:1px solid rgba(79,214,230,.22);border-radius:8px;z-index:35">${legend}<div style="width:1px;background:rgba(79,214,230,.2)"></div><span style="font-size:11px;letter-spacing:1px;color:#6a8090">拖动平移星图</span></div>
@@ -591,7 +635,8 @@ function onClick(e) {
   if (act === 'node') { if (!G._moved) { G.run.selected = id; render(); } return; }
   if (act === 'node-go') return nodeGo(id);
   if (act === 'deploy') return deploy();
-  if (act === 'deploy-again') return returnFromBattle();
+  if (act === 'deploy-again') { if (G.run?.current && G.result === 'won') { genReward(); G.screen = 'reward'; return render(); } return returnFromBattle(); }
+  if (act === 'reward-pick') return applyReward(+el.dataset.idx);
   if (act === 'talk') { const a = G.artists.find((x) => x.id === id); if (a) enterDialogue(a); return; }
   if (act === 'close-dialogue') return exitDialogue();
   if (act === 'dlg-advance') return advanceDialogue();
@@ -617,7 +662,7 @@ function deploy() {
   if (G.squad.length === 0) return toast('至少选 1 名核心船员');
   const cast = G.squad.length ? G.squad : G.artists.slice(0, 2);
   if (!cast.length) return toast('还没有艺人可作为船员');
-  G.battle = newBattle({ cards: CARDS, deck: starterDeck(), crew: crewFromCast(cast.slice(0, G.maxSlots)), enemy: G.pendingEnemy || ENEMIES.海盗前锋, rng: Math.random, maxSlots: G.maxSlots, terrain: G.pendingTerrain || null });
+  G.battle = newBattle({ cards: runCards(), deck: starterDeck(), crew: crewFromCast(cast.slice(0, G.maxSlots)), enemy: G.pendingEnemy || ENEMIES.海盗前锋, rng: Math.random, maxSlots: G.maxSlots, terrain: G.pendingTerrain || null, relics: G.run?.relics || [] });
   G.screen = 'battle'; G.pending = null; G.result = null;
   render();
 }
