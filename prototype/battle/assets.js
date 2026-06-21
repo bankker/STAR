@@ -57,6 +57,12 @@ export const CAT = {
   tactics: { label: '战术', color: '#ffcc4d', glow: 'rgba(255,204,77,.5)' },
 };
 
+// 舰桥结构示意图（出战编成中央，取自 comp）
+export const shipSchematic = (() => {
+  const e = '#5fd2eb', e2 = 'rgba(95,210,235,.4)', hull = '#16273a', hullL = '#22384e';
+  return uri(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 300'><path d='M60 150 L150 110 L820 96 L980 150 L820 204 L150 190 Z' fill='${hull}' stroke='${e}' stroke-width='2'/><path d='M150 110 L820 96 L900 124 L150 138 Z' fill='${hullL}' opacity='.6'/><path d='M60 150 L150 110 L150 190 Z' fill='${hull}' stroke='${e}' stroke-width='2'/><g stroke='${e2}' stroke-width='1.5' fill='none'><path d='M150 138 L900 124 M150 162 L900 176'/></g><g stroke='${e2}' stroke-width='1' fill='none' opacity='.7'><path d='M210 138 L210 162 M338 136 L338 164 M466 134 L466 166 M594 132 L594 168 M722 130 L722 170'/></g><circle cx='890' cy='150' r='10' fill='none' stroke='${e}' stroke-width='2'/><circle cx='890' cy='150' r='3' fill='${e}'/><path d='M70 130 L120 150 L70 170' fill='none' stroke='${e}' stroke-width='2' opacity='.6'/><g fill='${e}' opacity='.5'><circle cx='250' cy='150' r='2.5'/><circle cx='450' cy='150' r='2.5'/><circle cx='650' cy='150' r='2.5'/><circle cx='820' cy='150' r='2.5'/></g></svg>`);
+})();
+
 // 船员立绘调色板（轮换分派）
 export const PALETTES = [
   { skin: '#f3c9a0', skinL: '#ffe6c8', skinD: '#cf9c6e', hair: '#ff7a3c', hair2: '#c44e1f', uniform: '#2e4b6b', uniformL: '#3f6890', accent: '#4fd6e6', eye: '#23303f' },

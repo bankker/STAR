@@ -20,6 +20,8 @@
 #storyView.bg-root .bg-fit { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 #storyView.bg-root .bg-stage { position: relative; width: 1920px; height: 1080px; flex: none; transform-origin: center center; background: radial-gradient(ellipse 90% 70% at 50% 40%, #0a1830, #05080f 80%); overflow: hidden; font-family: var(--disp); }
 @keyframes bgfloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes floatY { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes slotGlow { 0%, 100% { box-shadow: inset 0 0 18px rgba(60,160,200,.12), 0 0 0 1px rgba(95,210,235,.4), 0 0 20px rgba(95,210,235,.2); } 50% { box-shadow: inset 0 0 18px rgba(60,160,200,.12), 0 0 0 1px rgba(95,210,235,.7), 0 0 30px rgba(95,210,235,.4); } }
 @keyframes bgblink { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
 @keyframes readyglow { 0%, 100% { box-shadow: inset 0 0 28px rgba(60,200,235,.16), 0 10px 28px rgba(0,0,0,.55), 0 0 0 1px rgba(79,214,230,.6), 0 0 22px rgba(79,214,230,.3); } 50% { box-shadow: inset 0 0 28px rgba(60,200,235,.16), 0 10px 28px rgba(0,0,0,.55), 0 0 0 1px rgba(79,214,230,.9), 0 0 34px rgba(79,214,230,.55); } }
 
