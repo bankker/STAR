@@ -234,6 +234,43 @@ function slotHex(i) {
     <div style="margin-top:9px;text-align:center"><div style="font-size:12px;font-weight:700;letter-spacing:1px;color:${pr ? pr.accent : '#6a8090'}">${esc(station)}</div><div style="font-size:12px;color:#cfe0ee;margin-top:2px;min-height:14px">${pr ? esc(pr.name) : '—'}</div></div>
   </div>`;
 }
+// 旗舰展示区（出战编成中央）：侧视实拍舰 + 名称/舰级 + 6 处分区回调 + 状态条
+function flagshipShowcase() {
+  const flagUrl = G.ships && G.ships[ALLY_FLAGSHIP_ID];
+  const ship = flagUrl
+    ? `<div style="position:absolute;inset:0;background-image:url('${esc(flagUrl)}');background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(0 0 28px rgba(95,200,240,.42))"></div>`
+    : `<div style="position:absolute;inset:0;filter:drop-shadow(0 0 28px rgba(95,200,240,.42))">${warshipSVG({ ally: true })}</div>`;
+  const co = (x, dir, title, sub) => {
+    const dotY = dir === 'up' ? 255 : 366;
+    const labelTop = dir === 'up' ? 178 : 412;
+    const lineTop = dir === 'up' ? 206 : 366;
+    const lineH = dir === 'up' ? dotY - 206 : 412 - 366;
+    return `<div style="position:absolute;left:${x}px;top:${lineTop}px;width:1px;height:${lineH}px;background:linear-gradient(180deg,rgba(95,210,235,.55),rgba(95,210,235,.15));pointer-events:none"></div>
+      <div style="position:absolute;left:${x - 3}px;top:${dotY - 3}px;width:7px;height:7px;border-radius:50%;background:#9fe9ff;box-shadow:0 0 9px #7fe6ff;pointer-events:none"></div>
+      <div style="position:absolute;left:${x}px;top:${labelTop}px;transform:translateX(-50%);text-align:center;white-space:nowrap;pointer-events:none"><div style="font-size:13px;font-weight:700;letter-spacing:1px;color:#d3ecf6">◇ ${title}</div><div style="font-size:10px;color:#6f93a8;margin-top:2px">${sub}</div></div>`;
+  };
+  const stats = [['舰长', '1 200m'], ['舰员', '3 200'], ['能量', '100%'], ['护盾', '100%'], ['结构', '100%']];
+  return `
+    <div style="position:absolute;top:88px;left:392px;font-size:11px;letter-spacing:4px;color:#7a93a8">旗舰信息 · FLAGSHIP</div>
+    <div style="position:absolute;top:104px;left:392px;display:flex;align-items:flex-end;gap:14px">
+      <div style="font-family:Oxanium;font-weight:800;font-size:34px;letter-spacing:2px;color:#eaf6ff;text-shadow:0 0 18px rgba(95,200,240,.45);line-height:1">拍穹者号</div>
+      <div style="font-size:11px;letter-spacing:2px;color:#5a93ad;padding-bottom:5px">H.C-01 · HARVESTER CLASS</div>
+    </div>
+    <div style="position:absolute;top:150px;left:392px;font-size:12px;letter-spacing:1px;color:#9fc4d6;padding:3px 12px;border:1px solid rgba(95,210,235,.3);border-radius:3px;background:rgba(10,24,36,.5)">战略战列巡洋舰 · 旗舰级</div>
+
+    <div style="position:absolute;top:230px;left:480px;width:880px;height:160px;pointer-events:none;background:radial-gradient(ellipse 58% 66% at 50% 50%,rgba(60,140,200,.18),transparent 70%)"></div>
+    <div style="position:absolute;top:212px;left:440px;width:960px;height:198px;pointer-events:none;animation:bgfloat 7s ease-in-out infinite">${ship}</div>
+    ${co(640, 'up', '维护舱', '自动化维修与无人机库')}
+    ${co(905, 'up', '护盾环', '多层能量护盾发生器')}
+    ${co(1165, 'up', '主炮塔', '火力覆盖全船前方扇形区域')}
+    ${co(620, 'down', '导航阵列', '深空探测与跃迁计算核心')}
+    ${co(890, 'down', '维修舱', '结构维护与能量分配')}
+    ${co(1150, 'down', '引擎组', '四联矢量推进引擎')}
+
+    <div style="position:absolute;top:452px;left:392px;width:1040px;height:48px;display:flex;align-items:center;background:linear-gradient(180deg,rgba(12,28,42,.7),rgba(8,16,28,.7));border:1px solid rgba(79,214,230,.22);border-radius:6px">
+      ${stats.map(([k, v], i) => `<div style="flex:1;display:flex;flex-direction:column;align-items:center;${i ? 'border-left:1px solid rgba(79,214,230,.14)' : ''}"><span style="font-size:10px;letter-spacing:2px;color:#6f93a8">${k}</span><span style="font-family:Oxanium;font-weight:700;font-size:15px;color:#d6f3ff;margin-top:1px">${v}</span></div>`).join('')}
+    </div>`;
+}
 function renderDeploy() {
   STARS = STARS || starfield();
   const filled = G.squad.length;
@@ -271,10 +308,7 @@ function renderDeploy() {
       <div style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px">${roster}</div>
     </div>
 
-    <div style="position:absolute;top:88px;left:392px;font-size:11px;letter-spacing:4px;color:#7a93a8">舰桥战位 · BRIDGE STATIONS</div>
-    <div style="position:absolute;top:150px;left:400px;width:1024px;height:300px;pointer-events:none;opacity:.92;animation:bgfloat 7s ease-in-out infinite">${shipTopSVG()}</div>
-    <div style="position:absolute;top:150px;left:392px;width:1040px;height:300px">${slots}</div>
-    <div style="position:absolute;top:474px;left:392px;width:1040px;height:30px;display:flex;align-items:center;gap:10px;padding-left:8px"><span style="font-size:11px;letter-spacing:3px;color:#5fe0ee;animation:bgblink 2.4s ease-in-out infinite">▸ 当前阵容生成的牌库 →</span><div style="flex:1;height:1px;background:linear-gradient(90deg,rgba(95,210,235,.5),transparent)"></div></div>
+    ${flagshipShowcase()}
 
     <div style="position:absolute;top:524px;left:392px;width:1040px;bottom:28px;background:linear-gradient(160deg,rgba(12,28,42,.72),rgba(8,16,28,.8));border:1px solid rgba(79,214,230,.26);clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);display:flex;overflow:hidden">
       ${d ? `<div style="position:relative;width:300px;flex:none;border-right:1px solid rgba(79,214,230,.2);overflow:hidden;background:radial-gradient(ellipse 80% 70% at 50% 30%,${d.accent}26,rgba(8,16,26,.6))"><div style="position:absolute;inset:0;${dPort}"></div><div style="position:absolute;left:0;right:0;bottom:0;padding:14px 18px;background:linear-gradient(180deg,transparent,rgba(6,14,24,.95))"><div style="font-weight:800;font-size:22px;color:#fff;letter-spacing:1px">${esc(d.name)}</div><div style="font-size:12px;letter-spacing:2px;color:${d.accent};margin-top:2px">${esc(d.role)}</div><button data-act="talk" data-id="${esc(selArtist.id)}" style="margin-top:10px;padding:8px 16px;font-size:13px;font-weight:700;letter-spacing:1px;color:#06202a;background:linear-gradient(180deg,#ff9ec2,#ff6fae);border:0;border-radius:4px;cursor:pointer;box-shadow:0 0 16px rgba(255,111,174,.5)">✦ 与 ${esc(d.name)} 交流</button></div></div>
