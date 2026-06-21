@@ -30,6 +30,7 @@ const baseCfg = (o = {}) => ({
   enemy: o.enemy || enemyOf(20),
   rng: o.rng || seqRng([0.5]),
   maxSlots: o.maxSlots,
+  terrain: o.terrain,
 });
 
 test('newBattle: 舰体30/能量1·1/核心船员在场/起手手牌/回合1/active', () => {
@@ -250,6 +251,27 @@ test('法术 定点: 指定敌方单位造成伤害', () => {
   const foe = s.enemy.board[0].instanceId;
   const s2 = playCard(s, s.hand.find((c) => c.cardId === '定点').instanceId, { targetId: foe });
   assert.equal(s2.enemy.board.length, 0);                         // 4hp 受 4 → 死
+});
+
+test('地形 星云(§4.2)：护甲/护盾效果失效', () => {
+  let s = newBattle(baseCfg({ deck: ['护盾', ...deckOf(19, '齐射')], crew: [], terrain: 'nebula' }));
+  s = startTurnTo(s, 2);
+  const s2 = playCard(s, s.hand.find((c) => c.cardId === '护盾').instanceId);
+  assert.equal(s2.ship.armor, 0);                   // 星云下护盾无效
+});
+
+test('地形 引力井(§4.2)：每回合 +1 可用能量（max 不变）', () => {
+  const s = newBattle(baseCfg({ crew: [], terrain: 'gravity' }));
+  assert.equal(s.energy.max, 1);
+  assert.equal(s.energy.current, 2);                // 回合1：max1 + 引力1
+});
+
+test('地形 恒星风(§4.2)：敌方攻击随机目标（rng 决定，非最低血）', () => {
+  const mk = () => newBattle(baseCfg({ crew: [crew('A', { hp: 9 }), crew('B', { hp: 9 })], enemy: enemyOf(20, { atk: 3, minions: [] }), terrain: 'solarwind' }));
+  const low = endTurn(mk(), () => 0.0);             // 随机→第 1 个
+  const high = endTurn(mk(), () => 0.99);           // 随机→最后一个
+  const hp = (st, id) => st.board.find((u) => u.id === id).hp;
+  assert.notDeepEqual([hp(low, 'A'), hp(low, 'B')], [hp(high, 'A'), hp(high, 'B')]);
 });
 
 test('意图预告(§9.1)：newBattle 后 enemy.intent 反映下回合总伤害', () => {

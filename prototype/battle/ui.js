@@ -6,23 +6,37 @@ import { CAT, PALETTES, portrait, crack, drone, friendlyDrone, enemyShip, traitI
 // 星图节点数据（取自 comp 星图.dc.html）
 const MAP_NODES = [
   { id: 'n1', x: 200, y: 650, name: '自由港', type: 'supply', fac: 'free', state: 'cleared', region: '自由港湾', desc: '舰队的补给前哨，安全的避风港。可在此修复舰体、补充燃料与采购卡牌。', rewards: [{ t: '修复舰体 / 补给燃料', tag: '服务', c: '#5fe0ee', ic: 'supply' }, { t: '卡牌商店', tag: '商店', c: '#ffcc4d', ic: 'event' }] },
-  { id: 'n2', x: 480, y: 500, name: '哨戒星', type: 'combat', fac: 'neutral', state: 'cleared', region: '自由港湾', desc: '外围哨戒空域，零星的废弃无人机仍在游荡。', enemy: { name: '废弃无人机群', hp: 18, armor: 0, intent: '集火攻击' }, rewards: [{ t: '信用点 ×80', tag: '+80', c: '#ffd27a', ic: 'supply' }] },
+  { id: 'n2', x: 480, y: 500, name: '哨戒星', type: 'combat', archetype: 'swarm', fac: 'neutral', state: 'cleared', region: '自由港湾', desc: '外围哨戒空域，零星的废弃无人机仍在游荡。', enemy: { name: '废弃无人机群', hp: 18, armor: 0, intent: '集火攻击' }, rewards: [{ t: '信用点 ×80', tag: '+80', c: '#ffd27a', ic: 'supply' }] },
   { id: 'n3', x: 480, y: 800, name: '残骸带', type: 'event', fac: 'neutral', state: 'cleared', region: '自由港湾', desc: '一片古老的战场残骸，漂浮着待打捞的舱段。', rewards: [{ t: '随机零件 / 剧情线索', tag: '事件', c: '#c07bff', ic: 'event' }] },
   { id: 'n4', x: 820, y: 640, name: '赤隼巢穴', type: 'elite', fac: 'raider', state: 'available', region: '争议星域', desc: '掠夺者头目「赤隼」盘踞的小行星基地。清剿后将打通前往双子星域的航路。', enemy: { name: '掠夺者 · 赤隼', hp: 34, armor: 2, intent: '召唤僚机' }, rewards: [{ t: '新卡「破甲弹」', tag: '攻击', c: '#ff4d4d', ic: 'elite' }, { t: '信用点 ×120', tag: '+120', c: '#ffd27a', ic: 'supply' }] },
-  { id: 'n5', x: 1180, y: 440, name: '双子星', type: 'combat', fac: 'raider', state: 'locked', region: '争议星域', desc: '两颗互绕的恒星之间，掠夺者的巡逻舰队往来频繁。', enemy: { name: '掠夺者巡逻队', hp: 28, armor: 1, intent: '舷侧齐射' }, rewards: [{ t: '信用点 ×140', tag: '+140', c: '#ffd27a', ic: 'supply' }] },
+  { id: 'n5', x: 1180, y: 440, name: '双子星', type: 'combat', archetype: 'rush', terrain: 'solarwind', fac: 'raider', state: 'locked', region: '争议星域', desc: '两颗互绕的恒星之间，掠夺者的巡逻舰队往来频繁。', enemy: { name: '掠夺者巡逻队', hp: 28, armor: 1, intent: '舷侧齐射' }, rewards: [{ t: '信用点 ×140', tag: '+140', c: '#ffd27a', ic: 'supply' }] },
   { id: 'n6', x: 1180, y: 860, name: '静默舱', type: 'event', fac: 'neutral', state: 'locked', region: '争议星域', desc: '一具漂流的医疗冷冻舱发出微弱信标——里面似乎还有幸存的船员。', rewards: [{ t: '可招募新船员', tag: '养成', c: '#3ff0a0', ic: 'event' }, { t: '对话事件', tag: '剧情', c: '#c07bff', ic: 'event' }] },
   { id: 'n7', x: 1560, y: 640, name: '回廊补给站', type: 'supply', fac: 'free', state: 'locked', region: '虚空回廊', desc: '深入虚空回廊前的最后一处补给点。', rewards: [{ t: '修复 / 升级卡牌', tag: '服务', c: '#5fe0ee', ic: 'supply' }] },
-  { id: 'n8', x: 1940, y: 460, name: '截击者据点', type: 'combat', fac: 'void', state: 'locked', region: '虚空回廊', desc: '虚空教团的前哨据点，截击者编队严阵以待。', enemy: { name: '虚空截击编队', hp: 40, armor: 3, intent: '核心蓄力' }, rewards: [{ t: '新卡「相位干扰」', tag: '调度', c: '#ffcc4d', ic: 'combat' }] },
-  { id: 'n9', x: 1940, y: 840, name: '暗物质云', type: 'elite', fac: 'void', state: 'locked', region: '虚空回廊', desc: '扭曲的暗物质云团，能量读数异常。精英守卫潜伏其中。', enemy: { name: '湮灭者', hp: 46, armor: 4, intent: '集火攻击' }, rewards: [{ t: '稀有零件', tag: '养成', c: '#3ff0a0', ic: 'elite' }] },
+  { id: 'n8', x: 1940, y: 460, name: '截击者据点', type: 'combat', archetype: 'swarm', terrain: 'nebula', fac: 'void', state: 'locked', region: '虚空回廊', desc: '虚空教团的前哨据点，截击者编队严阵以待。', enemy: { name: '虚空截击编队', hp: 40, armor: 3, intent: '核心蓄力' }, rewards: [{ t: '新卡「相位干扰」', tag: '调度', c: '#ffcc4d', ic: 'combat' }] },
+  { id: 'n9', x: 1940, y: 840, name: '暗物质云', type: 'elite', archetype: 'tank', terrain: 'gravity', fac: 'void', state: 'locked', region: '虚空回廊', desc: '扭曲的暗物质云团，能量读数异常。精英守卫潜伏其中。', enemy: { name: '湮灭者', hp: 46, armor: 4, intent: '集火攻击' }, rewards: [{ t: '稀有零件', tag: '养成', c: '#3ff0a0', ic: 'elite' }] },
   { id: 'n10', x: 2320, y: 640, name: '涅墨西斯', type: 'boss', fac: 'void', state: 'locked', region: '虚空回廊', desc: '虚空母舰「涅墨西斯」——本章的最终目标。击破它，夺回失落的星门。', enemy: { name: '虚空母舰 · 涅墨西斯', hp: 72, armor: 8, intent: '核心过载' }, rewards: [{ t: '章节通关', tag: 'BOSS', c: '#c07bff', ic: 'boss' }, { t: '传说卡 + 大量信用点', tag: '传说', c: '#ffd27a', ic: 'elite' }] },
 ];
 const MAP_EDGES = [['n1', 'n2'], ['n1', 'n3'], ['n2', 'n4'], ['n3', 'n4'], ['n4', 'n5'], ['n4', 'n6'], ['n5', 'n7'], ['n6', 'n7'], ['n7', 'n8'], ['n7', 'n9'], ['n8', 'n10'], ['n9', 'n10']];
-const TYPE_ATK = { combat: 2, elite: 3, boss: 4 };
+// 地形元数据（§4.2）
+const TERRAIN_META = {
+  nebula: { name: '星云', desc: '护盾/护甲失效', color: '#c07bff' },
+  solarwind: { name: '恒星风', desc: '敌方攻击随机目标', color: '#ff9a5a' },
+  gravity: { name: '引力井', desc: '每回合 +1 能量', color: '#5fe0ee' },
+};
+// 敌人原型库（§4.1）：每个原型逼一种打法
+const ARCHETYPES = {
+  swarm: { atk: 2, minions: () => [{ name: '僚机', atk: 2, hp: 1 }, { name: '僚机', atk: 2, hp: 1 }, { name: '僚机', atk: 2, hp: 1 }], blurb: '铺场流 · 僚机海，逼你 AOE' },
+  tank: { atk: 1, minions: () => [{ name: '重装盾舰', atk: 1, hp: 8, keywords: ['嘲讽'] }], blurb: '肉盾流 · 高血嘲讽，逼你爆发' },
+  rush: { atk: 6, minions: () => [], blurb: '竞速流 · 疯狂打脸，逼你快攻' },
+  elite: { atk: 3, minions: () => [{ name: '僚机', atk: 2, hp: 2, keywords: ['嘲讽'] }], blurb: '精英 · 带护卫' },
+  boss: { atk: 4, minions: () => [{ name: '炮塔', atk: 3, hp: 4, keywords: ['嘲讽'] }, { name: '截击机', atk: 2, hp: 2 }], blurb: 'BOSS · 多段威胁' },
+  standard: { atk: 2, minions: () => [], blurb: '普通敌人' },
+};
+const archetypeOf = (node) => node.archetype || (node.type === 'boss' ? 'boss' : node.type === 'elite' ? 'elite' : 'standard');
 function nodeEnemyCfg(node) {
   const e = node.enemy; if (!e) return null;
-  const minions = node.type === 'boss' ? [{ name: '炮塔', atk: 3, hp: 4, keywords: ['嘲讽'] }, { name: '截击机', atk: 2, hp: 2 }]
-    : node.type === 'elite' ? [{ name: '僚机', atk: 2, hp: 2, keywords: ['嘲讽'] }] : [];
-  return { name: e.name, hp: e.hp, maxHp: e.hp, armor: e.armor || 0, atk: TYPE_ATK[node.type] || 2, minions };
+  const a = ARCHETYPES[archetypeOf(node)] || ARCHETYPES.standard;
+  return { name: e.name, hp: e.hp, maxHp: e.hp, armor: e.armor || 0, atk: a.atk, minions: a.minions() };
 }
 
 const CATKEY = { 攻击: 'attack', 防御: 'defense', 维护: 'maintenance', 调度: 'tactics' };
@@ -286,6 +300,7 @@ function renderBattle() {
         <div style="width:42px;height:42px;border:1px solid rgba(79,214,230,.5);clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);display:flex;align-items:center;justify-content:center;background:rgba(12,34,50,.8);box-shadow:inset 0 0 14px rgba(79,214,230,.25)"><div style="width:16px;height:16px;border:2px solid #5fe6ff;border-radius:50%;box-shadow:0 0 10px rgba(95,230,255,.7)"></div></div>
         <div><div style="font-family:Oxanium;font-weight:700;font-size:18px;letter-spacing:2px;color:#d6f3ff;text-shadow:0 0 14px rgba(95,230,255,.45)">星舰协同作战</div><div style="font-size:11px;letter-spacing:3px;color:#5a93ad">STARFALL CO-OP</div></div>
         <div style="margin-left:6px;padding:5px 16px;background:rgba(8,22,34,.85);border:1px solid rgba(79,214,230,.38);clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px)"><span style="font-size:10px;letter-spacing:2px;color:#5a93ad">回合</span><span style="font-family:Oxanium;font-weight:800;font-size:20px;color:#ffd27a;margin-left:7px;text-shadow:0 0 12px rgba(255,210,122,.5)">${b.turn}</span></div>
+        ${b.terrain && TERRAIN_META[b.terrain] ? `<div title="${esc(TERRAIN_META[b.terrain].desc)}" style="margin-left:8px;padding:5px 14px;background:rgba(8,22,34,.85);border:1px solid ${TERRAIN_META[b.terrain].color}66;clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px)"><span style="width:6px;height:6px;display:inline-block;background:${TERRAIN_META[b.terrain].color};transform:rotate(45deg);margin-right:7px;vertical-align:middle"></span><span style="font-size:12px;letter-spacing:1px;color:${TERRAIN_META[b.terrain].color}">${TERRAIN_META[b.terrain].name}</span><span style="font-size:10px;color:#7fa8c4;margin-left:7px">${esc(TERRAIN_META[b.terrain].desc)}</span></div>` : ''}
       </div>
       <button data-act="close" style="width:40px;height:40px;border:1px solid rgba(79,214,230,.35);background:rgba(12,30,44,.85);color:#7fd6e6;font-size:18px;cursor:pointer;clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px)">✕</button>
     </div>
@@ -378,7 +393,7 @@ function nodeGo(id) {
   const n = mapById(id); if (!n || n.state === 'locked') return;
   if (n.type === 'supply') { toast('已补给 · 舰体修复、燃料补充'); clearNode(id); return render(); }
   if (n.type === 'event') { toast('事件：' + (n.rewards?.[0]?.t || '已处理')); clearNode(id); return render(); }
-  G.pendingEnemy = nodeEnemyCfg(n); G.run.current = id; G.screen = 'deploy'; render();
+  G.pendingEnemy = nodeEnemyCfg(n); G.pendingTerrain = n.terrain || null; G.run.current = id; G.screen = 'deploy'; render();
 }
 function returnFromBattle() {
   if (G.run && G.run.current) {
@@ -401,7 +416,7 @@ function renderMapDetail(n) {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px"><span style="font-weight:800;font-size:24px;letter-spacing:1px;color:#fff">${esc(n.name)}</span><span style="font-size:11px;font-weight:700;letter-spacing:2px;padding:4px 12px;color:${fc};background:${fc}1a;border:1px solid ${fc};border-radius:4px">${TYPE_META[n.type]}</span></div>
       <div style="display:flex;align-items:center;gap:6px;margin-top:8px"><span style="font-size:11px;color:#8a9aa8;letter-spacing:1px">威胁等级</span><span style="font-size:14px;letter-spacing:2px;color:#ffb86a">${stars}</span></div>
     </div>
-    <div style="flex:1;overflow-y:auto;padding:18px 20px;display:flex;flex-direction:column;gap:18px"><p style="margin:0;font-size:13px;line-height:1.65;color:#aebfce">${esc(n.desc)}</p>${enemyBlock}<div><div style="font-size:11px;letter-spacing:3px;color:#7a93a8;margin-bottom:9px">清剿奖励</div><div style="display:flex;flex-direction:column;gap:8px">${rewards}</div></div></div>
+    <div style="flex:1;overflow-y:auto;padding:18px 20px;display:flex;flex-direction:column;gap:18px"><p style="margin:0;font-size:13px;line-height:1.65;color:#aebfce">${esc(n.desc)}</p>${n.terrain && TERRAIN_META[n.terrain] ? `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:${TERRAIN_META[n.terrain].color}14;border:1px solid ${TERRAIN_META[n.terrain].color}55;border-radius:6px"><span style="width:8px;height:8px;background:${TERRAIN_META[n.terrain].color};transform:rotate(45deg)"></span><span style="font-size:12px;font-weight:700;color:${TERRAIN_META[n.terrain].color}">地形 · ${TERRAIN_META[n.terrain].name}</span><span style="font-size:11px;color:#9fb6c6">${TERRAIN_META[n.terrain].desc}</span></div>` : ''}${n.enemy ? `<div style="font-size:11px;color:#8aa0b0;letter-spacing:1px">敌方原型 · ${esc((ARCHETYPES[archetypeOf(n)] || ARCHETYPES.standard).blurb)}</div>` : ''}${enemyBlock}<div><div style="font-size:11px;letter-spacing:3px;color:#7a93a8;margin-bottom:9px">清剿奖励</div><div style="display:flex;flex-direction:column;gap:8px">${rewards}</div></div></div>
     <div style="padding:16px 20px;border-top:1px solid rgba(79,214,230,.2)"><button ${locked ? '' : `data-act="node-go" data-id="${n.id}"`} style="width:100%;padding:15px;cursor:${locked ? 'not-allowed' : 'pointer'};font-weight:900;font-size:17px;letter-spacing:3px;clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);background:${locked ? 'rgba(40,48,58,.7)' : 'linear-gradient(180deg,#5fe8c0,#3fd0e0)'};color:${locked ? '#7a8794' : '#06202a'};border:${locked ? '1px solid #4a5560' : '2px solid #d6fff4'};box-shadow:${locked ? 'none' : '0 0 24px rgba(79,230,200,.5)'}">${actionLabel}</button></div>
   </div>`;
 }
@@ -602,7 +617,7 @@ function deploy() {
   if (G.squad.length === 0) return toast('至少选 1 名核心船员');
   const cast = G.squad.length ? G.squad : G.artists.slice(0, 2);
   if (!cast.length) return toast('还没有艺人可作为船员');
-  G.battle = newBattle({ cards: CARDS, deck: starterDeck(), crew: crewFromCast(cast.slice(0, G.maxSlots)), enemy: G.pendingEnemy || ENEMIES.海盗前锋, rng: Math.random, maxSlots: G.maxSlots });
+  G.battle = newBattle({ cards: CARDS, deck: starterDeck(), crew: crewFromCast(cast.slice(0, G.maxSlots)), enemy: G.pendingEnemy || ENEMIES.海盗前锋, rng: Math.random, maxSlots: G.maxSlots, terrain: G.pendingTerrain || null });
   G.screen = 'battle'; G.pending = null; G.result = null;
   render();
 }

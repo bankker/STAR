@@ -26,7 +26,7 @@ export function startTurn(state) {
   s.turn += 1;
   s.active = 'player';
   s.energy.max = Math.min(10, s.energy.max + 1);
-  s.energy.current = s.energy.max;
+  s.energy.current = Math.min(10, s.energy.max + (s.terrain === 'gravity' ? 1 : 0));   // 引力井：+1 可用能量
   s.heroPowerUsed = false;
   drawOne(s);
   applyAuras(s);
@@ -60,7 +60,7 @@ function computeIntent(s) {
 
 function applyEffect(s, eff, opts = {}) {
   if (!eff) return;
-  if (eff.kind === 'armor') { s.ship.armor += eff.amount; return; }
+  if (eff.kind === 'armor') { if (s.terrain !== 'nebula') s.ship.armor += eff.amount; return; }   // 星云：护甲失效
   if (eff.kind === 'heal') {
     if (eff.target === 'ship') s.ship.hp = Math.min(s.ship.maxHp, s.ship.hp + eff.amount);
     else if (eff.target === 'unit') { const u = s.board.find((x) => x.instanceId === opts.targetId && x.onField); if (u) u.hp = Math.min(u.maxHp, u.hp + eff.amount); }
@@ -162,36 +162,37 @@ export function attack(state, attackerId, targetId) {
   return s;
 }
 
-// 敌方索敌：先嘲讽，再最低血船员，否则舰体
-function enemyPickTarget(s) {
+// 敌方索敌：先嘲讽，再最低血船员，否则舰体（恒星风地形→随机目标）
+function enemyPickTarget(s, rng = Math.random) {
   const taunts = s.board.filter((u) => u.onField && (u.keywords || []).includes('嘲讽'));
   const pool = taunts.length ? taunts : s.board.filter((u) => u.onField && u.type === 'crew');
   if (!pool.length) return null;
+  if (s.terrain === 'solarwind') return pool[Math.floor(rng() * pool.length)];
   return pool.reduce((m, u) => (u.hp < m.hp ? u : m));
 }
 
-function enemyUnitAttacks(s, unit) {
-  const t = enemyPickTarget(s);
+function enemyUnitAttacks(s, unit, rng) {
+  const t = enemyPickTarget(s, rng);
   if (t) { dealDamage(t, unit.atk); dealDamage(unit, t.atk); }   // 单位互扣
   else dealDamage(s.ship, unit.atk);
 }
 
-function enemyFaceAttacks(s) {
-  const t = enemyPickTarget(s);
+function enemyFaceAttacks(s, rng) {
+  const t = enemyPickTarget(s, rng);
   if (t) dealDamage(t, s.enemy.atk);                              // 舰炮无反击
   else dealDamage(s.ship, s.enemy.atk);
 }
 
-export function endTurn(state) {
+export function endTurn(state, rng = Math.random) {
   if (state.status !== 'active') return state;
   let s = structuredClone(state);
   s.active = 'enemy';
   for (const unit of [...s.enemy.board]) {
     if (s.status !== 'active') break;
     const live = s.enemy.board.find((u) => u.instanceId === unit.instanceId);
-    if (live && live.hp > 0 && (live.atk || 0) > 0) { enemyUnitAttacks(s, live); removeDead(s); checkOutcome(s); }
+    if (live && live.hp > 0 && (live.atk || 0) > 0) { enemyUnitAttacks(s, live, rng); removeDead(s); checkOutcome(s); }
   }
-  if (s.status === 'active' && (s.enemy.atk || 0) > 0) { enemyFaceAttacks(s); removeDead(s); checkOutcome(s); }
+  if (s.status === 'active' && (s.enemy.atk || 0) > 0) { enemyFaceAttacks(s, rng); removeDead(s); checkOutcome(s); }
   if (s.status !== 'active') return s;
   return startTurn(s);
 }
@@ -240,6 +241,7 @@ export function newBattle(cfg) {
     heroPower: cfg.heroPower || { name: '集火指令', cost: 2, effect: { kind: 'damage', amount: 1, target: 'enemyFace' } },
     heroPowerUsed: false,
     maxSlots: Math.max(1, Math.min(6, cfg.maxSlots || 4)),   // 核心仓位：基础4，可永久升级至6（§3.2/§9.2）
+    terrain: cfg.terrain || null,                            // 战场地形（§4.2）：nebula/gravity/solarwind…
     intent: null,
   };
   return startTurn(s);
