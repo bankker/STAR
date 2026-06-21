@@ -29,6 +29,7 @@ export function startTurn(state) {
   s.active = 'player';
   s.energy.max = Math.min(10, s.energy.max + 1);
   s.energy.current = Math.min(10, s.energy.max + (s.terrain === 'gravity' ? 1 : 0) + (s.turn === 1 ? relicSum(s, 'startEnergy') : 0));   // 引力井 +1 / 遗物起始能量
+  if (s.terrain === 'ionstorm' && s.turn > 1) s.ship.hp = Math.max(1, s.ship.hp - 2);   // 离子风暴：每回合开始无视护甲掉 2（不致死，逼速攻）
   s.heroPowerUsed = false;
   s.cardsPlayedThisTurn = 0;                                                  // 连携计数（§6）
   for (let i = 0, n = 1 + relicSum(s, 'extraDraw'); i < n; i++) drawOne(s);   // 遗物：每回合多摸
@@ -72,6 +73,13 @@ function applyEffect(s, eff, opts = {}) {
   if (eff.kind === 'mark') {   // 标记（§6）：被标记目标受到的伤害 +2
     if (eff.target === 'enemyFace') s.enemy.marked = true;
     else { const u = s.enemy.board.find((x) => x.instanceId === opts.targetId); if (u) u.marked = true; }
+    return;
+  }
+  if (eff.kind === 'armorStrike') {   // 力场过载（护盾流·§ch2）：伤害 = base + 当前舰体护甲（+遗物/标记）
+    const dmg = (eff.amount || 0) + (s.ship.armor || 0) + relicSum(s, 'atkDmg');
+    const mark = (t) => (t && t.marked ? 2 : 0);
+    if (eff.target === 'enemyFace') dealDamage(s.enemy, dmg + mark(s.enemy));
+    else if (eff.target === 'enemyUnit') { const u = s.enemy.board.find((x) => x.instanceId === opts.targetId); if (u) dealDamage(u, dmg + mark(u)); }
     return;
   }
   if (eff.kind === 'damage') {

@@ -357,3 +357,38 @@ test('集成: 真实卡库 + 艺人船员开战，可出牌、可结束回合', 
   const s3 = endTurn(s2);
   assert.ok(s3.turn >= 2 || s3.status !== 'active');
 });
+
+// ── §ch2 新地形：离子风暴（每回合无视护甲掉血，不致死）──
+test('地形·离子风暴：回合1不掉血，之后每回合开始无视护甲掉 2', () => {
+  let s = newBattle(baseCfg({ terrain: 'ionstorm', enemy: enemyOf(40, { atk: 0 }) }));
+  assert.equal(s.ship.hp, 30);
+  s = endTurn(s); assert.equal(s.ship.hp, 28);
+  s = endTurn(s); assert.equal(s.ship.hp, 26);
+});
+test('离子风暴不致死：回合开始至少保留 1 点舰体', () => {
+  let s = newBattle(baseCfg({ terrain: 'ionstorm', enemy: enemyOf(40, { atk: 0 }) }));
+  s.ship.hp = 1;
+  s = startTurn(s);
+  assert.equal(s.ship.hp, 1);
+  assert.equal(s.status, 'active');
+});
+// ── §ch2 新流派：力场过载（伤害 = base + 当前护甲）──
+CARDS.过载 = { id: '过载', name: '力场过载', cost: 3, type: 'spell', effect: { kind: 'armorStrike', target: 'enemyFace', amount: 1 } };
+test('力场过载（护盾流）：对敌伤害 = base + 当前舰体护甲', () => {
+  let s = newBattle(baseCfg({ deck: deckOf(20, '过载'), enemy: enemyOf(40, { atk: 0 }) }));
+  s = startTurnTo(s, 3);
+  s.ship.armor = 5;
+  const c = s.hand.find((x) => x.cardId === '过载');
+  const before = s.enemy.hp;
+  s = playCard(s, c.instanceId);
+  assert.equal(before - s.enemy.hp, 6);   // 1 + 5
+});
+test('力场过载无护甲时仅造成 base', () => {
+  let s = newBattle(baseCfg({ deck: deckOf(20, '过载'), enemy: enemyOf(40, { atk: 0 }) }));
+  s = startTurnTo(s, 3);
+  s.ship.armor = 0;
+  const c = s.hand.find((x) => x.cardId === '过载');
+  const before = s.enemy.hp;
+  s = playCard(s, c.instanceId);
+  assert.equal(before - s.enemy.hp, 1);   // 1 + 0
+});

@@ -18,11 +18,35 @@ const MAP_NODES = [
   { id: 'n10', x: 2320, y: 640, name: '涅墨西斯', type: 'boss', fac: 'void', state: 'locked', region: '虚空回廊', desc: '虚空母舰「涅墨西斯」——本章的最终目标。击破它，夺回失落的星门。', enemy: { name: '虚空母舰 · 涅墨西斯', hp: 72, armor: 8, intent: '核心过载' }, rewards: [{ t: '章节通关', tag: 'BOSS', c: '#c07bff', ic: 'boss' }, { t: '传说卡 + 大量信用点', tag: '传说', c: '#ffd27a', ic: 'elite' }] },
 ];
 const MAP_EDGES = [['n1', 'n2'], ['n1', 'n3'], ['n2', 'n4'], ['n3', 'n4'], ['n4', 'n5'], ['n4', 'n6'], ['n5', 'n7'], ['n6', 'n7'], ['n7', 'n8'], ['n7', 'n9'], ['n8', 'n10'], ['n9', 'n10']];
+// 第二章「虚空之外」：更强敌人原型 + 新地形(离子风暴) + 护盾过载流奖励卡
+const MAP_NODES_CH2 = [
+  { id: 'n1', x: 200, y: 650, name: '残阳港', type: 'supply', fac: 'free', state: 'cleared', region: '帝国残阳', desc: '帝国崩解后残存的中立港口，深入虚空前最后的补给。可修复舰体、补充燃料、采购卡牌。', rewards: [{ t: '修复舰体 / 补给燃料', tag: '服务', c: '#5fe0ee', ic: 'supply' }, { t: '卡牌商店', tag: '商店', c: '#ffcc4d', ic: 'event' }] },
+  { id: 'n2', x: 480, y: 500, name: '锈蚀环带', type: 'combat', archetype: 'swarmHeavy', terrain: 'ionstorm', fac: 'raider', state: 'cleared', region: '帝国残阳', desc: '离子风暴肆虐的废弃环带，掠夺者残党借风暴游猎。', enemy: { name: '残党蜂群', hp: 30, armor: 2, intent: '集火攻击' }, rewards: [{ t: '信用点 ×120', tag: '+120', c: '#ffd27a', ic: 'supply' }] },
+  { id: 'n3', x: 480, y: 800, name: '沉默方尖碑', type: 'event', fac: 'void', state: 'cleared', region: '帝国残阳', desc: '一座漂浮的虚空造物，低声诉说着失落的坐标。', rewards: [{ t: '稀有遗物 / 剧情线索', tag: '事件', c: '#c07bff', ic: 'event' }] },
+  { id: 'n4', x: 820, y: 640, name: '旗舰坟场', type: 'elite', archetype: 'fortress', terrain: 'nebula', fac: 'empire', state: 'available', region: '深渊裂隙', desc: '帝国舰队的集体葬身之地，一艘残存旗舰仍在自动巡防。清剿后打通深渊裂隙。', enemy: { name: '残阳 · 守墓者', hp: 48, armor: 6, intent: '展开力场' }, rewards: [{ t: '新卡「力场过载」', tag: '攻击', c: '#ff4d4d', ic: 'elite' }, { t: '信用点 ×160', tag: '+160', c: '#ffd27a', ic: 'supply' }] },
+  { id: 'n5', x: 1180, y: 440, name: '裂隙风暴', type: 'combat', archetype: 'rushPlus', terrain: 'ionstorm', fac: 'void', state: 'locked', region: '深渊裂隙', desc: '时空裂隙喷涌着离子风暴，虚空游兵借势疾袭。', enemy: { name: '裂隙游兵', hp: 40, armor: 2, intent: '疯狂打脸' }, rewards: [{ t: '信用点 ×180', tag: '+180', c: '#ffd27a', ic: 'supply' }] },
+  { id: 'n6', x: 1180, y: 860, name: '冷冻医疗舰', type: 'event', fac: 'free', state: 'locked', region: '深渊裂隙', desc: '一艘帝国医疗舰静静漂浮，冷冻舱里或许还有可招募的幸存者。', rewards: [{ t: '可招募新船员', tag: '养成', c: '#3ff0a0', ic: 'event' }, { t: '对话事件', tag: '剧情', c: '#c07bff', ic: 'event' }] },
+  { id: 'n7', x: 1560, y: 640, name: '深渊补给站', type: 'supply', fac: 'free', state: 'locked', region: '终焉之门', desc: '终焉之门前最后的据点。', rewards: [{ t: '修复 / 升级卡牌', tag: '服务', c: '#5fe0ee', ic: 'supply' }] },
+  { id: 'n8', x: 1940, y: 460, name: '吞噬者前哨', type: 'combat', archetype: 'eliteVoid', terrain: 'gravity', fac: 'void', state: 'locked', region: '终焉之门', desc: '深渊吞噬者的触须前哨，引力井扭曲着一切。', enemy: { name: '深渊触须', hp: 54, armor: 4, intent: '核心蓄力' }, rewards: [{ t: '新卡「相位过载」', tag: '调度', c: '#ffcc4d', ic: 'combat' }] },
+  { id: 'n9', x: 1940, y: 840, name: '湮灭回廊', type: 'elite', archetype: 'fortress', terrain: 'nebula', fac: 'void', state: 'locked', region: '终焉之门', desc: '护盾失效的湮灭回廊，精英守卫以重甲列阵。', enemy: { name: '湮灭 · 壁垒', hp: 60, armor: 8, intent: '集火攻击' }, rewards: [{ t: '稀有零件', tag: '养成', c: '#3ff0a0', ic: 'elite' }] },
+  { id: 'n10', x: 2320, y: 640, name: '深渊吞噬者', type: 'boss', archetype: 'bossArk', terrain: 'ionstorm', fac: 'void', state: 'locked', region: '终焉之门', desc: '盘踞终焉之门的深渊母体「吞噬者」——第二章的终极目标。击破它，封印虚空的源头。', enemy: { name: '深渊母体 · 吞噬者', hp: 100, armor: 12, intent: '湮灭脉冲' }, rewards: [{ t: '第二章通关', tag: 'BOSS', c: '#c07bff', ic: 'boss' }, { t: '传说卡 + 巨量信用点', tag: '传说', c: '#ffd27a', ic: 'elite' }] },
+];
+const CHAPTERS = {
+  1: { sub: '第一章', name: '失落星门', nodes: MAP_NODES, edges: MAP_EDGES, start: { flagAt: 'n2', selected: 'n4' }, regions: ['自由港湾', '争议星域', '虚空回廊'], boss: '虚空母舰 · 涅墨西斯', title: '第 一 章 · 通 关', teaser: '第二章「虚空之外」', win: ['「涅墨西斯」的核心熄灭于眼前，舰桥爆发出欢呼。失落的星门重新亮起——我们做到了。', '母舰在远方碎成漫天流光。陈恩珠回过头，眼里有泪也有笑：「队长，我们……回家了。」'] },
+  2: { sub: '第二章', name: '虚空之外', nodes: MAP_NODES_CH2, edges: MAP_EDGES, start: { flagAt: 'n2', selected: 'n4' }, regions: ['帝国残阳', '深渊裂隙', '终焉之门'], boss: '深渊母体 · 吞噬者', title: '第 二 章 · 通 关', teaser: '新的航程 · 循环再战', win: ['吞噬者的母体在湮灭脉冲中坍缩成奇点，又归于死寂。终焉之门，封印。', '虚空的源头被你亲手掐灭。船员们沉默良久，而后是经久不息的欢呼。'] },
+};
+const TOTAL_CHAPTERS = 2;
+const chapterDef = () => CHAPTERS[(G.run && G.run.chapter) || 1] || CHAPTERS[1];
+function setupRun(ch) {
+  const def = CHAPTERS[ch] || CHAPTERS[1];
+  G.run = { chapter: ch, nodes: structuredClone(def.nodes), edges: def.edges, selected: def.start.selected, flagAt: def.start.flagAt, pan: { x: -40, y: -70 }, current: null, relics: [], credits: 0, upgrades: [] };
+}
 // 地形元数据（§4.2）
 const TERRAIN_META = {
   nebula: { name: '星云', desc: '护盾/护甲失效', color: '#c07bff' },
   solarwind: { name: '恒星风', desc: '敌方攻击随机目标', color: '#ff9a5a' },
   gravity: { name: '引力井', desc: '每回合 +1 能量', color: '#5fe0ee' },
+  ionstorm: { name: '离子风暴', desc: '每回合舰体 -2（无视护甲）', color: '#7fd0ff' },   // §ch2
 };
 // 敌人原型库（§4.1）：每个原型逼一种打法
 const ARCHETYPES = {
@@ -32,6 +56,12 @@ const ARCHETYPES = {
   elite: { atk: 3, minions: () => [{ name: '僚机', atk: 2, hp: 2, keywords: ['嘲讽'] }], blurb: '精英 · 带护卫' },
   boss: { atk: 4, minions: () => [{ name: '炮塔', atk: 3, hp: 4, keywords: ['嘲讽'] }, { name: '截击机', atk: 2, hp: 2 }], blurb: 'BOSS · 多段威胁' },
   standard: { atk: 2, minions: () => [], blurb: '普通敌人' },
+  // §ch2 强化原型：更多/更硬/更猛
+  swarmHeavy: { atk: 3, minions: () => [{ name: '残党机', atk: 3, hp: 2 }, { name: '残党机', atk: 3, hp: 2 }, { name: '残党机', atk: 3, hp: 2 }, { name: '残党机', atk: 2, hp: 1 }], blurb: '重型蜂群 · 四机压场，逼强 AOE' },
+  fortress: { atk: 2, minions: () => [{ name: '壁垒', atk: 1, hp: 10, keywords: ['嘲讽'] }, { name: '壁垒', atk: 2, hp: 6, keywords: ['嘲讽'] }], blurb: '堡垒 · 双重甲嘲讽，逼极限爆发' },
+  rushPlus: { atk: 9, minions: () => [], blurb: '疾袭 · 极限快攻打脸' },
+  eliteVoid: { atk: 4, minions: () => [{ name: '触须', atk: 3, hp: 4, keywords: ['嘲讽'] }, { name: '孢子', atk: 2, hp: 2 }], blurb: '虚空精英 · 带护卫' },
+  bossArk: { atk: 5, minions: () => [{ name: '吞噬触须', atk: 4, hp: 6, keywords: ['嘲讽'] }, { name: '孢子云', atk: 3, hp: 3 }, { name: '裂隙炮', atk: 4, hp: 4 }], blurb: '深渊母体 · 三段湮灭' },
 };
 const archetypeOf = (node) => node.archetype || (node.type === 'boss' ? 'boss' : node.type === 'elite' ? 'elite' : 'standard');
 function nodeEnemyCfg(node) {
@@ -112,7 +142,7 @@ function toast(msg) {
 async function openGame() {
   const v = view();
   v.hidden = false; v.classList.add('bg-root');
-  G.run = { nodes: structuredClone(MAP_NODES), selected: 'n4', flagAt: 'n2', pan: { x: -40, y: -70 }, current: null, relics: [], credits: 0, upgrades: [] };
+  setupRun(1);                      // 从第一章开始
   G.meta = loadMeta();              // 永久升级（localStorage，§3.1/§3.2）
   G.maxSlots = G.meta.slots;        // 核心仓位随永久升级成长
   G.squad = []; G.detail = null; G.battle = null; G.pending = null; G.result = null; G.pendingEnemy = null;
@@ -563,7 +593,7 @@ function renderArmory() {
 function mapById(id) { return G.run.nodes.find((n) => n.id === id); }
 function unlockAdjacent() {
   const map = Object.fromEntries(G.run.nodes.map((n) => [n.id, n]));
-  for (const [a, b] of MAP_EDGES) {
+  for (const [a, b] of (G.run.edges || MAP_EDGES)) {
     if (map[a].state === 'cleared' && map[b].state === 'locked') map[b].state = 'available';
     if (map[b].state === 'cleared' && map[a].state === 'locked') map[a].state = 'available';
   }
@@ -620,7 +650,7 @@ function returnFromBattle() {
 function enterDefeat() {
   const crew = (G.squad[0] || {});
   G.run.relics = []; G.run.upgrades = []; G.run.credits = Math.floor((G.run.credits || 0) * 0.25);
-  G.run.nodes = structuredClone(MAP_NODES); G.run.flagAt = 'n2'; G.run.selected = 'n4'; G.run.current = null;
+  const cdef = chapterDef(); G.run.nodes = structuredClone(cdef.nodes); G.run.edges = cdef.edges; G.run.flagAt = cdef.start.flagAt; G.run.selected = cdef.start.selected; G.run.current = null;
   G.pendingEnemy = null; G.pendingTerrain = null; G.battle = null; G.result = null;
   G.defeat = { line: '', loading: true, artist: crew };
   G.screen = 'defeat'; render(); fetchAftermath();
@@ -642,15 +672,16 @@ function renderDefeat() {
     <button data-act="defeat-continue" style="padding:13px 30px;font-family:Oxanium;font-weight:700;font-size:16px;letter-spacing:2px;color:#06202a;background:linear-gradient(180deg,#5fe8c0,#3fd0e0);border:2px solid #d6fff4;clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);cursor:pointer;box-shadow:0 0 24px rgba(79,230,200,.5)">重整旗鼓 ▸</button>
   </div></div>`;
 }
-// ── 章节通关：击破 BOSS 后的庆功 + 再次启航（永久升级保留）──
-const VICTORY_LINES = [
-  '「涅墨西斯」的核心熄灭于眼前，舰桥爆发出欢呼。失落的星门重新亮起——我们做到了。',
-  '母舰在远方碎成漫天流光。陈恩珠回过头，眼里有泪也有笑：「队长，我们……回家了。」',
-  '虚空退潮，航路尽通。这一程的伤痕与并肩，都化作刻进船体的勋章。',
-];
-function enterChapterClear() { G.chapclear = { line: rndPick(VICTORY_LINES) }; G.screen = 'chapclear'; render(); }
+// ── 章节通关：击破 BOSS 后的庆功 + 进入下一章（永久升级保留）──
+const ROMAN = { 1: 'ONE', 2: 'TWO', 3: 'THREE' };
+function enterChapterClear() {
+  const def = chapterDef(); const ch = G.run.chapter;
+  G.chapclear = { line: rndPick(def.win), title: def.title, boss: def.boss, teaser: def.teaser, ch, last: ch >= TOTAL_CHAPTERS };
+  G.screen = 'chapclear'; render();
+}
 function newRun() {
-  G.run = { nodes: structuredClone(MAP_NODES), selected: 'n4', flagAt: 'n2', pan: { x: -40, y: -70 }, current: null, relics: [], credits: 0, upgrades: [] };
+  const next = ((G.run && G.run.chapter) || 1) >= TOTAL_CHAPTERS ? 1 : (G.run.chapter + 1);   // 通关后进下一章；全通关则循环
+  setupRun(next);
   G.squad = []; G.detail = null; G.battle = null; G.result = null; G.pendingEnemy = null; G.pendingTerrain = null; G.chapclear = null;
   G.screen = 'map'; render();
 }
@@ -661,15 +692,15 @@ function renderChapterClear() {
   return `<div class="bg-fit"><div class="bg-stage" id="bg-stage" style="background:radial-gradient(ellipse 90% 72% at 50% 36%,#241f10,#08090c 76%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:40px">
     <div style="position:absolute;inset:0;background-image:url(&quot;${Q(STARS)}&quot;);opacity:.5;pointer-events:none"></div>
     <div style="position:absolute;inset:0;background:radial-gradient(ellipse 50% 40% at 50% 38%,rgba(255,200,90,.12),transparent 70%);pointer-events:none"></div>
-    <div style="font-size:13px;letter-spacing:8px;color:#ffd27a;z-index:1">CHAPTER ONE · CLEARED</div>
-    <div style="font-family:Oxanium;font-weight:800;font-size:52px;letter-spacing:10px;color:#ffe6a8;text-shadow:0 0 40px rgba(255,200,90,.5);z-index:1">第 一 章 · 通 关</div>
+    <div style="font-size:13px;letter-spacing:8px;color:#ffd27a;z-index:1">CHAPTER ${ROMAN[c.ch] || c.ch} · CLEARED</div>
+    <div style="font-family:Oxanium;font-weight:800;font-size:52px;letter-spacing:10px;color:#ffe6a8;text-shadow:0 0 40px rgba(255,200,90,.5);z-index:1">${esc(c.title || '')}</div>
     <div style="max-width:680px;text-align:center;font-size:18px;line-height:1.85;color:#eee0c8;z-index:1">${esc(c.line || '')}</div>
-    <div style="display:flex;gap:12px;font-size:12px;letter-spacing:1px;z-index:1">${chip('#ffd27a', '★ 击破 虚空母舰·涅墨西斯')}${chip('#c07bff', '✦ 夺回失落的星门')}${chip('#5fe0ee', '⚙ 永久升级 · 已保留')}</div>
+    <div style="display:flex;gap:12px;font-size:12px;letter-spacing:1px;z-index:1">${chip('#ffd27a', '★ 击破 ' + esc(c.boss || ''))}${chip('#c07bff', c.last ? '✦ 全章通关' : '✦ 航路再启')}${chip('#5fe0ee', '⚙ 永久升级 · 已保留')}</div>
     <div style="display:flex;gap:18px;margin-top:6px;z-index:1">
-      <button data-act="chap-continue" style="padding:14px 32px;font-family:Oxanium;font-weight:800;font-size:17px;letter-spacing:2px;color:#1a1206;background:linear-gradient(180deg,#ffe08a,#ffc24d);border:2px solid #fff0c0;clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);cursor:pointer;box-shadow:0 0 28px rgba(255,200,90,.55)">继续征程 · 再次启航 ▸</button>
+      <button data-act="chap-continue" style="padding:14px 32px;font-family:Oxanium;font-weight:800;font-size:17px;letter-spacing:2px;color:#1a1206;background:linear-gradient(180deg,#ffe08a,#ffc24d);border:2px solid #fff0c0;clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);cursor:pointer;box-shadow:0 0 28px rgba(255,200,90,.55)">${c.last ? '循环再战 · 重启航程 ▸' : '挺进 · 第二章「' + esc(CHAPTERS[2].name) + '」▸'}</button>
       <button data-act="close" style="padding:14px 26px;font-size:15px;letter-spacing:2px;color:#cfe0ee;background:rgba(12,30,44,.85);border:1px solid rgba(95,210,235,.4);border-radius:4px;cursor:pointer">凯旋 · 返回工作台</button>
     </div>
-    <div style="font-size:11px;letter-spacing:2px;color:#8a8466;margin-top:2px;z-index:1">第二章「虚空之外」· 敬请扩展　｜　改装坞的永久升级与船员羁绊将延续到下一程</div>
+    <div style="font-size:11px;letter-spacing:2px;color:#8a8466;margin-top:2px;z-index:1">${esc(c.teaser || '')}　｜　改装坞的永久升级与船员羁绊将延续到下一程</div>
   </div></div>`;
 }
 function renderMapDetail(n) {
@@ -703,8 +734,9 @@ function nodeScheme(n) {
 }
 function renderMap() {
   const r = G.run; STARS = STARS || starfield();
+  const chap = chapterDef(); const space = (s) => (s || '').split('').join(' ');
   const map = Object.fromEntries(r.nodes.map((n) => [n.id, n]));
-  const routes = MAP_EDGES.map(([a, b]) => {
+  const routes = (r.edges || MAP_EDGES).map(([a, b]) => {
     const A = map[a], B = map[b];
     const cleared = A.state === 'cleared' && (B.state === 'cleared' || B.state === 'available');
     const active = (A.state === 'cleared' || A.state === 'available') && B.state === 'available';
@@ -759,9 +791,9 @@ function renderMap() {
         <div style="position:absolute;left:60px;top:380px;width:560px;height:560px;border-radius:50%;background:radial-gradient(circle,rgba(95,224,238,.12),transparent 70%)"></div>
         <div style="position:absolute;left:760px;top:300px;width:680px;height:700px;border-radius:50%;background:radial-gradient(circle,rgba(255,138,74,.1),transparent 70%)"></div>
         <div style="position:absolute;left:1640px;top:300px;width:840px;height:760px;border-radius:50%;background:radial-gradient(circle,rgba(192,123,255,.13),transparent 70%)"></div>
-        <div style="position:absolute;left:230px;top:330px;font-size:14px;letter-spacing:8px;color:rgba(95,224,238,.5)">自 由 港 湾</div>
-        <div style="position:absolute;left:980px;top:270px;font-size:14px;letter-spacing:8px;color:rgba(255,168,110,.5)">争 议 星 域</div>
-        <div style="position:absolute;left:1900px;top:270px;font-size:14px;letter-spacing:8px;color:rgba(200,140,255,.5)">虚 空 回 廊</div>
+        <div style="position:absolute;left:230px;top:330px;font-size:14px;letter-spacing:8px;color:rgba(95,224,238,.5)">${space(chap.regions[0])}</div>
+        <div style="position:absolute;left:980px;top:270px;font-size:14px;letter-spacing:8px;color:rgba(255,168,110,.5)">${space(chap.regions[1])}</div>
+        <div style="position:absolute;left:1900px;top:270px;font-size:14px;letter-spacing:8px;color:rgba(200,140,255,.5)">${space(chap.regions[2])}</div>
         <div style="position:absolute;inset:0;background-image:url(&quot;${Q(STARS)}&quot;);opacity:.8;pointer-events:none"></div>
         <div style="position:absolute;left:160px;top:140px;width:920px;height:760px;pointer-events:none;background:radial-gradient(ellipse 50% 50% at 42% 42%,rgba(95,180,238,.11),transparent 66%);animation:bgdrift 70s ease-in-out infinite"></div>
         <div style="position:absolute;left:1280px;top:160px;width:1100px;height:900px;pointer-events:none;background:radial-gradient(ellipse 50% 50% at 58% 40%,rgba(192,123,255,.13),transparent 62%),radial-gradient(ellipse 40% 40% at 28% 72%,rgba(255,138,74,.08),transparent 60%);animation:bgdrift 92s ease-in-out infinite reverse"></div>
@@ -775,7 +807,7 @@ function renderMap() {
     <div style="position:absolute;top:0;left:0;width:1920px;height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:linear-gradient(180deg,rgba(8,16,28,.96),rgba(8,16,28,.2));border-bottom:1px solid rgba(79,214,230,.26);z-index:40;pointer-events:none">
       <div style="display:flex;align-items:center;gap:16px;pointer-events:auto">
         <button data-act="close" style="width:40px;height:40px;border:1px solid rgba(79,214,230,.4);background:rgba(12,30,44,.85);color:#7fd6e6;border-radius:3px;cursor:pointer;font-size:18px">✕</button>
-        <div><div style="font-family:Oxanium;font-weight:700;font-size:19px;letter-spacing:3px;color:#d6f3ff;text-shadow:0 0 14px rgba(95,230,255,.45)">星域航图</div><div style="font-size:11px;letter-spacing:3px;color:#5a93ad">星舰协同作战 · 第一章</div></div>
+        <div><div style="font-family:Oxanium;font-weight:700;font-size:19px;letter-spacing:3px;color:#d6f3ff;text-shadow:0 0 14px rgba(95,230,255,.45)">星域航图</div><div style="font-size:11px;letter-spacing:3px;color:#5a93ad">${chap.sub} · ${esc(chap.name)}</div></div>
       </div>
       <div style="display:flex;align-items:center;gap:12px;pointer-events:auto;font-size:12px;letter-spacing:1px;color:#9fb6c6">
         <div style="display:flex;align-items:center;gap:8px;padding:7px 14px;background:rgba(8,22,34,.85);border:1px solid rgba(79,214,230,.3);border-radius:3px"><span style="width:7px;height:7px;background:#5fe0ee;transform:rotate(45deg)"></span>跃迁燃料 <span style="font-family:Oxanium;font-weight:800;color:#7fe6ff">8</span>/10</div>

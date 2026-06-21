@@ -12,6 +12,9 @@ export const CARDS = {
   标记弹: { id: '标记弹', name: '标记弹', cost: 1, type: 'spell', cat: '调度', text: '标记敌舰：此后对其伤害 +2（标记集火流）', needsTarget: null, effect: { kind: 'mark', target: 'enemyFace' } },
   // —— 连携爆发流（§6）——
   连携突击: { id: '连携突击', name: '连携突击', cost: 2, type: 'spell', cat: '攻击', text: '造成 1 点伤害；若本回合已出过牌则改为 5 点（连携流）', effect: { kind: 'damage', target: 'enemyFace', amount: 1, combo: 4, comboAt: 2 } },
+  // —— 护盾过载流（§ch2）——
+  力场过载: { id: '力场过载', name: '力场过载', cost: 3, type: 'spell', cat: '攻击', text: '对敌舰造成 1 + 当前护甲 点伤害（护盾流：先叠甲再轰）', effect: { kind: 'armorStrike', target: 'enemyFace', amount: 1 } },
+  反应装甲: { id: '反应装甲', name: '反应装甲', cost: 1, type: 'spell', cat: '防御', text: '获得 3 点护甲', effect: { kind: 'armor', amount: 3 } },
   // —— 防御 ——
   装甲展开: { id: '装甲展开', name: '装甲展开', cost: 1, type: 'spell', cat: '防御', text: '获得 2 点护甲', effect: { kind: 'armor', amount: 2 } },
   能量护盾: { id: '能量护盾', name: '能量护盾', cost: 2, type: 'spell', cat: '防御', text: '获得 4 点护甲', effect: { kind: 'armor', amount: 4 } },
@@ -32,6 +35,7 @@ export function starterDeck() {
     '装甲展开', '能量护盾', '紧急维修',
     '防卫无人机', '防卫无人机', '突击僚机', '自爆无人机', '炮手无人机',
     '标记弹', '连携突击',
+    '反应装甲', '力场过载',
   ];
 }
 
