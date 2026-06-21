@@ -218,6 +218,30 @@ button { font-family: inherit; cursor: pointer; }
 .st-splash { border-radius: 0; clip-path: polygon(0 13px,13px 0,100% 0,100% calc(100% - 13px),calc(100% - 13px) 100%,0 100%); }
 .st-map svg { border-radius: 0; border: 1px solid rgba(74,200,224,.3); }
 
+/* ══ 任务简报布局（事件屏）：顶部幕僚立绘 → 场景为底的通讯面板 → 底部行动 ══ */
+.st-brief { display: flex; flex-direction: column; gap: 12px; }
+.st-pframes { display: flex; gap: 10px; flex-wrap: wrap; }
+.st-pframe { width: 76px; text-align: center; opacity: .42; filter: grayscale(.45); transition: opacity .2s, filter .2s; }
+.st-pframe.lit { opacity: 1; filter: none; }
+.st-pframe > img, .st-pframe > span { display: block; width: 72px; height: 72px; object-fit: cover; margin: 0 auto;
+  border: 1px solid rgba(74,200,224,.4); background: #12304a; color: #5fe6e0; font-size: 26px; line-height: 72px;
+  clip-path: polygon(0 8px,8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%); }
+.st-pframe.lit > img, .st-pframe.lit > span { border-color: #5fe6e0; box-shadow: 0 0 14px rgba(74,200,224,.45); }
+.st-pname { font-size: 11px; color: #8fb4cc; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-pframe.lit .st-pname { color: #5fe6e0; }
+.st-brief-stage { position: relative; min-height: 240px; display: flex; align-items: flex-end; background: #0a1828;
+  border: 1px solid rgba(74,200,224,.32); overflow: hidden;
+  clip-path: polygon(0 13px,13px 0,100% 0,100% calc(100% - 13px),calc(100% - 13px) 100%,0 100%); }
+.st-brief-stage.has-bg { background-size: cover; background-position: center; }
+.st-transmission { width: 100%; background: linear-gradient(180deg, rgba(6,16,30,.5), rgba(6,16,30,.86)); border-top: 1px solid rgba(74,200,224,.35); padding: 12px 16px; }
+.st-tx-head { font-size: 12px; color: #5fe6e0; letter-spacing: .04em; margin-bottom: 6px; }
+.st-tx-body .st-line { font-size: 15px; line-height: 1.75; color: #e6f1f8; margin: 0 0 6px; text-shadow: 0 1px 5px rgba(0,0,0,.7); }
+.st-actions { display: grid; gap: 8px; }
+.st-actions button { position: relative; border-radius: 0; color: #d6ecf5; text-align: left; padding: 12px 14px 12px 42px; cursor: pointer; font-size: 14px;
+  background: linear-gradient(180deg, rgba(16,40,64,.72), rgba(10,24,42,.72)); border: 1px solid rgba(74,200,224,.4);
+  clip-path: polygon(0 8px,8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%); transition: border-color .12s, box-shadow .12s, background .12s; }
+.st-actions button:hover:not(:disabled) { border-color: #5fe6e0; background: linear-gradient(180deg, rgba(30,72,104,.85), rgba(16,40,64,.85)); box-shadow: 0 0 14px rgba(74,200,224,.3); color: #fff; }
+
 /* ── 主区：对话即界面（中等宽度，给右栏让出空间）── */
 .main { flex: 1 1 0; display: flex; flex-direction: column; min-width: 380px; position: relative; }
 

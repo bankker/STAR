@@ -1292,32 +1292,29 @@ function renderEnding(s) {
   </div></div>`;
 }
 function avatarHtml(c, cls) { return c?.portraitUrl ? `<span class="st-av ${cls || ''}"><img src="${esc(c.portraitUrl)}" alt=""/></span>` : `<span class="st-av ${cls || ''}">${esc((c?.name || '✦')[0])}</span>`; }
+// 事件屏 = 星际争霸任务简报布局：顶部幕僚立绘框 → 场景为底的通讯面板 → 底部行动按钮
 function renderEventTab(s) {
-  if (storyState.streaming) {
-    const sp = (s.cast || []).find((c) => c.artistId === storyState.streaming.speakerArtistId);
-    const envImg = s.env?.image || '';
-    const bg = envImg ? `style="background-image:url('${esc(envImg)}')"` : '';
-    const portrait = sp?.portraitUrl ? `<img class="st-portrait" src="${esc(sp.portraitUrl)}" alt=""/>` : '';
-    const envTag = s.env?.name ? `<div class="st-env-tag">◷ ${esc(s.env.name)}</div>` : '';
-    return `<div class="st-vn">
-      <div class="st-vn-stage ${envImg ? 'has-bg' : ''}" ${bg}>${envTag}${portrait}</div>
-      <div class="st-dialogue"><div class="st-speaker">${avatarHtml(sp)}${esc(sp?.name || '旁白')}</div><div id="st-stream"></div></div>
-    </div>`;
-  }
-  const ev = s.pendingEvent;
-  if (!ev) return `<div class="st-scene-empty"><p>星海静默。推进剧情，看看谁来找你。</p><button class="st-btn-primary" onclick="storyGenEvent()">推进剧情</button></div>`;
-  const sp = (s.cast || []).find((c) => c.artistId === ev.speakerArtistId);
+  const streaming = storyState.streaming;
+  const ev = streaming ? null : s.pendingEvent;
+  if (!streaming && !ev) return `<div class="st-scene-empty"><p>星海静默。推进剧情，看看谁来找你。</p><button class="st-btn-primary" onclick="storyGenEvent()">推进剧情</button></div>`;
+  const speakerId = streaming ? streaming.speakerArtistId : ev.speakerArtistId;
+  const sp = (s.cast || []).find((c) => c.artistId === speakerId);
   const envImg = s.env?.image || '';
-  const bg = envImg ? `style="background-image:url('${esc(envImg)}')"` : '';
-  const portrait = sp?.portraitUrl ? `<img class="st-portrait" src="${esc(sp.portraitUrl)}" alt=""/>` : '';
-  const envTag = s.env?.name ? `<div class="st-env-tag">◷ ${esc(s.env.name)}</div>` : '';
-  return `<div class="st-vn">
-    <div class="st-vn-stage ${envImg ? 'has-bg' : ''}" ${bg}>${envTag}${portrait}<div class="st-scene-cap">${esc(ev.scene || '')}</div></div>
-    <div class="st-dialogue">
-      <div class="st-speaker">${avatarHtml(sp)}${esc(sp?.name || '旁白')}${sp ? ` · 好感 ${sp.affinity || 0}` : ''}</div>
-      ${(ev.lines || []).map((l) => `<p class="st-line">${esc(l)}</p>`).join('')}
-      <div class="st-choices">${(ev.choices || []).map((c, i) => `<button onclick="storyChoose(${i})"><span class="st-key">${i + 1}</span>${esc(c.text)}</button>`).join('')}</div>
-    </div></div>`;
+  const staff = (s.cast || []).map((c) => `<div class="st-pframe ${c.artistId === speakerId ? 'lit' : ''}">${c.portraitUrl ? `<img src="${esc(c.portraitUrl)}" alt=""/>` : `<span>${esc((c.name || '?')[0])}</span>`}<div class="st-pname">${esc(c.name || '')}</div></div>`).join('')
+    || '<div class="st-pframe lit"><span>✦</span><div class="st-pname">旗舰</div></div>';
+  const lines = streaming ? '' : (ev.lines || []).map((l) => `<p class="st-line">${esc(l)}</p>`).join('');
+  const choices = streaming ? '' : (ev.choices || []).map((c, i) => `<button onclick="storyChoose(${i})"><span class="st-key">${i + 1}</span>${esc(c.text)}</button>`).join('');
+  return `<div class="st-brief">
+    <div class="st-pframes">${staff}</div>
+    <div class="st-brief-stage ${envImg ? 'has-bg' : ''}" ${envImg ? `style="background-image:url('${esc(envImg)}')"` : ''}>
+      ${s.env?.name ? `<div class="st-env-tag">◷ ${esc(s.env.name)}</div>` : ''}
+      <div class="st-transmission">
+        <div class="st-tx-head">▶ 通讯 · ${esc(sp?.name || '旗舰指挥部')}${sp ? ` · 好感 ${sp.affinity || 0}` : ''}</div>
+        <div id="st-stream" class="st-tx-body">${lines}</div>
+      </div>
+    </div>
+    <div class="st-actions" id="st-actions">${choices}</div>
+  </div>`;
 }
 function renderCouncilTab(s) {
   const inCast = new Set((s.cast || []).map((c) => c.artistId));
@@ -1374,10 +1371,12 @@ function splitStream(text) {
   return { lines, choices };
 }
 function updateStreamBody() {
-  const el = document.querySelector('#st-stream'); if (!el || !storyState.streaming) return;
+  if (!storyState.streaming) return;
   const { lines, choices } = splitStream(storyState.streaming.text);
-  el.innerHTML = (lines.map((l) => `<p class="st-line">${esc(l)}</p>`).join('') || '<p class="st-line st-dim">…</p>')
-    + (choices.length ? `<div class="st-choices">${choices.map((c, i) => `<button class="st-streaming" disabled><span class="st-key">${i + 1}</span>${esc(c)}</button>`).join('')}</div>` : '');
+  const sb = document.querySelector('#st-stream');
+  if (sb) sb.innerHTML = lines.map((l) => `<p class="st-line">${esc(l)}</p>`).join('') || '<p class="st-line st-dim">…</p>';
+  const ab = document.querySelector('#st-actions');
+  if (ab) ab.innerHTML = choices.map((c, i) => `<button class="st-streaming" disabled><span class="st-key">${i + 1}</span>${esc(c)}</button>`).join('');
 }
 async function storyGenEvent() {
   storyState.streaming = { text: '', speakerArtistId: '' };
