@@ -60,8 +60,16 @@ export function shipTopSVG() {
 // 写实行星：大气辉光 + 表面渐变 + 自转云带 + 晨昏线阴影
 export function planetSVG(opts = {}) {
   const g = sid();
-  const a = opts.scheme === 'ice' ? ['#cfeaff', '#5a93c8', '#214a78', '#0c1a30'] : opts.scheme === 'void' ? ['#e0c8ff', '#9a6fe0', '#4a2f78', '#160e2a'] : ['#ffd9a8', '#e07a4a', '#7a2f3a', '#2a1230'];
-  const glow = opts.scheme === 'ice' ? 'rgba(120,180,255,.22)' : opts.scheme === 'void' ? 'rgba(170,110,255,.22)' : 'rgba(255,150,90,.2)';
+  const SCHEMES = {
+    default: [['#ffd9a8', '#e07a4a', '#7a2f3a', '#2a1230'], 'rgba(255,150,90,.2)'],
+    ice: [['#cfeaff', '#5a93c8', '#214a78', '#0c1a30'], 'rgba(120,180,255,.22)'],
+    void: [['#e0c8ff', '#9a6fe0', '#4a2f78', '#160e2a'], 'rgba(170,110,255,.22)'],
+    earth: [['#bfeaff', '#3f93c8', '#1d6a5a', '#0a1c28'], 'rgba(90,180,220,.24)'],
+    mars: [['#ffcaa0', '#d8693a', '#7a2f25', '#220e0c'], 'rgba(230,110,70,.24)'],
+    moon: [['#e2e7ee', '#9aa4b0', '#48505e', '#12161e'], 'rgba(170,190,210,.18)'],
+    gas: [['#ffe6bf', '#e0975a', '#9a5638', '#341c16'], 'rgba(240,160,90,.22)'],
+  };
+  const [a, glow] = SCHEMES[opts.scheme] || SCHEMES.default;
   return `<svg viewBox='0 0 200 200' width='100%' height='100%' xmlns='http://www.w3.org/2000/svg'>
     <defs><radialGradient id='${g}p' cx='35%' cy='30%'><stop offset='0' stop-color='${a[0]}'/><stop offset='.5' stop-color='${a[1]}'/><stop offset='.85' stop-color='${a[2]}'/><stop offset='1' stop-color='${a[3]}'/></radialGradient><clipPath id='${g}c'><circle cx='100' cy='100' r='84'/></clipPath></defs>
     <circle cx='100' cy='100' r='94' fill='${glow}'/>

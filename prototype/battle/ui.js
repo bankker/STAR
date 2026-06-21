@@ -645,6 +645,14 @@ function renderMapDetail(n) {
     <div style="padding:16px 20px;border-top:1px solid rgba(79,214,230,.2)"><button ${locked ? '' : `data-act="node-go" data-id="${n.id}"`} style="width:100%;padding:15px;cursor:${locked ? 'not-allowed' : 'pointer'};font-weight:900;font-size:17px;letter-spacing:3px;clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);background:${locked ? 'rgba(40,48,58,.7)' : 'linear-gradient(180deg,#5fe8c0,#3fd0e0)'};color:${locked ? '#7a8794' : '#06202a'};border:${locked ? '1px solid #4a5560' : '2px solid #d6fff4'};box-shadow:${locked ? 'none' : '0 0 24px rgba(79,230,200,.5)'}">${actionLabel}</button></div>
   </div>`;
 }
+// 节点行星配色：按阵营/类型给每个节点一颗不同的行星
+function nodeScheme(n) {
+  if (n.type === 'boss' || n.fac === 'void') return 'void';
+  if (n.fac === 'raider') return 'mars';
+  if (n.type === 'supply' || n.fac === 'free') return 'earth';
+  if (n.type === 'event') return 'moon';
+  return 'ice';
+}
 function renderMap() {
   const r = G.run; STARS = STARS || starfield();
   const map = Object.fromEntries(r.nodes.map((n) => [n.id, n]));
@@ -660,8 +668,13 @@ function renderMap() {
     const size = boss ? 96 : avail ? 84 : 72;
     return `<div data-act="node" data-id="${n.id}" style="position:absolute;left:${n.x}px;top:${n.y}px;transform:translate(-50%,-50%);width:${size + 40}px;display:flex;flex-direction:column;align-items:center;cursor:pointer;z-index:${sel ? 20 : 10};opacity:${locked ? 0.62 : 1}">
       <div style="position:absolute;top:${20 - size / 2 + (boss ? 2 : 6)}px;width:${size + 22}px;height:${size + 22}px;border-radius:50%;border:1.5px ${avail ? 'solid' : 'dashed'} ${sel ? '#fff' : fc};opacity:${avail ? 0.9 : 0.5};${avail ? 'animation:ringSpin 14s linear infinite;' : ''}${sel ? `box-shadow:0 0 22px ${fc}` : ''}"></div>
-      <div style="width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 40% 35%, ${fc}33, rgba(8,14,24,.95));border:2px solid ${sel ? '#fff' : fc};box-shadow:${avail ? `0 0 30px ${fc}66, inset 0 0 18px ${fc}44` : `0 0 14px ${fc}33`};${avail ? 'animation:nodePulse 2.6s ease-in-out infinite;' : ''}">
-        <div style="width:${boss ? 44 : 34}px;height:${boss ? 44 : 34}px;background-image:url(&quot;${Q(nodeIcon(n.type, boss ? '#e8c8ff' : fc))}&quot;);background-size:contain;background-repeat:no-repeat"></div>
+      <div style="position:relative;width:${size}px;height:${size}px;${avail ? 'animation:nodePulse 2.6s ease-in-out infinite;' : ''};filter:drop-shadow(0 0 ${avail ? 20 : 11}px ${fc}${avail ? 'aa' : '55'})">
+        ${planetSVG({ scheme: nodeScheme(n) })}
+        ${sel
+        ? `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${boss ? 36 : 28}px;color:#ffce6a;text-shadow:0 0 12px rgba(255,200,90,.95)">★</div>`
+        : n.state !== 'cleared'
+          ? `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center"><div style="width:${boss ? 40 : 30}px;height:${boss ? 40 : 30}px;background-image:url(&quot;${Q(nodeIcon(n.type, boss ? '#f0d8ff' : '#eaf4ff'))}&quot;);background-size:contain;background-repeat:no-repeat;opacity:.95;filter:drop-shadow(0 0 6px rgba(0,0,0,.85))"></div></div>`
+          : ''}
       </div>
       <div style="margin-top:10px;font-size:${boss ? 16 : 14}px;font-weight:700;letter-spacing:1px;color:${locked ? '#8a9aa8' : '#eaf4ff'};text-shadow:0 2px 6px rgba(0,0,0,.8);white-space:nowrap">${esc(n.name)}</div>
       <div style="margin-top:3px;font-size:10px;letter-spacing:2px;padding:1px 8px;color:${fc};background:${fc}1a;border:1px solid ${fc}66;border-radius:8px">${TYPE_META[n.type]}</div>
@@ -689,7 +702,7 @@ function renderMap() {
         <div style="position:absolute;left:160px;top:140px;width:920px;height:760px;pointer-events:none;background:radial-gradient(ellipse 50% 50% at 42% 42%,rgba(95,180,238,.11),transparent 66%);animation:bgdrift 70s ease-in-out infinite"></div>
         <div style="position:absolute;left:1280px;top:160px;width:1100px;height:900px;pointer-events:none;background:radial-gradient(ellipse 50% 50% at 58% 40%,rgba(192,123,255,.13),transparent 62%),radial-gradient(ellipse 40% 40% at 28% 72%,rgba(255,138,74,.08),transparent 60%);animation:bgdrift 92s ease-in-out infinite reverse"></div>
         <div style="position:absolute;left:90px;top:980px;width:250px;height:250px;pointer-events:none;opacity:.6;filter:drop-shadow(0 0 42px rgba(120,180,255,.25))">${planetSVG({ scheme: 'ice' })}</div>
-        <div style="position:absolute;left:1000px;top:110px;width:200px;height:200px;pointer-events:none;opacity:.5;filter:drop-shadow(0 0 36px rgba(255,150,90,.22))">${planetSVG({ scheme: 'default' })}</div>
+        <div style="position:absolute;left:980px;top:50px;width:360px;height:360px;pointer-events:none;opacity:.85;filter:drop-shadow(0 0 60px rgba(240,160,90,.35))">${planetSVG({ scheme: 'gas' })}</div>
         <div style="position:absolute;left:2200px;top:300px;width:320px;height:320px;pointer-events:none;opacity:.6;filter:drop-shadow(0 0 52px rgba(170,110,255,.3))">${planetSVG({ scheme: 'void' })}</div>
         <svg width="2600" height="1320" style="position:absolute;left:0;top:0;pointer-events:none">${routes}</svg>
         ${nodes}${flag}
