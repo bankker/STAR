@@ -1000,7 +1000,8 @@ function onPanMove(e) {
   if (Math.abs(e.clientX - G._panStart.mx) + Math.abs(e.clientY - G._panStart.my) > 4) G._moved = true;
   let x = G._panStart.px + (e.clientX - G._panStart.mx) / s;
   let y = G._panStart.py + (e.clientY - G._panStart.my) / s;
-  x = Math.max(-(2600 - 1920), Math.min(80, x));
+  // 右侧详情面板遮住舞台右侧约 464px，左移上限多放出这段，BOSS 节点才能拖到面板左侧点击
+  x = Math.max(-(2600 - 1456), Math.min(80, x));
   y = Math.max(-(1320 - 1080), Math.min(60, y));
   G.run.pan = { x, y };
   const m = document.getElementById('bg-map'); if (m) m.style.transform = `translate(${x}px,${y}px)`;
