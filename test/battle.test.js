@@ -11,6 +11,8 @@ const CARDS = {
   齐射: { id: '齐射', name: '主炮齐射', cost: 3, type: 'spell', effect: { kind: 'damage', amount: 4, target: 'enemyFace' } },
   护盾: { id: '护盾', name: '能量护盾', cost: 2, type: 'spell', effect: { kind: 'armor', amount: 4 } },
   脉冲: { id: '脉冲', name: '脉冲炮', cost: 1, type: 'spell', effect: { kind: 'damage', amount: 3, target: 'enemyFace' } },
+  标记弹: { id: '标记弹', name: '标记弹', cost: 1, type: 'spell', effect: { kind: 'mark', target: 'enemyFace' } },
+  连携突击: { id: '连携突击', name: '连携突击', cost: 2, type: 'spell', effect: { kind: 'damage', target: 'enemyFace', amount: 1, combo: 4, comboAt: 2 } },
   无人机: { id: '无人机', name: '无人机', cost: 1, type: 'summon', unit: { name: '无人机', atk: 1, hp: 2, keywords: ['嘲讽'] } },
   突击机: { id: '突击机', name: '突击机', cost: 2, type: 'summon', unit: { name: '突击机', atk: 3, hp: 1, keywords: ['突袭'] } },
   炮手: { id: '炮手', name: '炮手无人机', cost: 2, type: 'summon', unit: { name: '炮手', atk: 1, hp: 3 }, battlecry: { kind: 'damage', amount: 2, target: 'enemyFace' } },
@@ -252,6 +254,24 @@ test('法术 定点: 指定敌方单位造成伤害', () => {
   const foe = s.enemy.board[0].instanceId;
   const s2 = playCard(s, s.hand.find((c) => c.cardId === '定点').instanceId, { targetId: foe });
   assert.equal(s2.enemy.board.length, 0);                         // 4hp 受 4 → 死
+});
+
+test('关键词 标记(§6)：标记敌舰后对其伤害 +2', () => {
+  let s = newBattle(baseCfg({ deck: ['标记弹', '脉冲', ...deckOf(18, '齐射')], crew: [], enemy: enemyOf(20) }));
+  s = startTurnTo(s, 2);
+  s = playCard(s, s.hand.find((c) => c.cardId === '标记弹').instanceId);
+  assert.equal(s.enemy.marked, true);
+  assert.equal(s.enemy.hp, 20);                       // 标记本身不造成伤害
+  const s2 = playCard(s, s.hand.find((c) => c.cardId === '脉冲').instanceId);  // 脉冲3 +2(标记)
+  assert.equal(s2.enemy.hp, 15);
+});
+
+test('关键词 连携(§6)：本回合出第 2 张时连携牌额外伤害', () => {
+  let s = newBattle(baseCfg({ deck: ['脉冲', '连携突击', ...deckOf(18, '齐射')], crew: [], enemy: enemyOf(20) }));
+  s = startTurnTo(s, 3);
+  s = playCard(s, s.hand.find((c) => c.cardId === '脉冲').instanceId);         // 第1张：-3 → 17
+  const s2 = playCard(s, s.hand.find((c) => c.cardId === '连携突击').instanceId); // 第2张：连携 1+4=5 → 12
+  assert.equal(s2.enemy.hp, 12);
 });
 
 test('遗物 弹头涂层(§8)：所有伤害牌 +1', () => {

@@ -30,6 +30,7 @@ export function startTurn(state) {
   s.energy.max = Math.min(10, s.energy.max + 1);
   s.energy.current = Math.min(10, s.energy.max + (s.terrain === 'gravity' ? 1 : 0) + (s.turn === 1 ? relicSum(s, 'startEnergy') : 0));   // 引力井 +1 / 遗物起始能量
   s.heroPowerUsed = false;
+  s.cardsPlayedThisTurn = 0;                                                  // 连携计数（§6）
   for (let i = 0, n = 1 + relicSum(s, 'extraDraw'); i < n; i++) drawOne(s);   // 遗物：每回合多摸
   applyAuras(s);
   s.board.forEach((u) => { if (u.onField) u.canAct = true; });
@@ -68,11 +69,18 @@ function applyEffect(s, eff, opts = {}) {
     else if (eff.target === 'unit') { const u = s.board.find((x) => x.instanceId === opts.targetId && x.onField); if (u) u.hp = Math.min(u.maxHp, u.hp + eff.amount); }
     return;
   }
+  if (eff.kind === 'mark') {   // 标记（§6）：被标记目标受到的伤害 +2
+    if (eff.target === 'enemyFace') s.enemy.marked = true;
+    else { const u = s.enemy.board.find((x) => x.instanceId === opts.targetId); if (u) u.marked = true; }
+    return;
+  }
   if (eff.kind === 'damage') {
-    const dmg = eff.amount + relicSum(s, 'atkDmg');   // 遗物：伤害牌加成
-    if (eff.target === 'enemyFace') dealDamage(s.enemy, dmg);
-    else if (eff.target === 'allEnemyUnits') s.enemy.board.forEach((u) => dealDamage(u, dmg));
-    else if (eff.target === 'enemyUnit') { const u = s.enemy.board.find((x) => x.instanceId === opts.targetId); if (u) dealDamage(u, dmg); }
+    const combo = (eff.combo && (s.cardsPlayedThisTurn || 0) >= (eff.comboAt || 2)) ? eff.combo : 0;   // 连携（§6）
+    const base = eff.amount + relicSum(s, 'atkDmg') + combo;
+    const markBonus = (t) => (t && t.marked ? 2 : 0);
+    if (eff.target === 'enemyFace') dealDamage(s.enemy, base + markBonus(s.enemy));
+    else if (eff.target === 'allEnemyUnits') s.enemy.board.forEach((u) => dealDamage(u, base + markBonus(u)));
+    else if (eff.target === 'enemyUnit') { const u = s.enemy.board.find((x) => x.instanceId === opts.targetId); if (u) dealDamage(u, base + markBonus(u)); }
   }
 }
 
@@ -107,6 +115,7 @@ export function playCard(state, instanceId, opts = {}) {
   const card = s.hand[idx];
   s.energy.current -= (card.cost || 0);
   s.hand.splice(idx, 1);
+  s.cardsPlayedThisTurn = (s.cardsPlayedThisTurn || 0) + 1;   // 连携计数（§6）
   if (card.type === 'summon') summonUnit(s, card);
   else applyEffect(s, card.effect, opts);
   removeDead(s);
