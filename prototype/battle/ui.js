@@ -56,6 +56,7 @@ async function openGame() {
   const v = view();
   v.hidden = false; v.classList.add('bg-root');
   G.run = { nodes: structuredClone(MAP_NODES), selected: 'n4', flagAt: 'n4', pan: { x: -40, y: -70 }, current: null };
+  G.maxSlots = 4;   // 核心仓位（基础 4，§3.2 永久升级可达 6）
   G.screen = 'map'; G.squad = []; G.detail = null; G.battle = null; G.pending = null; G.result = null; G.pendingEnemy = null;
   render();
   try {
@@ -139,7 +140,7 @@ function renderDeploy() {
   const atkN = groups.attack.length, atkPct = Math.round(atkN / Math.max(1, deck.length) * 100), defPct = 100 - atkPct;
   const tLabel = atkPct >= 50 ? '激进 · 强攻型阵容' : atkPct <= 30 ? '稳健 · 防御续航型' : '均衡 · 攻守兼备';
   const roster = G.artists.length ? G.artists.map((a, i) => rosterRow(a, i)).join('') : '<div style="padding:24px;text-align:center;color:#5a93ad;font-size:12px">还没有艺人。到工作台创建，他们会成为你的核心船员。</div>';
-  const slots = [0, 1, 2, 3].map(slotHex).join('');
+  const slots = Array.from({ length: G.maxSlots }, (_, i) => slotHex(i)).join('');
   const deckGroupsHtml = order.map((k) => {
     const m = CAT[k], list = groups[k]; if (!list.length) return '';
     const rows = list.map((c) => `<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:rgba(10,20,32,.55);border-left:3px solid ${m.color};border-radius:0 5px 5px 0"><div style="width:24px;height:27px;flex:none;clip-path:polygon(50% 0,100% 26%,100% 74%,50% 100%,0 74%,0 26%);background:linear-gradient(180deg,${m.color},${m.color}99);display:flex;align-items:center;justify-content:center;font-family:Oxanium;font-weight:800;font-size:13px;color:#0a1018">${c.cost}</div><span style="flex:1;font-size:13px;color:#dce8f4">${esc(c.name)}</span></div>`).join('');
@@ -154,11 +155,11 @@ function renderDeploy() {
         <div style="width:40px;height:40px;border:1px solid rgba(79,214,230,.5);clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);display:flex;align-items:center;justify-content:center;background:rgba(12,34,50,.8)"><div style="width:14px;height:14px;border:2px solid #5fe6ff;border-radius:50%;box-shadow:0 0 10px rgba(95,230,255,.7)"></div></div>
         <div><div style="font-family:Oxanium;font-weight:700;font-size:19px;letter-spacing:3px;color:#d6f3ff;text-shadow:0 0 14px rgba(95,230,255,.45)">出战编成</div><div style="font-size:11px;letter-spacing:3px;color:#5a93ad">DEPLOYMENT · 星舰协同作战</div></div>
       </div>
-      <div style="display:flex;align-items:center;gap:10px;font-size:12px;letter-spacing:2px;color:#7fb6c8"><span style="padding:6px 16px;background:rgba(8,22,34,.85);border:1px solid rgba(79,214,230,.3);border-radius:3px">编队 <span style="color:#ffd27a;font-family:Oxanium;font-weight:800">${filled}</span> / 4</span><button data-act="close" style="width:40px;height:40px;border:1px solid rgba(79,214,230,.35);background:rgba(12,30,44,.85);color:#7fd6e6;font-size:16px;cursor:pointer;border-radius:3px">✕</button></div>
+      <div style="display:flex;align-items:center;gap:10px;font-size:12px;letter-spacing:2px;color:#7fb6c8"><span style="padding:6px 16px;background:rgba(8,22,34,.85);border:1px solid rgba(79,214,230,.3);border-radius:3px">编队 <span style="color:#ffd27a;font-family:Oxanium;font-weight:800">${filled}</span> / ${G.maxSlots}</span><button data-act="close" style="width:40px;height:40px;border:1px solid rgba(79,214,230,.35);background:rgba(12,30,44,.85);color:#7fd6e6;font-size:16px;cursor:pointer;border-radius:3px">✕</button></div>
     </div>
 
     <div style="position:absolute;top:84px;left:28px;width:346px;bottom:28px;background:linear-gradient(160deg,rgba(12,28,42,.7),rgba(8,16,28,.78));border:1px solid rgba(79,214,230,.26);clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);display:flex;flex-direction:column">
-      <div style="padding:16px 20px 12px;border-bottom:1px solid rgba(79,214,230,.18)"><div style="font-weight:700;font-size:15px;letter-spacing:2px;color:#d6f3ff">可用船员</div><div style="font-size:10px;letter-spacing:2px;color:#5a93ad;margin-top:3px">点击 · 编入舰桥战位（最多 4）</div></div>
+      <div style="padding:16px 20px 12px;border-bottom:1px solid rgba(79,214,230,.18)"><div style="font-weight:700;font-size:15px;letter-spacing:2px;color:#d6f3ff">可用船员</div><div style="font-size:10px;letter-spacing:2px;color:#5a93ad;margin-top:3px">点击 · 编入舰桥战位（最多 ${G.maxSlots}）</div></div>
       <div style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px">${roster}</div>
     </div>
 
@@ -266,7 +267,8 @@ function renderBattle() {
   const crew = b.board.filter((u) => u.type === 'crew');
   const summons = b.board.filter((u) => u.type === 'summon');
   const faceHit = p?.kind === 'attack' && isLegalTarget(b, 'face');
-  const totalAtk = (b.enemy.atk || 0) + b.enemy.board.reduce((s, u) => s + (u.atk || 0), 0);
+  const intent = b.intent || { type: 'attack', value: 0, target: 'ship' };
+  const intentTarget = intent.target && intent.target !== 'ship' ? (b.board.find((u) => u.instanceId === intent.target)?.name || '船员') : '舰体';
   const enemyPct = Math.max(0, Math.min(100, b.enemy.hp / b.enemy.maxHp * 100));
   const hullPct = Math.max(0, Math.min(100, b.ship.hp / b.ship.maxHp * 100));
   const capAfford = b.heroPower && !b.heroPowerUsed && b.heroPower.cost <= b.energy.current && b.active === 'player';
@@ -303,8 +305,8 @@ function renderBattle() {
       <div style="position:absolute;top:34px;left:calc(50% + 200px);width:262px">
         <div style="font-size:10px;letter-spacing:4px;color:#7a93a8;margin-bottom:5px;padding-left:4px">敌方下回合意图</div>
         <div style="position:relative;background:linear-gradient(160deg,rgba(40,18,18,.9),rgba(12,18,28,.94));border:1px solid #ff5a3c;clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);padding:14px 15px;box-shadow:0 0 24px #ff5a3c44,inset 0 0 18px rgba(0,0,0,.4);animation:bgblink 2.4s ease-in-out infinite">
-          <div style="display:flex;align-items:baseline;gap:8px"><span style="font-weight:700;font-size:17px;color:#fff;letter-spacing:1px">集火攻击</span><span style="font-family:Oxanium;font-weight:800;font-size:22px;color:#ff5a3c;text-shadow:0 0 12px #ff5a3c">${totalAtk}</span></div>
-          <div style="font-size:11px;color:#9fb6c6;margin-top:3px">瞄准火力最薄弱的船员</div>
+          <div style="display:flex;align-items:baseline;gap:8px"><span style="font-weight:700;font-size:17px;color:#fff;letter-spacing:1px">${intent.type === 'idle' ? '按兵不动' : '集火攻击'}</span>${intent.type === 'idle' ? '' : `<span style="font-family:Oxanium;font-weight:800;font-size:22px;color:#ff5a3c;text-shadow:0 0 12px #ff5a3c">⚔${intent.value}</span>`}</div>
+          <div style="font-size:11px;color:#9fb6c6;margin-top:3px">${intent.type === 'idle' ? '本回合不发起攻击' : `瞄准 ${esc(intentTarget)}`}</div>
         </div>
       </div>
       <div style="position:absolute;top:232px;left:50%;transform:translateX(-50%);display:flex;gap:18px;align-items:flex-end">${drones}</div>
@@ -592,7 +594,7 @@ function togglePick(idStr) {
   const a = G.artists.find((x) => x.id === idStr); if (!a) return;
   G.detail = idStr;
   if (G.squad.some((x) => x.id === idStr)) return render();      // 已在队 → 仅查看详情
-  if (G.squad.length >= 4) { toast('小队已满（最多 4 名）'); return render(); }
+  if (G.squad.length >= G.maxSlots) { toast(`小队已满（最多 ${G.maxSlots} 名）`); return render(); }
   G.squad.push(a); render();
 }
 
@@ -600,7 +602,7 @@ function deploy() {
   if (G.squad.length === 0) return toast('至少选 1 名核心船员');
   const cast = G.squad.length ? G.squad : G.artists.slice(0, 2);
   if (!cast.length) return toast('还没有艺人可作为船员');
-  G.battle = newBattle({ cards: CARDS, deck: starterDeck(), crew: crewFromCast(cast), enemy: G.pendingEnemy || ENEMIES.海盗前锋, rng: Math.random });
+  G.battle = newBattle({ cards: CARDS, deck: starterDeck(), crew: crewFromCast(cast.slice(0, G.maxSlots)), enemy: G.pendingEnemy || ENEMIES.海盗前锋, rng: Math.random, maxSlots: G.maxSlots });
   G.screen = 'battle'; G.pending = null; G.result = null;
   render();
 }

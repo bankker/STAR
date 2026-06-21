@@ -29,6 +29,7 @@ const baseCfg = (o = {}) => ({
   deck: o.deck || deckOf(20, '齐射'),
   enemy: o.enemy || enemyOf(20),
   rng: o.rng || seqRng([0.5]),
+  maxSlots: o.maxSlots,
 });
 
 test('newBattle: 舰体30/能量1·1/核心船员在场/起手手牌/回合1/active', () => {
@@ -249,6 +250,29 @@ test('法术 定点: 指定敌方单位造成伤害', () => {
   const foe = s.enemy.board[0].instanceId;
   const s2 = playCard(s, s.hand.find((c) => c.cardId === '定点').instanceId, { targetId: foe });
   assert.equal(s2.enemy.board.length, 0);                         // 4hp 受 4 → 死
+});
+
+test('意图预告(§9.1)：newBattle 后 enemy.intent 反映下回合总伤害', () => {
+  const s = newBattle(baseCfg({ crew: [crew('林', { hp: 9 })], enemy: enemyOf(20, { atk: 3, minions: [{ name: 'a', atk: 2, hp: 3 }, { name: 'b', atk: 4, hp: 3 }] }) }));
+  assert.equal(s.intent.type, 'attack');
+  assert.equal(s.intent.value, 3 + 2 + 4);          // 舰炮3 + 僚机2 + 僚机4 = 9
+});
+
+test('意图预告：玩家打掉敌方单位后，意图随之更新（出手后重算）', () => {
+  let s = newBattle(baseCfg({ crew: [crew('林', { atk: 3, hp: 9 })], enemy: enemyOf(20, { atk: 0, minions: [{ name: 'a', atk: 2, hp: 2 }] }) }));
+  assert.equal(s.intent.value, 2);
+  s = attack(s, s.board[0].instanceId, s.enemy.board[0].instanceId);  // 林3 杀僚机(hp2)
+  assert.equal(s.enemy.board.length, 0);
+  assert.equal(s.intent.value, 0);                  // 无单位 + 舰炮0 → 0
+  assert.equal(s.intent.type, 'idle');
+});
+
+test('站场上限可成长(§9.2)：maxSlots 默认 4，可配置至 6；锚不变', () => {
+  const a = newBattle(baseCfg({ crew: [crew('林')] }));
+  assert.equal(a.maxSlots, 4);
+  assert.equal(a.ship.maxHp, 30);                   // 平衡锚不变
+  const b = newBattle(baseCfg({ crew: [crew('林')], maxSlots: 6 }));
+  assert.equal(b.maxSlots, 6);
 });
 
 test('集成: 真实卡库 + 艺人船员开战，可出牌、可结束回合', () => {

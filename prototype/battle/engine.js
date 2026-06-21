@@ -31,6 +31,7 @@ export function startTurn(state) {
   drawOne(s);
   applyAuras(s);
   s.board.forEach((u) => { if (u.onField) u.canAct = true; });
+  s.intent = computeIntent(s);
   return s;
 }
 
@@ -46,6 +47,15 @@ function dealDamage(target, amount) {
 function checkOutcome(s) {
   if (s.enemy.hp <= 0) { s.enemy.hp = 0; s.status = 'won'; }
   else if (s.ship.hp <= 0) { s.ship.hp = 0; s.status = 'lost'; }
+  s.intent = computeIntent(s);                       // 出手后即时刷新敌方下回合意图（§4.3/§9.1）
+}
+
+// 敌方下回合意图预告：把所有敌方火力汇总成一条可推演的情报
+function computeIntent(s) {
+  const total = (s.enemy.atk || 0) + s.enemy.board.reduce((a, u) => a + (u.hp > 0 ? (u.atk || 0) : 0), 0);
+  if (total <= 0) return { type: 'idle', value: 0, text: '按兵不动', target: null };
+  const t = enemyPickTarget(s);
+  return { type: 'attack', value: total, target: t ? t.instanceId : 'ship', text: `集火 ⚔${total}` };
 }
 
 function applyEffect(s, eff, opts = {}) {
@@ -229,6 +239,8 @@ export function newBattle(cfg) {
     fatigue: 0, log: [],
     heroPower: cfg.heroPower || { name: '集火指令', cost: 2, effect: { kind: 'damage', amount: 1, target: 'enemyFace' } },
     heroPowerUsed: false,
+    maxSlots: Math.max(1, Math.min(6, cfg.maxSlots || 4)),   // 核心仓位：基础4，可永久升级至6（§3.2/§9.2）
+    intent: null,
   };
   return startTurn(s);
 }
