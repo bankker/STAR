@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:#04070e;font-family:'Noto Sans SC',sans-serif;-webkit-font-smoothing:antialiased;}
+  @keyframes slotGlow{0%,100%{box-shadow:0 0 0 1px rgba(95,210,235,.4),0 0 20px rgba(95,210,235,.2);}50%{box-shadow:0 0 0 1px rgba(95,210,235,.7),0 0 30px rgba(95,210,235,.4);}}
+  @keyframes busPulse{0%{opacity:.25;}50%{opacity:.7;}100%{opacity:.25;}}
+  @keyframes floatY{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}
+  ::-webkit-scrollbar{width:6px;}::-webkit-scrollbar-thumb{background:rgba(95,210,235,.3);border-radius:3px;}::-webkit-scrollbar-track{background:transparent;}
+</style>
+</helmet>
+<div style="position:fixed;inset:0;background:#04070e;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+  <div ref="{{ stageRef }}" style="{{ stageStyle }}">
+    <div style="{{ starStyle }}"></div>
+    <div style="position:absolute;inset:0;background:radial-gradient(ellipse 100% 70% at 50% 35%,rgba(40,90,140,.16),transparent 70%);pointer-events:none;"></div>
+
+    <!-- ===== TOP BAR ===== -->
+    <div style="position:absolute;top:0;left:0;width:1920px;height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:linear-gradient(180deg,rgba(10,26,40,.96),rgba(8,18,30,.5));border-bottom:1px solid rgba(79,214,230,.3);z-index:40;">
+      <div style="display:flex;align-items:center;gap:16px;">
+        <button style="width:40px;height:40px;border:1px solid rgba(79,214,230,.4);background:rgba(12,30,44,.85);color:#7fd6e6;border-radius:3px;cursor:pointer;font-size:18px;">‹</button>
+        <div>
+          <div style="font-family:'Oxanium','Noto Sans SC';font-weight:700;font-size:19px;letter-spacing:3px;color:#d6f3ff;text-shadow:0 0 14px rgba(95,230,255,.45);">出战编成</div>
+          <div style="font-size:11px;letter-spacing:3px;color:#5a93ad;">DEPLOYMENT · 「奥德赛」号 · 航行日 1271</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;font-size:12px;letter-spacing:2px;color:#7fb6c8;">
+        <span style="padding:6px 16px;background:rgba(8,22,34,.85);border:1px solid rgba(79,214,230,.3);border-radius:3px;">编队 <span style="color:#ffd27a;font-family:'Oxanium';font-weight:800;">{{ filledCount }}</span> / 4</span>
+        <button style="width:40px;height:40px;border:1px solid rgba(79,214,230,.35);background:rgba(12,30,44,.85);color:#7fd6e6;border-radius:3px;cursor:pointer;font-size:16px;">⚙</button>
+      </div>
+    </div>
+
+    <!-- ===== LEFT · ROSTER ===== -->
+    <div data-screen-label="船员名单" style="position:absolute;top:84px;left:28px;width:346px;bottom:28px;background:linear-gradient(160deg,rgba(12,28,42,.7),rgba(8,16,28,.78));border:1px solid rgba(79,214,230,.26);clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);display:flex;flex-direction:column;">
+      <div style="padding:16px 20px 12px;border-bottom:1px solid rgba(79,214,230,.18);">
+        <div style="font-weight:700;font-size:15px;letter-spacing:2px;color:#d6f3ff;">可用船员</div>
+        <div style="font-size:10px;letter-spacing:2px;color:#5a93ad;margin-top:3px;">拖动或点击 · 编入舰桥战位</div>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;">
+        <sc-for list="{{ roster }}" as="m" hint-placeholder-count="6">
+          <div draggable="true" onDragStart="{{ m.onDragStart }}" onClick="{{ m.onClick }}" style="{{ m.rowStyle }}">
+            <div style="{{ m.thumbStyle }}"></div>
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:7px;">
+                <span style="font-weight:700;font-size:15px;color:#eaf4ff;letter-spacing:.5px;">{{ m.name }}</span>
+                <span style="{{ m.catDotStyle }}"></span>
+              </div>
+              <div style="font-size:11px;letter-spacing:1px;color:{{ m.accent }};margin-top:2px;">{{ m.role }}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
+              <span style="{{ m.statusStyle }}">{{ m.statusText }}</span>
+              <span style="font-size:10px;color:#7a93a8;letter-spacing:1px;">Lv.{{ m.lv }}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- ===== CENTER ===== -->
+    <!-- section label -->
+    <div style="position:absolute;top:88px;left:392px;font-size:11px;letter-spacing:4px;color:#7a93a8;">舰桥战位 · BRIDGE STATIONS</div>
+
+    <!-- ship schematic -->
+    <div style="{{ shipStyle }}"></div>
+    <!-- data bus to deck -->
+    <div style="position:absolute;top:474px;left:392px;width:1040px;height:30px;display:flex;align-items:center;gap:10px;padding-left:8px;">
+      <span style="font-size:11px;letter-spacing:3px;color:#5fe0ee;animation:busPulse 2.4s ease-in-out infinite;">▸ 当前阵容生成的牌库 →</span>
+      <div style="flex:1;height:1px;background:linear-gradient(90deg,rgba(95,210,235,.5),transparent);"></div>
+    </div>
+
+    <!-- 4 slots -->
+    <div style="position:absolute;top:150px;left:392px;width:1040px;height:300px;">
+      <sc-for list="{{ slots }}" as="s" hint-placeholder-count="4">
+        <div style="{{ s.wrapStyle }}">
+          <div onClick="{{ s.onClick }}" onDragOver="{{ s.onDragOver }}" onDrop="{{ s.onDrop }}" style="{{ s.hexStyle }}">
+            <sc-if value="{{ s.empty }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+                <div style="{{ s.roleIconStyle }}"></div>
+                <span style="font-size:10px;letter-spacing:1px;color:rgba(140,180,210,.7);">空缺</span>
+              </div>
+            </sc-if>
+            <sc-if value="{{ s.filled }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ s.portraitStyle }}"></div>
+              <button onClick="{{ s.onRemove }}" style="position:absolute;top:-6px;right:-6px;width:24px;height:24px;border-radius:50%;background:rgba(40,12,12,.95);border:1px solid #ff6a4a;color:#ff9a7a;font-size:13px;cursor:pointer;z-index:4;display:flex;align-items:center;justify-content:center;">✕</button>
+            </sc-if>
+          </div>
+          <div style="margin-top:9px;text-align:center;">
+            <div style="font-size:12px;font-weight:700;letter-spacing:1px;color:{{ s.labelColor }};">{{ s.stationName }}</div>
+            <div style="font-size:12px;color:#cfe0ee;margin-top:2px;min-height:14px;">{{ s.crewName }}</div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <!-- ===== CENTER · DETAIL / 养成 ===== -->
+    <div data-screen-label="船员详情" style="position:absolute;top:524px;left:392px;width:1040px;bottom:28px;background:linear-gradient(160deg,rgba(12,28,42,.72),rgba(8,16,28,.8));border:1px solid rgba(79,214,230,.26);clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);display:flex;overflow:hidden;">
+      <!-- portrait side -->
+      <div style="{{ detail.portraitWrapStyle }}">
+        <div style="{{ detail.portraitStyle }}"></div>
+        <div style="position:absolute;left:0;right:0;bottom:0;padding:14px 18px;background:linear-gradient(180deg,transparent,rgba(6,14,24,.95));">
+          <div style="font-weight:800;font-size:22px;color:#fff;letter-spacing:1px;">{{ detail.name }}</div>
+          <div style="font-size:12px;letter-spacing:2px;color:{{ detail.accent }};margin-top:2px;">{{ detail.role }}</div>
+        </div>
+      </div>
+      <!-- info side -->
+      <div style="flex:1;padding:22px 26px;display:flex;flex-direction:column;gap:16px;">
+        <!-- stats -->
+        <div style="display:flex;gap:14px;">
+          <div style="flex:1;padding:12px 16px;background:rgba(58,20,10,.4);border:1px solid rgba(255,176,32,.4);border-radius:6px;">
+            <div style="font-size:10px;letter-spacing:2px;color:#d7a76a;">火力</div>
+            <div style="font-family:'Oxanium';font-weight:800;font-size:30px;color:#ffd27a;line-height:1;margin-top:4px;">{{ detail.atk }}</div>
+          </div>
+          <div style="flex:1;padding:12px 16px;background:rgba(58,12,10,.4);border:1px solid rgba(255,90,60,.4);border-radius:6px;">
+            <div style="font-size:10px;letter-spacing:2px;color:#e0907a;">生命</div>
+            <div style="font-family:'Oxanium';font-weight:800;font-size:30px;color:#ffd0c8;line-height:1;margin-top:4px;">{{ detail.hp }}</div>
+          </div>
+          <div style="flex:1.5;padding:12px 16px;background:rgba(95,210,235,.08);border:1px solid rgba(95,210,235,.32);border-radius:6px;">
+            <div style="font-size:10px;letter-spacing:2px;color:#7fc0d2;">培养进度</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+              <span style="font-family:'Oxanium';font-weight:800;font-size:18px;color:#9fe6f4;">Lv.{{ detail.lv }}</span>
+              <div style="flex:1;height:7px;background:rgba(6,16,26,.9);border-radius:4px;overflow:hidden;"><div style="{{ detail.lvFillStyle }}"></div></div>
+            </div>
+          </div>
+        </div>
+        <!-- trait / aura -->
+        <div style="padding:13px 16px;background:rgba(8,20,32,.7);border-left:3px solid {{ detail.accent }};border-radius:0 6px 6px 0;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="{{ detail.traitIconStyle }}"></div>
+            <span style="font-weight:700;font-size:14px;color:#eaf4ff;letter-spacing:1px;">特性 · {{ detail.trait }}</span>
+          </div>
+          <div style="font-size:13px;line-height:1.5;color:#aebfce;margin-top:7px;">{{ detail.traitDesc }}</div>
+        </div>
+        <!-- unlockable cards -->
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;">
+            <span style="font-size:13px;font-weight:700;letter-spacing:1px;color:#d6f3ff;">携带卡牌 · 养成解锁</span>
+            <span style="font-size:11px;color:#7a93a8;">带上她，这些卡进入牌库</span>
+          </div>
+          <div style="display:flex;gap:12px;">
+            <sc-for list="{{ detail.cards }}" as="card" hint-placeholder-count="3">
+              <div style="{{ card.style }}">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                  <div style="{{ card.gemStyle }}">{{ card.cost }}</div>
+                  <span style="{{ card.catTagStyle }}">{{ card.catLabel }}</span>
+                </div>
+                <div style="font-weight:700;font-size:14px;color:#eef5fc;margin-top:auto;letter-spacing:.5px;">{{ card.name }}</div>
+                <sc-if value="{{ card.locked }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute;inset:0;background:rgba(6,12,20,.78);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;">
+                    <span style="font-size:18px;">🔒</span>
+                    <span style="font-size:11px;letter-spacing:1px;color:#ffb86a;">{{ card.req }} 解锁</span>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== RIGHT · DECK PREVIEW ===== -->
+    <div data-screen-label="牌库预览" style="position:absolute;top:84px;left:1448px;width:444px;bottom:28px;background:linear-gradient(160deg,rgba(12,28,42,.74),rgba(8,16,28,.82));border:1px solid rgba(79,214,230,.3);clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);display:flex;flex-direction:column;box-shadow:inset 0 0 30px rgba(60,160,200,.08);">
+      <div style="padding:16px 20px 14px;border-bottom:1px solid rgba(79,214,230,.2);">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;">
+          <span style="font-weight:700;font-size:16px;letter-spacing:2px;color:#d6f3ff;">出战牌库</span>
+          <span style="font-size:12px;color:#7a93a8;letter-spacing:1px;">共 <span style="font-family:'Oxanium';font-weight:800;font-size:17px;color:#7fe6ff;">{{ deckCount }}</span> 张</span>
+        </div>
+        <!-- tendency bar -->
+        <div style="margin-top:12px;">
+          <div style="display:flex;justify-content:space-between;font-size:10px;letter-spacing:1px;margin-bottom:5px;"><span style="color:#ff7a6a;">进攻 {{ tendency.atkPct }}%</span><span style="color:#7fb6ff;">防御/续航 {{ tendency.defPct }}%</span></div>
+          <div style="height:10px;border-radius:5px;overflow:hidden;display:flex;border:1px solid rgba(79,214,230,.2);">
+            <div style="{{ tendency.atkStyle }}"></div>
+            <div style="{{ tendency.defStyle }}"></div>
+          </div>
+          <div style="text-align:center;font-size:11px;letter-spacing:2px;color:#cfe0ee;margin-top:7px;">{{ tendency.label }}</div>
+        </div>
+      </div>
+      <!-- groups -->
+      <div style="flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:14px;">
+        <sc-for list="{{ deckGroups }}" as="g" hint-placeholder-count="4">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <span style="width:9px;height:9px;background:{{ g.color }};transform:rotate(45deg);box-shadow:0 0 8px {{ g.color }};"></span>
+              <span style="font-weight:700;font-size:13px;letter-spacing:1px;color:{{ g.color }};">{{ g.label }}</span>
+              <span style="font-size:11px;color:#7a93a8;">{{ g.count }} 张</span>
+              <div style="flex:1;height:1px;background:rgba(79,214,230,.15);"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <sc-for list="{{ g.cards }}" as="c" hint-placeholder-count="2">
+                <div style="{{ c.rowStyle }}">
+                  <div style="{{ c.gemStyle }}">{{ c.cost }}</div>
+                  <span style="flex:1;font-size:13px;color:#dce8f4;letter-spacing:.5px;">{{ c.name }}</span>
+                  <span style="font-size:10px;color:#7a93a8;">{{ c.owner }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <!-- confirm -->
+      <div style="padding:14px 18px;border-top:1px solid rgba(79,214,230,.2);">
+        <button onClick="{{ onConfirm }}" style="{{ confirmStyle }}">
+          <span style="font-weight:900;font-size:18px;letter-spacing:3px;color:#06202a;">确认出战</span>
+          <span style="font-size:13px;color:#06202a;opacity:.8;">▶</span>
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1920,&quot;height&quot;:1080}}">
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    this.stageRef = React.createRef();
+    this.uri=(s)=>'data:image/svg+xml,'+encodeURIComponent(s);
+    this._pc={};
+    this.dragId=null;
+    this.buildData();
+    this.state = { slots:['kaira','ren','tia','gor'], selected:'kaira', overSlot:-1 };
+  }
+  componentDidMount(){ this.fit(); requestAnimationFrame(()=>this.fit()); this._fit=()=>this.fit(); window.addEventListener('resize', this._fit); window.addEventListener('load', this._fit); if(window.ResizeObserver){ this._ro=new ResizeObserver(()=>this.fit()); this._ro.observe(document.documentElement); } }
+  componentWillUnmount(){ window.removeEventListener('resize', this._fit); window.removeEventListener('load', this._fit); if(this._ro) this._ro.disconnect(); }
+  fit(){ const el=this.stageRef.current; if(!el){ requestAnimationFrame(()=>this.fit()); return; } const w=window.innerWidth||document.documentElement.clientWidth, h=window.innerHeight||document.documentElement.clientHeight; const s=Math.min(w/1920,h/1080); if(!(s>0)){ requestAnimationFrame(()=>this.fit()); return; } el.style.transform=`scale(${s})`; }
+
+  buildData(){
+    const U=this.uri;
+    let stars=''; for(let i=0;i<120;i++){const x=(Math.random()*1920)|0,y=(Math.random()*1080)|0,r=(Math.random()*1.3+.3).toFixed(1),o=(Math.random()*.6+.15).toFixed(2);stars+=`<circle cx='${x}' cy='${y}' r='${r}' fill='#cfe6ff' opacity='${o}'/>`;}
+    this.starUri=U(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1920 1080'>${stars}</svg>`);
+
+    this.portrait=(p)=>{
+      const k=p.accent+p.hair; if(this._pc[k]) return this._pc[k];
+      const svg=`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 220 260'><ellipse cx='110' cy='84' rx='98' ry='106' fill='${p.accent}' opacity='.22'/><ellipse cx='110' cy='68' rx='60' ry='66' fill='${p.accent}' opacity='.2'/><path d='M22 260 Q34 182 80 166 L140 166 Q186 182 198 260 Z' fill='${p.uniform}'/><path d='M22 260 Q34 182 80 166 L98 166 L72 260 Z' fill='${p.uniformL}'/><path d='M90 172 L130 172 L120 206 L100 206 Z' fill='${p.accent}' opacity='.5'/><path d='M78 168 L110 198 L142 168' fill='none' stroke='${p.accent}' stroke-width='4' opacity='.95'/><rect x='99' y='148' width='22' height='34' fill='${p.skinD}'/><path d='M110 50 Q152 50 152 100 Q152 150 110 164 Q68 150 68 100 Q68 50 110 50 Z' fill='${p.skin}'/><path d='M110 52 Q142 54 148 94 Q140 70 110 66 Q84 68 76 90 Q82 56 110 52 Z' fill='${p.skinL}' opacity='.9'/><path d='M82 122 Q96 158 110 162 Q124 158 138 122 Q120 150 110 150 Q100 150 82 122 Z' fill='${p.skinD}' opacity='.45'/><path d='M64 102 Q56 44 110 38 Q164 44 156 102 Q150 74 128 66 Q120 86 110 84 Q90 84 84 68 Q68 78 64 102 Z' fill='${p.hair}'/><path d='M128 66 Q150 72 156 102 Q158 80 150 60 Q140 62 128 66 Z' fill='${p.hair2}'/><path d='M150 60 Q160 84 150 104 Q160 80 150 60 Z' fill='#ffffff' opacity='.3'/><path d='M84 113 q9 -7 18 0' fill='none' stroke='${p.eye}' stroke-width='4.5' stroke-linecap='round'/><path d='M118 113 q9 -7 18 0' fill='none' stroke='${p.eye}' stroke-width='4.5' stroke-linecap='round'/><rect x='80' y='101' width='60' height='2.5' fill='${p.accent}' opacity='.7'/></svg>`;
+      return this._pc[k]=U(svg);
+    };
+
+    this.icon=(t,c)=>{
+      const m={
+        gun:`<g stroke='${c}' stroke-width='3.4' fill='none'><circle cx='24' cy='24' r='13'/><path d='M24 5v8M24 35v8M5 24h8M35 24h8' stroke-linecap='round'/><circle cx='24' cy='24' r='3.5' fill='${c}'/></g>`,
+        shield:`<path d='M24 6l15 5v11c0 12-9 18-15 22-6-4-15-10-15-22V11z' fill='none' stroke='${c}' stroke-width='3.6'/>`,
+        cross:`<path d='M20 9h8v11h11v8H28v11h-8V28H9v-8h11z' fill='${c}'/>`,
+        bolt:`<path d='M27 4L10 28h11l-4 16 21-27H26z' fill='${c}'/>`,
+        nav:`<g fill='none' stroke='${c}' stroke-width='3.2'><circle cx='24' cy='24' r='17'/><path d='M24 10l5 12 12 2-12 2-5 12-5-12-12-2 12-2z' fill='${c}'/></g>`,
+        gear:`<g fill='none' stroke='${c}' stroke-width='3.6'><circle cx='24' cy='24' r='7.5'/><path d='M24 8v6M24 34v6M8 24h6M34 24h6M12 12l4 4M32 32l4 4M36 12l-4 4M16 32l-4 4'/></g>`
+      };
+      return U(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'>${m[t]}</svg>`);
+    };
+
+    this.cat={attack:{label:'攻击',color:'#ff4d4d'},defense:{label:'防御',color:'#4d9fff'},maintenance:{label:'维护',color:'#3ff0a0'},tactics:{label:'调度',color:'#ffcc4d'}};
+
+    this.crew={
+      kaira:{name:'凯拉·沃斯',role:'主炮手',station:'主炮塔',icon:'gun',catE:'attack',atk:8,hp:24,lv:7,lvp:.6,trait:'过载齿轮',traitDesc:'攻击命中后，下回合该船员火力 +2，可叠加两层。',accent:'#ff7a3c',
+        pal:{skin:'#f3c9a0',skinL:'#ffe6c8',skinD:'#cf9c6e',hair:'#ff7a3c',hair2:'#c44e1f',uniform:'#2e4b6b',uniformL:'#3f6890',accent:'#ff8a4a',eye:'#23303f'},
+        cards:[{n:'等离子轰击',c:'attack',e:2},{n:'鱼雷齐射',c:'attack',e:3},{n:'过载冲击',c:'attack',e:2,lock:'Lv.8'}]},
+      ren:{name:'雷恩',role:'护盾官',station:'护盾环',icon:'shield',catE:'defense',atk:3,hp:30,lv:6,lvp:.4,trait:'相位护盾',traitDesc:'嘲讽。每回合受到的首次伤害减半。',accent:'#4d9fff',
+        pal:{skin:'#e8b58a',skinL:'#ffd8b0',skinD:'#bd8a60',hair:'#1b2a44',hair2:'#0d1830',uniform:'#244e6b',uniformL:'#356a8e',accent:'#4d9fff',eye:'#1a2433'},
+        cards:[{n:'偏导护盾',c:'defense',e:1},{n:'紧急装甲',c:'defense',e:2},{n:'嘲讽屏障',c:'defense',e:2,lock:'Lv.7'}]},
+      tia:{name:'缇雅',role:'维修师',station:'维生舱',icon:'cross',catE:'maintenance',atk:2,hp:20,lv:5,lvp:.75,trait:'纳米修复',traitDesc:'每回合开始时，恢复全队 2 点生命。',accent:'#3ff0a0',
+        pal:{skin:'#f6d2b0',skinL:'#ffe9d0',skinD:'#cba07a',hair:'#8a6df0',hair2:'#5b3fd0',uniform:'#2b5d52',uniformL:'#3d7e6f',accent:'#3ff0a0',eye:'#26323f'},
+        cards:[{n:'纳米维修',c:'maintenance',e:1},{n:'全员急救',c:'maintenance',e:3},{n:'维生力场',c:'maintenance',e:2,lock:'Lv.6'}]},
+      gor:{name:'戈尔',role:'机动炮手',station:'机动炮位',icon:'bolt',catE:'tactics',atk:6,hp:16,lv:5,lvp:.3,trait:'连射',traitDesc:'每回合可攻击两次，但每次伤害降低 1 点。',accent:'#ffb020',
+        pal:{skin:'#d9a878',skinL:'#f0c79a',skinD:'#a87a4e',hair:'#cfd6e0',hair2:'#9aa3b0',uniform:'#5a3b3b',uniformL:'#7a5252',accent:'#ff8a3c',eye:'#1c222b'},
+        cards:[{n:'连射',c:'attack',e:1},{n:'部署无人机',c:'tactics',e:2},{n:'战术调度',c:'tactics',e:0}]},
+      noa:{name:'诺亚',role:'导航员',station:'导航席',icon:'nav',catE:'tactics',atk:4,hp:18,lv:4,lvp:.5,trait:'相位跃迁',traitDesc:'战术：每回合可重新部署一名船员的站位。',accent:'#6fb0ff',
+        pal:{skin:'#e9c79e',skinL:'#ffe3c0',skinD:'#c39a6e',hair:'#3a6fb0',hair2:'#264e82',uniform:'#21405e',uniformL:'#33597a',accent:'#6fb0ff',eye:'#1c2a3a'},
+        cards:[{n:'跃迁机动',c:'tactics',e:1},{n:'侧翼包抄',c:'tactics',e:2},{n:'能量回收',c:'tactics',e:1,lock:'Lv.6'}]},
+      vera:{name:'薇拉',role:'工程师',station:'工程舱',icon:'gear',catE:'defense',atk:3,hp:22,lv:4,lvp:.2,trait:'力场专精',traitDesc:'我方所有护盾效果 +50%。',accent:'#9a7bff',
+        pal:{skin:'#e7b894',skinL:'#ffd9b4',skinD:'#bd8c64',hair:'#9a7bff',hair2:'#6f4fd0',uniform:'#332a55',uniformL:'#4a3f73',accent:'#b69bff',eye:'#241f33'},
+        cards:[{n:'力场发生器',c:'defense',e:2},{n:'应急修复',c:'maintenance',e:1},{n:'能量超载',c:'attack',e:3,lock:'Lv.7'}]}
+    };
+    this.order=['kaira','ren','tia','gor','noa','vera'];
+  }
+
+  /* ---- interaction ---- */
+  assignTo(slot,id){
+    if(!id) return;
+    this.setState(s=>{
+      const slots=[...s.slots].map(x=>x===id?null:x);
+      slots[slot]=id;
+      return {slots,selected:id,overSlot:-1};
+    });
+  }
+  clickRoster(id){
+    this.setState(s=>{
+      if(s.slots.includes(id)) return {selected:id};
+      const empty=s.slots.indexOf(null);
+      if(empty>=0){ const slots=[...s.slots]; slots[empty]=id; return {slots,selected:id}; }
+      return {selected:id};
+    });
+  }
+  remove(slot){ this.setState(s=>{ const slots=[...s.slots]; slots[slot]=null; return {slots}; }); }
+
+  renderVals(){
+    const st=this.state, C=this.cat;
+    const filled=st.slots.filter(Boolean);
+    const sel=this.crew[st.selected];
+
+    const roster=this.order.map(id=>{
+      const c=this.crew[id], inTeam=st.slots.includes(id), isSel=st.selected===id;
+      return { name:c.name, role:c.role, lv:c.lv, accent:c.accent,
+        onClick:()=>this.clickRoster(id), onDragStart:(e)=>{ this.dragId=id; if(e&&e.dataTransfer){e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text',id);}catch(_){}} },
+        rowStyle:{ display:'flex',alignItems:'center',gap:'12px',padding:'10px 12px',cursor:'grab',borderRadius:'8px',
+          background: isSel?'linear-gradient(100deg,rgba(95,210,235,.16),rgba(10,20,32,.6))':'rgba(10,20,32,.45)',
+          border:'1px solid '+(isSel?'rgba(95,210,235,.6)':'rgba(79,214,230,.16)'),
+          opacity: inTeam?1:0.92, transition:'border-color .15s, background .15s' },
+        thumbStyle:{ width:'52px',height:'52px',flex:'none',borderRadius:'7px',border:`1px solid ${c.accent}66`,
+          backgroundImage:`url("${this.portrait(c.pal)}")`,backgroundSize:'150%',backgroundPosition:'50% 16%',boxShadow:`0 0 12px ${c.accent}33` },
+        catDotStyle:{ width:'7px',height:'7px',background:C[c.catE].color,transform:'rotate(45deg)',boxShadow:`0 0 6px ${C[c.catE].color}` },
+        statusText: inTeam?'已编入':'待命', statusStyle:{ fontSize:'10px',letterSpacing:'1px',padding:'2px 8px',borderRadius:'8px',
+          color: inTeam?'#7fe6c0':'#8a9aa8', background: inTeam?'rgba(63,240,160,.14)':'rgba(80,100,120,.14)', border:`1px solid ${inTeam?'#3ff0a0':'#55657a'}` } };
+    });
+
+    const slots=st.slots.map((id,i)=>{
+      const c=id?this.crew[id]:null;
+      const over=st.overSlot===i;
+      return { empty:!id, filled:!!id, stationName:c?c.station:['机动炮位','维生舱','护盾环','主炮塔'][i], crewName:c?c.name:'—',
+        labelColor:c?c.accent:'#6a8090',
+        wrapStyle:{ position:'absolute',top:'40px',left:`${36+i*256}px`,width:'200px',display:'flex',flexDirection:'column',alignItems:'center', animation: c?'none':'floatY 4s ease-in-out infinite' },
+        hexStyle:{ position:'relative',width:'150px',height:'168px',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',
+          clipPath:'polygon(50% 0,100% 26%,100% 74%,50% 100%,0 74%,0 26%)',
+          background: c?`linear-gradient(160deg,${c.accent}22,rgba(8,16,28,.9))`:'rgba(10,22,36,.5)',
+          border: over?`2px solid #fff`:'none',
+          boxShadow: c?`inset 0 0 24px ${c.accent}33,0 0 22px ${c.accent}44`:(over?'0 0 26px rgba(255,255,255,.5)':'inset 0 0 18px rgba(60,160,200,.12)'),
+          outline: c?`none`:'2px dashed rgba(95,210,235,.4)', outlineOffset:'-8px',
+          animation: c?'none':'slotGlow 2.8s ease-in-out infinite' },
+        roleIconStyle:{ width:'40px',height:'40px',backgroundImage:`url("${this.icon(['bolt','cross','shield','gun'][i],'rgba(140,190,220,.7)')}")`,backgroundSize:'contain',backgroundRepeat:'no-repeat' },
+        portraitStyle: c?{ position:'absolute',inset:'8px',clipPath:'polygon(50% 0,100% 26%,100% 74%,50% 100%,0 74%,0 26%)',
+          backgroundImage:`url("${this.portrait(c.pal)}")`,backgroundSize:'cover',backgroundPosition:'top center' }:{},
+        onClick: id?(()=>this.setState({selected:id})):(()=>{}),
+        onRemove:(e)=>{ if(e&&e.stopPropagation)e.stopPropagation(); this.remove(i); },
+        onDragOver:(e)=>{ if(e){e.preventDefault();} if(st.overSlot!==i)this.setState({overSlot:i}); },
+        onDrop:(e)=>{ if(e)e.preventDefault(); this.assignTo(i,this.dragId); this.dragId=null; } };
+    });
+
+    // detail
+    const sc=sel;
+    const detailCards=sc.cards.map(cd=>{ const m=C[cd.c]; return { name:cd.n, cost:cd.e, catLabel:m.label, locked:!!cd.lock, req:cd.lock||'',
+      style:{ position:'relative',flex:1,height:'104px',padding:'11px',background:'linear-gradient(180deg,rgba(14,28,44,.9),rgba(8,16,26,.95))',
+        border:`1px solid ${m.color}`,borderRadius:'8px',display:'flex',flexDirection:'column',boxShadow:`0 0 12px ${m.color}33` },
+      gemStyle:{ width:'30px',height:'33px',clipPath:'polygon(50% 0,100% 26%,100% 74%,50% 100%,0 74%,0 26%)',background:'linear-gradient(180deg,#7b8cff,#4a2fd0)',
+        display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"'Oxanium'",fontWeight:800,fontSize:'15px',color:'#fff' },
+      catTagStyle:{ fontSize:'10px',fontWeight:700,letterSpacing:'1px',padding:'2px 8px',color:m.color,background:`${m.color}1a`,border:`1px solid ${m.color}`,borderRadius:'3px',height:'fit-content' } }; });
+
+    const detail={ name:sc.name, role:sc.role, atk:sc.atk, hp:sc.hp, lv:sc.lv, accent:sc.accent, trait:sc.trait, traitDesc:sc.traitDesc, cards:detailCards,
+      portraitWrapStyle:{ position:'relative',width:'300px',flex:'none',borderRight:'1px solid rgba(79,214,230,.2)',overflow:'hidden',
+        background:`radial-gradient(ellipse 80% 70% at 50% 30%,${sc.accent}26,rgba(8,16,26,.6))` },
+      portraitStyle:{ position:'absolute',inset:0,backgroundImage:`url("${this.portrait(sc.pal)}")`,backgroundSize:'112%',backgroundPosition:'top center',backgroundRepeat:'no-repeat' },
+      traitIconStyle:{ width:'22px',height:'22px',backgroundImage:`url("${this.icon(sc.icon,sc.accent)}")`,backgroundSize:'contain',backgroundRepeat:'no-repeat' },
+      lvFillStyle:{ height:'100%',width:`${Math.round(sc.lvp*100)}%`,background:'linear-gradient(90deg,#3fa0d0,#7fe6ff)',boxShadow:'0 0 8px rgba(95,210,235,.6)' } };
+
+    // deck (unlocked cards from filled crew)
+    const groups={attack:[],defense:[],maintenance:[],tactics:[]};
+    filled.forEach(id=>{ const c=this.crew[id]; c.cards.forEach(cd=>{ if(cd.lock) return; groups[cd.c].push({name:cd.n,cost:cd.e,owner:c.name.slice(0,2)}); }); });
+    const order=['attack','defense','maintenance','tactics'];
+    const deckGroups=order.map(k=>({ key:k,label:C[k].label,color:C[k].color,count:groups[k].length,
+      cards:groups[k].map(cd=>{ const m=C[k]; return { name:cd.name, cost:cd.cost, owner:cd.owner,
+        rowStyle:{ display:'flex',alignItems:'center',gap:'10px',padding:'7px 10px',background:'rgba(10,20,32,.55)',borderLeft:`3px solid ${m.color}`,borderRadius:'0 5px 5px 0' },
+        gemStyle:{ width:'24px',height:'27px',flex:'none',clipPath:'polygon(50% 0,100% 26%,100% 74%,50% 100%,0 74%,0 26%)',background:`linear-gradient(180deg,${m.color},${m.color}99)`,
+          display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"'Oxanium'",fontWeight:800,fontSize:'13px',color:'#0a1018' } }; }) }));
+    const deckCount=order.reduce((a,k)=>a+groups[k].length,0);
+
+    const atkN=groups.attack.length, defN=groups.defense.length+groups.maintenance.length+groups.tactics.length;
+    const tot=Math.max(1,atkN+defN), atkPct=Math.round(atkN/tot*100), defPct=100-atkPct;
+    const tLabel = atkPct>=60?'激进 · 强攻型阵容': atkPct<=35?'稳健 · 防御续航型': '均衡 · 攻守兼备';
+    const tendency={ atkPct, defPct, label:tLabel,
+      atkStyle:{ width:`${atkPct}%`,background:'linear-gradient(90deg,#ff5a3c,#ff8a6a)' },
+      defStyle:{ width:`${defPct}%`,background:'linear-gradient(90deg,#7fb6ff,#4d9fff)' } };
+
+    return {
+      stageRef:this.stageRef,
+      stageStyle:{ position:'relative',width:'1920px',height:'1080px',transformOrigin:'center center',flex:'none',overflow:'hidden',background:'radial-gradient(ellipse 90% 80% at 50% 40%,#0a1730,#05080f 80%)' },
+      starStyle:{ position:'absolute',inset:0,backgroundImage:`url("${this.starUri}")`,backgroundSize:'cover',opacity:.7,pointerEvents:'none' },
+      shipStyle:{ position:'absolute',top:'150px',left:'400px',width:'1024px',height:'300px',pointerEvents:'none',
+        backgroundImage:`url("${this.shipSvg()}")`,backgroundSize:'contain',backgroundRepeat:'no-repeat',backgroundPosition:'center',opacity:.9 },
+      filledCount:filled.length, roster, slots, detail, deckGroups, deckCount, tendency,
+      onConfirm:()=>{},
+      confirmStyle:{ width:'100%',display:'flex',alignItems:'center',justifyContent:'center',gap:'12px',padding:'15px',cursor:'pointer',
+        background:'linear-gradient(180deg,#5fe8c0,#3fd0e0)',border:'2px solid #d6fff4',
+        clipPath:'polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px)',
+        boxShadow:'0 0 26px rgba(79,230,200,.5)',fontFamily:"'Noto Sans SC'" }
+    };
+  }
+
+  shipSvg(){
+    if(this._ship) return this._ship;
+    const e='#5fd2eb', e2='rgba(95,210,235,.4)', hull='#16273a', hullL='#22384e';
+    const svg=`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 300'>
+      <path d='M60 150 L150 110 L820 96 L980 150 L820 204 L150 190 Z' fill='${hull}' stroke='${e}' stroke-width='2'/>
+      <path d='M150 110 L820 96 L900 124 L150 138 Z' fill='${hullL}' opacity='.6'/>
+      <path d='M60 150 L150 110 L150 190 Z' fill='${hull}' stroke='${e}' stroke-width='2'/>
+      <g stroke='${e2}' stroke-width='1.5' fill='none'><path d='M150 138 L900 124 M150 162 L900 176'/></g>
+      <g stroke='${e2}' stroke-width='1' fill='none' opacity='.7'>
+        <path d='M210 138 L210 162 M338 136 L338 164 M466 134 L466 166 M594 132 L594 168 M722 130 L722 170'/>
+      </g>
+      <circle cx='890' cy='150' r='10' fill='none' stroke='${e}' stroke-width='2'/><circle cx='890' cy='150' r='3' fill='${e}'/>
+      <path d='M70 130 L120 150 L70 170' fill='none' stroke='${e}' stroke-width='2' opacity='.6'/>
+      <g fill='${e}' opacity='.5'><circle cx='250' cy='150' r='2.5'/><circle cx='450' cy='150' r='2.5'/><circle cx='650' cy='150' r='2.5'/><circle cx='820' cy='150' r='2.5'/></g>
+    </svg>`;
+    return this._ship=this.uri(svg);
+  }
+}
+</script>
+</body>
+</html>

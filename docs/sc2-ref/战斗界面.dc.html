@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:#03060d;font-family:'Noto Sans SC',sans-serif;-webkit-font-smoothing:antialiased;}
+  @keyframes scan{0%{transform:translateY(-100%);}100%{transform:translateY(900%);}}
+  @keyframes corepulse{0%,100%{opacity:.55;transform:scale(1);}50%{opacity:1;transform:scale(1.06);}}
+  @keyframes float{0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
+  @keyframes beamfly{0%{transform:scaleX(0);opacity:0;}12%{opacity:1;}100%{transform:scaleX(1);opacity:.9;}}
+  @keyframes readyglow{0%,100%{box-shadow:0 0 0 1px rgba(79,214,230,.6),0 0 22px rgba(79,214,230,.35);}50%{box-shadow:0 0 0 1px rgba(79,214,230,.9),0 0 34px rgba(79,214,230,.6);}}
+  @keyframes intentblink{0%,100%{opacity:1;}50%{opacity:.5;}}
+</style>
+</helmet>
+<div style="position:fixed;inset:0;background:#03060d;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+  <div ref="{{ stageRef }}" style="{{ stageStyle }}">
+
+    <!-- ambient starfield -->
+    <div style="{{ starStyle }}"></div>
+    <div style="position:absolute;inset:0;background:radial-gradient(ellipse 60% 40% at 50% 8%,rgba(60,120,170,.16),transparent 70%),radial-gradient(ellipse 70% 45% at 50% 96%,rgba(40,90,140,.22),transparent 65%);pointer-events:none;"></div>
+
+    <!-- ====================== TOP HUD ====================== -->
+    <div data-screen-label="顶部HUD" style="position:absolute;top:0;left:0;width:1920px;height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;background:linear-gradient(180deg,rgba(10,26,40,.96),rgba(8,18,30,.55));border-bottom:1px solid rgba(79,214,230,.32);box-shadow:0 2px 18px rgba(0,0,0,.6);z-index:40;">
+      <div style="display:flex;align-items:center;gap:18px;">
+        <div style="width:42px;height:42px;border:1px solid rgba(79,214,230,.5);clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);display:flex;align-items:center;justify-content:center;background:rgba(12,34,50,.8);box-shadow:inset 0 0 14px rgba(79,214,230,.25);">
+          <div style="width:16px;height:16px;border:2px solid #5fe6ff;border-radius:50%;box-shadow:0 0 10px rgba(95,230,255,.7);"></div>
+        </div>
+        <div>
+          <div style="font-family:'Oxanium','Noto Sans SC';font-weight:700;font-size:18px;letter-spacing:2px;color:#d6f3ff;text-shadow:0 0 14px rgba(95,230,255,.45);white-space:nowrap;">{{ campaign }}</div>
+          <div style="font-size:11px;letter-spacing:3px;color:#5a93ad;text-transform:uppercase;">{{ campaignSub }}</div>
+        </div>
+        <div style="margin-left:6px;padding:5px 16px;background:rgba(8,22,34,.85);border:1px solid rgba(79,214,230,.38);clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px);">
+          <span style="font-size:10px;letter-spacing:2px;color:#5a93ad;">回合</span>
+          <span style="font-family:'Oxanium';font-weight:800;font-size:20px;color:#ffd27a;margin-left:7px;text-shadow:0 0 12px rgba(255,210,122,.5);">{{ turnText }}</span>
+        </div>
+      </div>
+
+      <!-- boss phase bar -->
+      <sc-if value="{{ isBoss }}" hint-placeholder-val="{{ true }}">
+        <div style="position:absolute;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px;width:520px;">
+          <div style="display:flex;align-items:center;gap:10px;font-size:11px;letter-spacing:3px;color:#c79bff;">
+            <span style="width:6px;height:6px;background:#c07bff;transform:rotate(45deg);box-shadow:0 0 8px #c07bff;"></span>
+            BOSS 阶段 · {{ phaseText }}
+          </div>
+          <div style="display:flex;gap:6px;width:100%;">
+            <sc-for list="{{ phaseSegs }}" as="seg" hint-placeholder-count="3">
+              <div style="{{ seg.style }}"></div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <div style="display:flex;align-items:center;gap:10px;z-index:42;">
+        <!-- scenario chips -->
+        <div style="display:flex;background:rgba(8,22,34,.85);border:1px solid rgba(79,214,230,.3);border-radius:3px;overflow:hidden;">
+          <sc-for list="{{ scenarioChips }}" as="chip" hint-placeholder-count="2">
+            <button onClick="{{ chip.onClick }}" style="{{ chip.style }}">{{ chip.label }}</button>
+          </sc-for>
+        </div>
+        <!-- variant chips -->
+        <div style="display:flex;align-items:center;gap:7px;background:rgba(8,22,34,.85);border:1px solid rgba(79,214,230,.3);border-radius:3px;padding:0 8px 0 11px;">
+          <span style="font-size:10px;letter-spacing:2px;color:#5a93ad;">视觉</span>
+          <div style="display:flex;">
+            <sc-for list="{{ variantChips }}" as="chip" hint-placeholder-count="3">
+              <button onClick="{{ chip.onClick }}" style="{{ chip.style }}">{{ chip.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+        <button style="width:40px;height:40px;border:1px solid rgba(79,214,230,.35);background:rgba(12,30,44,.85);color:#7fd6e6;border-radius:3px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;">⚙</button>
+      </div>
+    </div>
+
+    <!-- ====================== ENEMY ZONE ====================== -->
+    <div data-screen-label="敌方区" style="position:absolute;top:64px;left:0;width:1920px;height:330px;">
+      <!-- enemy ship -->
+      <div style="position:absolute;top:14px;left:50%;transform:translateX(-50%);width:470px;display:flex;flex-direction:column;align-items:center;">
+        <div style="{{ enemyShipStyle }}"></div>
+        <!-- name + hp + armor -->
+        <div style="margin-top:-6px;display:flex;flex-direction:column;align-items:center;gap:6px;width:460px;">
+          <div style="font-family:'Oxanium','Noto Sans SC';font-weight:700;font-size:18px;letter-spacing:2px;color:#ffb9a0;text-shadow:0 0 14px rgba(255,90,60,.45);white-space:nowrap;">{{ enemy.name }}</div>
+          <div style="position:relative;width:310px;height:18px;background:rgba(6,16,26,.9);border:1px solid rgba(255,90,60,.45);clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);overflow:hidden;">
+            <div style="{{ enemy.hpFillStyle }}"></div>
+            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Oxanium';font-weight:800;font-size:12px;color:#fff;letter-spacing:1px;text-shadow:0 1px 4px #000;white-space:nowrap;">{{ enemy.hpText }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- armor badge -->
+      <div style="position:absolute;top:46px;left:calc(50% - 250px);display:flex;flex-direction:column;align-items:center;gap:3px;">
+        <div style="width:50px;height:56px;background:linear-gradient(180deg,rgba(120,160,210,.3),rgba(20,40,60,.85));border:1px solid rgba(150,190,230,.6);clip-path:polygon(50% 0,100% 26%,100% 74%,50% 100%,0 74%,0 26%);display:flex;align-items:center;justify-content:center;">
+          <span style="font-family:'Oxanium';font-weight:800;font-size:22px;color:#cfe6ff;text-shadow:0 0 8px rgba(160,200,240,.7);">{{ enemy.armor }}</span>
+        </div>
+        <span style="font-size:9px;letter-spacing:2px;color:#7fa8c4;">护甲</span>
+      </div>
+
+      <!-- INTENT preview -->
+      <div style="position:absolute;top:34px;left:calc(50% + 200px);width:262px;">
+        <div style="font-size:10px;letter-spacing:4px;color:#7a93a8;margin-bottom:5px;padding-left:4px;">敌方下回合意图</div>
+        <div style="{{ intent.cardStyle }}">
+          <div style="position:absolute;top:0;left:0;right:0;height:2px;background:{{ intent.color }};box-shadow:0 0 10px {{ intent.color }};"></div>
+          <div style="display:flex;align-items:center;gap:13px;">
+            <div style="{{ intent.iconStyle }}"></div>
+            <div style="flex:1;">
+              <div style="display:flex;align-items:baseline;gap:8px;">
+                <span style="font-weight:700;font-size:17px;color:#fff;letter-spacing:1px;">{{ intent.label }}</span>
+                <span style="font-family:'Oxanium';font-weight:800;font-size:22px;color:{{ intent.color }};text-shadow:0 0 12px {{ intent.color }};">{{ intent.val }}</span>
+              </div>
+              <div style="font-size:11px;color:#9fb6c6;margin-top:3px;line-height:1.35;">{{ intent.sub }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- enemy drones -->
+      <div style="position:absolute;top:232px;left:50%;transform:translateX(-50%);display:flex;gap:18px;align-items:flex-end;">
+        <sc-for list="{{ enemyDrones }}" as="d" hint-placeholder-count="3">
+          <div style="{{ d.wrapStyle }}">
+            <sc-if value="{{ d.taunt }}" hint-placeholder-val="{{ true }}">
+              <div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:2px 9px;background:rgba(20,46,70,.95);border:1px solid #8fbfe8;border-radius:10px;font-size:9px;letter-spacing:1px;color:#cfe6ff;white-space:nowrap;box-shadow:0 0 12px rgba(143,191,232,.5);">⛨ 嘲讽</div>
+            </sc-if>
+            <div style="{{ d.svgStyle }}"></div>
+            <div style="display:flex;justify-content:space-between;width:100%;padding:0 3px;">
+              <span style="font-family:'Oxanium';font-weight:800;font-size:14px;color:#ff8a6a;text-shadow:0 0 6px rgba(255,90,60,.6);">{{ d.atk }}</span>
+              <span style="font-family:'Oxanium';font-weight:800;font-size:14px;color:#ff5a5a;text-shadow:0 0 6px rgba(255,60,60,.6);">{{ d.hp }}</span>
+            </div>
+            <div style="font-size:9px;color:#8fa6b6;letter-spacing:1px;text-align:center;width:100%;">{{ d.name }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- ====================== BATTLEFIELD MIDLINE ====================== -->
+    <div style="position:absolute;top:394px;left:0;width:1920px;height:68px;overflow:hidden;">
+      <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(8,20,34,0),rgba(20,50,74,.25),rgba(8,20,34,0));"></div>
+      <div style="position:absolute;top:50%;left:0;width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(79,214,230,.5),transparent);"></div>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:9px;letter-spacing:8px;color:rgba(120,170,200,.45);">— 交战空域 · DMZ —</div>
+      <sc-if value="{{ beam }}" hint-placeholder-val="{{ false }}">
+        <div style="{{ beamStyle }}"></div>
+      </sc-if>
+    </div>
+
+    <!-- ====================== CREW ZONE ====================== -->
+    <div data-screen-label="核心船员区" style="position:absolute;top:462px;left:0;width:1920px;height:310px;display:flex;align-items:center;justify-content:center;gap:18px;padding:0 70px;">
+      <sc-for list="{{ crewList }}" as="c" hint-placeholder-count="4">
+        <div onClick="{{ c.onClick }}" style="{{ c.panelStyle }}">
+          <!-- selected halo -->
+          <div style="{{ c.haloStyle }}"></div>
+          <!-- portrait -->
+          <div style="{{ c.portraitStyle }}"></div>
+          <!-- scanline veil -->
+          <div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(120,200,230,0) 0px,rgba(120,200,230,0) 3px,rgba(80,160,200,.07) 4px);pointer-events:none;clip-path:inherit;"></div>
+          <!-- crack overlay for injured -->
+          <sc-if value="{{ c.injured }}" hint-placeholder-val="{{ false }}">
+            <div style="{{ c.crackStyle }}"></div>
+          </sc-if>
+          <!-- taunt shield -->
+          <sc-if value="{{ c.taunt }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;top:9px;left:9px;width:26px;height:30px;background:linear-gradient(180deg,rgba(80,150,220,.45),rgba(20,50,80,.85));border:1px solid #8fbfe8;clip-path:polygon(50% 0,100% 22%,100% 70%,50% 100%,0 70%,0 22%);display:flex;align-items:center;justify-content:center;font-size:12px;color:#cfe6ff;box-shadow:0 0 12px rgba(143,191,232,.6);z-index:5;">⛨</div>
+          </sc-if>
+          <!-- trait badge -->
+          <div style="{{ c.traitBadgeStyle }}" title="{{ c.traitDesc }}">
+            <div style="{{ c.traitIconStyle }}"></div>
+          </div>
+          <!-- buffs -->
+          <div style="position:absolute;top:42px;right:8px;display:flex;flex-direction:column;gap:4px;z-index:5;">
+            <sc-for list="{{ c.buffs }}" as="b" hint-placeholder-count="1">
+              <div style="{{ b.style }}">{{ b.t }}</div>
+            </sc-for>
+          </div>
+          <!-- state label -->
+          <div style="{{ c.stateLabelStyle }}">{{ c.stateLabel }}</div>
+          <!-- name plate -->
+          <div style="{{ c.nameBarStyle }}">
+            <div style="display:flex;flex-direction:column;line-height:1.1;align-items:center;text-align:center;">
+              <span style="font-weight:700;font-size:15px;color:#eaf6ff;letter-spacing:1px;">{{ c.name }}</span>
+              <span style="font-size:9px;letter-spacing:2px;color:{{ c.accent }};">{{ c.role }}</span>
+            </div>
+          </div>
+          <!-- stats -->
+          <div style="position:absolute;bottom:-12px;left:-9px;width:42px;height:42px;background:radial-gradient(circle,#3a2a10,#1a1206);border:2px solid #ffb020;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 14px rgba(255,176,32,.55);z-index:6;">
+            <span style="font-family:'Oxanium';font-weight:800;font-size:21px;color:#ffd27a;text-shadow:0 0 8px rgba(255,210,122,.7);">{{ c.atk }}</span>
+          </div>
+          <div style="{{ c.hpChipStyle }}">
+            <span style="font-family:'Oxanium';font-weight:800;font-size:21px;color:#ffd0c8;text-shadow:0 0 8px rgba(255,90,60,.7);">{{ c.hp }}</span>
+          </div>
+        </div>
+      </sc-for>
+
+      <!-- divider -->
+      <div style="width:1px;height:180px;background:linear-gradient(180deg,transparent,rgba(79,214,230,.4),transparent);margin:0 4px;"></div>
+
+      <!-- summon slots -->
+      <sc-for list="{{ summonList }}" as="s" hint-placeholder-count="3">
+        <div style="{{ s.wrapStyle }}">
+          <sc-if value="{{ s.empty }}" hint-placeholder-val="{{ true }}">
+            <div style="font-size:9px;letter-spacing:2px;color:rgba(120,160,190,.5);text-align:center;">召唤位</div>
+          </sc-if>
+          <sc-if value="{{ s.filled }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:5px;width:100%;">
+              <div style="{{ s.svgStyle }}"></div>
+              <div style="display:flex;justify-content:space-between;width:100%;padding:0 4px;">
+                <span style="font-family:'Oxanium';font-weight:800;font-size:13px;color:#ffd27a;">{{ s.atk }}</span>
+                <span style="font-family:'Oxanium';font-weight:800;font-size:13px;color:#ff8a8a;">{{ s.hp }}</span>
+              </div>
+              <span style="font-size:8px;letter-spacing:1px;color:#8fa6b6;">{{ s.name }}</span>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+
+    <!-- ====================== BOTTOM COMMAND CONSOLE ====================== -->
+    <div data-screen-label="底部指挥台" style="position:absolute;bottom:0;left:0;width:1920px;height:308px;background:linear-gradient(180deg,rgba(8,18,30,0),rgba(9,22,36,.92) 36%,rgba(7,16,28,.98));border-top:1px solid rgba(79,214,230,.28);z-index:20;">
+      <div style="position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(79,214,230,.6),transparent);"></div>
+
+      <!-- ship hull console (left) -->
+      <div style="position:absolute;bottom:22px;left:28px;width:266px;background:linear-gradient(160deg,rgba(16,40,58,.9),rgba(8,18,30,.95));border:1px solid rgba(79,214,230,.32);clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);padding:13px 16px;box-shadow:inset 0 0 22px rgba(60,160,200,.12);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <span style="font-weight:700;font-size:13px;letter-spacing:2px;color:#d6f3ff;">「奥德赛」号 · 舰体</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:11px;">
+          <div style="width:46px;height:52px;background:linear-gradient(180deg,rgba(120,200,160,.3),rgba(20,40,40,.85));border:1px solid #4dd6a0;clip-path:polygon(50% 0,100% 26%,100% 74%,50% 100%,0 74%,0 26%);display:flex;align-items:center;justify-content:center;box-shadow:0 0 16px rgba(77,214,160,.4);">
+            <span style="font-family:'Oxanium';font-weight:800;font-size:24px;color:#bdffe0;text-shadow:0 0 10px rgba(77,214,160,.7);">{{ hull.val }}</span>
+          </div>
+          <div style="flex:1;">
+            <div style="display:flex;justify-content:space-between;font-size:9px;color:#7fa8b8;letter-spacing:1px;margin-bottom:4px;"><span>结构完整度</span><span>{{ hull.text }}</span></div>
+            <div style="height:9px;background:rgba(6,16,26,.9);border:1px solid rgba(77,214,160,.4);border-radius:5px;overflow:hidden;">
+              <div style="{{ hull.fillStyle }}"></div>
+            </div>
+          </div>
+        </div>
+        <!-- captain command -->
+        <button onClick="{{ captain.onClick }}" style="{{ captain.style }}">
+          <div style="width:30px;height:30px;border:1px solid currentColor;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;">◎</div>
+          <div style="text-align:left;line-height:1.15;">
+            <div style="font-size:12px;font-weight:700;letter-spacing:1px;">舰长指令 · 轨道炮校准</div>
+            <div style="font-size:9px;opacity:.8;">{{ captain.costText }} · 每回合一次 · 造成 4 点伤害</div>
+          </div>
+        </button>
+      </div>
+
+      <!-- HAND (center, fanned) -->
+      <div style="position:absolute;left:0;right:0;bottom:0;height:308px;pointer-events:none;">
+        <sc-for list="{{ handList }}" as="card" hint-placeholder-count="6">
+          <div onClick="{{ card.onClick }}" style="{{ card.style }}">
+            <!-- art -->
+            <div style="{{ card.artStyle }}"></div>
+            <!-- cost gem -->
+            <div style="{{ card.costStyle }}">
+              <span style="font-family:'Oxanium';font-weight:800;font-size:19px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6);">{{ card.cost }}</span>
+            </div>
+            <!-- category tag -->
+            <div style="{{ card.tagStyle }}">{{ card.catLabel }}</div>
+            <!-- title -->
+            <div style="position:absolute;top:96px;left:0;right:0;text-align:center;font-weight:700;font-size:13px;color:#f2f8ff;letter-spacing:1px;text-shadow:0 1px 3px rgba(0,0,0,.7);padding:0 6px;">{{ card.name }}</div>
+            <!-- text box -->
+            <div style="position:absolute;top:122px;left:9px;right:9px;bottom:12px;background:rgba(6,14,24,.78);border-radius:5px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;line-height:1.4;color:#cfe0ee;padding:6px;">{{ card.text }}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <!-- reactor energy (center bottom) -->
+      <div style="position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px;z-index:25;">
+        <div style="display:flex;align-items:center;gap:5px;">
+          <sc-for list="{{ energyList }}" as="e" hint-placeholder-count="6">
+            <div style="{{ e.style }}"></div>
+          </sc-for>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;letter-spacing:3px;color:#8aa8d6;">反应堆能量</span>
+          <span style="font-family:'Oxanium';font-weight:800;font-size:15px;color:#aebfff;text-shadow:0 0 10px rgba(130,150,255,.6);">{{ energyText }}</span>
+        </div>
+      </div>
+
+      <!-- deck pile (right of console, lower) -->
+      <div style="position:absolute;bottom:24px;right:30px;display:flex;flex-direction:column;align-items:center;gap:5px;z-index:25;">
+        <div style="position:relative;width:64px;height:88px;">
+          <sc-for list="{{ deckBacks }}" as="b" hint-placeholder-count="3">
+            <div style="{{ b.style }}"></div>
+          </sc-for>
+          <div style="position:absolute;inset:0;border:1px solid rgba(79,214,230,.5);clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,rgba(18,44,66,.95),rgba(8,20,34,.98));box-shadow:0 0 16px rgba(79,214,230,.3);">
+            <span style="font-family:'Oxanium';font-weight:800;font-size:26px;color:#7fe6ff;text-shadow:0 0 12px rgba(95,230,255,.7);">{{ deckCount }}</span>
+          </div>
+        </div>
+        <span style="font-size:9px;letter-spacing:2px;color:#7fa8c4;">牌库</span>
+      </div>
+    </div>
+
+    <!-- END TURN (right edge, mid) -->
+    <button onClick="{{ onEndTurn }}" style="{{ endTurnStyle }}">
+      <div style="font-size:11px;letter-spacing:3px;color:#06202a;opacity:.85;">YOUR TURN</div>
+      <div style="font-weight:900;font-size:21px;letter-spacing:2px;color:#062028;">结束回合</div>
+      <div style="font-size:18px;color:#062028;">▶</div>
+    </button>
+
+    <!-- log ticker -->
+    <div style="position:absolute;bottom:316px;left:50%;transform:translateX(-50%);padding:5px 20px;background:rgba(6,16,28,.8);border:1px solid rgba(79,214,230,.25);border-radius:14px;font-size:11px;letter-spacing:1px;color:#9fc4d6;z-index:30;white-space:nowrap;">{{ logText }}</div>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1920,&quot;height&quot;:1080},&quot;scenario&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;boss&quot;,&quot;normal&quot;],&quot;default&quot;:&quot;boss&quot;,&quot;tsType&quot;:&quot;'boss'|'normal'&quot;},&quot;crewVisual&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;A&quot;,&quot;B&quot;,&quot;C&quot;],&quot;default&quot;:&quot;A&quot;,&quot;tsType&quot;:&quot;'A'|'B'|'C'&quot;}}">
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    this.stageRef = React.createRef();
+    this.state = {
+      turn: 4,
+      maxEnergy: 6,
+      currentEnergy: 4,
+      scenario: props.scenario || 'boss',
+      variant: props.crewVisual || 'A',
+      selectedCardId: null,
+      playedIds: [],
+      selectedCrewId: 'kaira',
+      captainUsed: false,
+      intentIndex: 0,
+      beam: null,
+      log: '舰长，敌方虚空母舰正在蓄力——下达指令。'
+    };
+    this.uri = (s)=>'data:image/svg+xml,'+encodeURIComponent(s);
+    this.buildAssets();
+  }
+
+  componentDidMount(){ this.fit(); requestAnimationFrame(()=>this.fit()); this._fit = ()=>this.fit(); window.addEventListener('resize', this._fit); window.addEventListener('load', this._fit); if(window.ResizeObserver){ this._ro=new ResizeObserver(()=>this.fit()); this._ro.observe(document.documentElement); } }
+  componentWillUnmount(){ window.removeEventListener('resize', this._fit); window.removeEventListener('load', this._fit); if(this._ro) this._ro.disconnect(); }
+  fit(){
+    const el = this.stageRef.current; if(!el){ requestAnimationFrame(()=>this.fit()); return; }
+    const w = window.innerWidth||document.documentElement.clientWidth, h = window.innerHeight||document.documentElement.clientHeight;
+    const s = Math.min(w/1920, h/1080);
+    if(!(s>0)){ requestAnimationFrame(()=>this.fit()); return; }
+    el.style.transform = `scale(${s})`;
+  }
+
+  /* ---------------- assets ---------------- */
+  buildAssets(){
+    const U = this.uri;
+    // starfield
+    let stars='';
+    for(let i=0;i<140;i++){const x=(Math.random()*1920)|0,y=(Math.random()*1080)|0,r=(Math.random()*1.4+0.3).toFixed(1),o=(Math.random()*0.7+0.2).toFixed(2);stars+=`<circle cx='${x}' cy='${y}' r='${r}' fill='#cfe6ff' opacity='${o}'/>`;}
+    this.starUri = U(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1920 1080'>${stars}</svg>`);
+
+    // portraits
+    this.portrait = (p)=>U(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 220 260'><ellipse cx='110' cy='84' rx='98' ry='106' fill='${p.accent}' opacity='.22'/><ellipse cx='110' cy='68' rx='60' ry='66' fill='${p.accent}' opacity='.2'/><path d='M22 260 Q34 182 80 166 L140 166 Q186 182 198 260 Z' fill='${p.uniform}'/><path d='M22 260 Q34 182 80 166 L98 166 L72 260 Z' fill='${p.uniformL}'/><path d='M90 172 L130 172 L120 206 L100 206 Z' fill='${p.accent}' opacity='.5'/><path d='M78 168 L110 198 L142 168' fill='none' stroke='${p.accent}' stroke-width='4' opacity='.95'/><rect x='99' y='148' width='22' height='34' fill='${p.skinD}'/><path d='M110 50 Q152 50 152 100 Q152 150 110 164 Q68 150 68 100 Q68 50 110 50 Z' fill='${p.skin}'/><path d='M110 52 Q142 54 148 94 Q140 70 110 66 Q84 68 76 90 Q82 56 110 52 Z' fill='${p.skinL}' opacity='.92'/><path d='M82 122 Q96 158 110 162 Q124 158 138 122 Q120 150 110 150 Q100 150 82 122 Z' fill='${p.skinD}' opacity='.45'/><path d='M64 102 Q56 44 110 38 Q164 44 156 102 Q150 74 128 66 Q120 86 110 84 Q90 84 84 68 Q68 78 64 102 Z' fill='${p.hair}'/><path d='M128 66 Q150 72 156 102 Q158 80 150 60 Q140 62 128 66 Z' fill='${p.hair2}'/><path d='M150 60 Q160 84 150 104 Q160 80 150 60 Z' fill='#ffffff' opacity='.32'/><path d='M84 113 q9 -7 18 0' fill='none' stroke='${p.eye}' stroke-width='4.5' stroke-linecap='round'/><path d='M118 113 q9 -7 18 0' fill='none' stroke='${p.eye}' stroke-width='4.5' stroke-linecap='round'/><rect x='80' y='101' width='60' height='2.5' fill='${p.accent}' opacity='.7'/></svg>`);
+
+    this.crack = U(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 260'><path d='M70 0 L96 70 L74 110 L110 150 L86 200 L120 260' fill='none' stroke='#ff5a3c' stroke-width='2.4' opacity='.85'/><path d='M96 70 L130 90 M74 110 L40 120 M110 150 L150 140 M86 200 L52 220' fill='none' stroke='#ff8a5a' stroke-width='1.6' opacity='.7'/><path d='M150 10 L130 60 L160 100 L138 160' fill='none' stroke='#ff5a3c' stroke-width='1.8' opacity='.6'/></svg>`);
+
+    this.drone = (boss)=>U(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 160'><line x1='28' y1='80' x2='6' y2='80' stroke='#52647a' stroke-width='7'/><line x1='132' y1='80' x2='154' y2='80' stroke='#52647a' stroke-width='7'/><polygon points='80,16 134,48 134,112 80,144 26,112 26,48' fill='#394d60' stroke='#7ed0e0' stroke-width='3'/><polygon points='80,16 134,48 80,72 26,48' fill='#4c6478'/><polygon points='80,42 112,58 112,102 80,120 48,102 48,58' fill='#0c1822'/><circle cx='80' cy='80' r='15' fill='${boss?'#ff6a4a':'#ff8a4a'}'/><circle cx='80' cy='80' r='7' fill='#ffe0b0'/><rect x='70' y='4' width='20' height='8' fill='#52647a'/></svg>`);
+
+    this.friendlyDrone = U(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 160'><polygon points='80,18 130,50 130,110 80,142 30,110 30,50' fill='#2f4a5e' stroke='#5fe0ee' stroke-width='3'/><polygon points='80,18 130,50 80,72 30,50' fill='#3f6478'/><polygon points='80,44 108,60 108,100 80,116 52,100 52,60' fill='#0a1620'/><circle cx='80' cy='80' r='13' fill='#5fe0ee'/><circle cx='80' cy='80' r='6' fill='#d6f6ff'/></svg>`);
+
+    // enemy ship
+    this.enemyShip = (boss)=>{
+      const core=boss?'#c690ff':'#ff8a5a', coreL=boss?'#f2dcff':'#ffe6cc', hull=boss?'#3a2f58':'#3a2832', hullL=boss?'#544879':'#57414d', edge=boss?'#b89cf2':'#ffb088';
+      return U(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 560 260'><ellipse cx='280' cy='150' rx='250' ry='92' fill='${core}' opacity='.22'/><ellipse cx='280' cy='150' rx='150' ry='64' fill='${core}' opacity='.25'/><path d='M44 68 L152 96 L152 152 L60 174 Z' fill='${hull}' stroke='${edge}' stroke-width='2.5'/><path d='M516 68 L408 96 L408 152 L500 174 Z' fill='${hull}' stroke='${edge}' stroke-width='2.5'/><path d='M152 68 L408 68 L470 150 L356 214 L204 214 L90 150 Z' fill='${hull}' stroke='${edge}' stroke-width='3.5'/><path d='M152 68 L408 68 L408 96 L152 96 Z' fill='${hullL}'/><path d='M152 96 L200 96 L152 150 L90 150 Z' fill='${hullL}' opacity='.65'/><path d='M408 96 L470 150 L408 150 L360 96 Z' fill='${hullL}' opacity='.65'/><path d='M182 96 L378 96 M172 124 L388 124' stroke='${edge}' stroke-width='2' opacity='.5'/><rect x='198' y='198' width='32' height='44' rx='4' fill='${hull}' stroke='${edge}' stroke-width='2'/><rect x='330' y='198' width='32' height='44' rx='4' fill='${hull}' stroke='${edge}' stroke-width='2'/><g fill='${coreL}'><circle cx='240' cy='110' r='3'/><circle cx='280' cy='110' r='3'/><circle cx='320' cy='110' r='3'/></g><polygon points='280,114 318,150 280,186 242,150' fill='${coreL}'/><circle cx='280' cy='150' r='32' fill='${core}'/><circle cx='280' cy='150' r='14' fill='#ffffff'/></svg>`);
+    };
+
+    // trait icons
+    this.traitIcon = (type,c)=>{
+      const m={
+        gear:`<g fill='none' stroke='${c}' stroke-width='4'><circle cx='24' cy='24' r='7.5'/><path d='M24 7v6M24 35v6M7 24h6M35 24h6M12 12l4 4M32 32l4 4M36 12l-4 4M16 32l-4 4'/></g>`,
+        shield:`<path d='M24 6l14 5v10c0 11-8 17-14 21-6-4-14-10-14-21V11z' fill='none' stroke='${c}' stroke-width='4'/>`,
+        cross:`<path d='M20 8h8v12h12v8H28v12h-8V28H8v-8h12z' fill='${c}'/>`,
+        bolt:`<path d='M27 4L10 28h11l-4 16 21-27H26z' fill='${c}'/>`
+      };
+      return U(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'>${m[type]}</svg>`);
+    };
+
+    // intent icons
+    this.intentIcon = (type,c)=>{
+      const m={
+        attack:`<g stroke='${c}' stroke-width='4' fill='none' stroke-linecap='round'><path d='M10 38L38 10M30 10h8v8'/><path d='M38 38L10 10M18 10h-8v8'/></g>`,
+        summon:`<g fill='none' stroke='${c}' stroke-width='3.5'><polygon points='24,8 38,17 38,33 24,42 10,33 10,17'/><path d='M24 18v12M18 24h12' stroke-linecap='round'/></g>`,
+        charge:`<path d='M27 4L10 28h11l-4 16 21-27H26z' fill='${c}'/>`
+      };
+      return U(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'>${m[type]}</svg>`);
+    };
+
+    // card art emblem
+    this.cardArt = (cat,c)=>{
+      const m={
+        attack:`<g stroke='${c}' stroke-width='5' fill='none'><circle cx='60' cy='52' r='26'/><path d='M60 14v76M22 52h76' stroke-width='3'/><circle cx='60' cy='52' r='8' fill='${c}'/></g>`,
+        defense:`<path d='M60 16l34 12v22c0 26-20 40-34 50-14-10-34-24-34-50V28z' fill='none' stroke='${c}' stroke-width='5'/><path d='M60 34v44' stroke='${c}' stroke-width='3'/>`,
+        maintenance:`<g stroke='${c}' stroke-width='6' fill='none' stroke-linecap='round'><path d='M44 30a16 16 0 1 0 22 22L86 72'/><path d='M70 36l12-12 8 8-12 12z'/></g>`,
+        tactics:`<g fill='none' stroke='${c}' stroke-width='4'><circle cx='60' cy='52' r='30'/><circle cx='60' cy='52' r='16'/><path d='M60 22v60M30 52h60' stroke-width='2'/><circle cx='60' cy='52' r='5' fill='${c}'/></g>`
+      };
+      return U(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 104'>${m[cat]}</svg>`);
+    };
+
+    /* ---------------- data ---------------- */
+    this.cat = {
+      attack:{label:'攻击',color:'#ff4d4d',glow:'rgba(255,77,77,.55)'},
+      defense:{label:'防御',color:'#4d9fff',glow:'rgba(77,159,255,.55)'},
+      maintenance:{label:'维护',color:'#3ff0a0',glow:'rgba(63,240,160,.5)'},
+      tactics:{label:'战术',color:'#ffcc4d',glow:'rgba(255,204,77,.5)'}
+    };
+
+    this.crewBase = [
+      {id:'kaira',name:'凯拉·沃斯',role:'主炮手',atk:8,hp:24,maxHp:24,state:'ready',trait:'gear',traitName:'过载齿轮',traitDesc:'过载齿轮：攻击后，下回合火力 +2',accent:'#ff7a3c',taunt:false,buffs:[{t:'火力+2',c:'#ffcc4d'}],pal:{skin:'#f3c9a0',skinL:'#ffe6c8',skinD:'#cf9c6e',hair:'#ff7a3c',hair2:'#c44e1f',uniform:'#2e4b6b',uniformL:'#3f6890',accent:'#4fd6e6',eye:'#23303f'}},
+      {id:'ren',name:'雷恩',role:'护盾官',atk:3,hp:30,maxHp:30,state:'ready',trait:'shield',traitName:'相位护盾',traitDesc:'相位护盾：嘲讽。受到的首次伤害减半',accent:'#4d9fff',taunt:true,buffs:[{t:'护盾 3',c:'#4d9fff'}],pal:{skin:'#e8b58a',skinL:'#ffd8b0',skinD:'#bd8a60',hair:'#1b2a44',hair2:'#0d1830',uniform:'#244e6b',uniformL:'#356a8e',accent:'#4d9fff',eye:'#1a2433'}},
+      {id:'tia',name:'缇雅',role:'维修师',atk:2,hp:20,maxHp:20,state:'acted',trait:'cross',traitName:'纳米修复',traitDesc:'纳米修复：每回合开始时恢复全队 2 点生命',accent:'#3ff0a0',taunt:false,buffs:[],pal:{skin:'#f6d2b0',skinL:'#ffe9d0',skinD:'#cba07a',hair:'#8a6df0',hair2:'#5b3fd0',uniform:'#2b5d52',uniformL:'#3d7e6f',accent:'#3ff0a0',eye:'#26323f'}},
+      {id:'gor',name:'戈尔',role:'机动炮手',atk:6,hp:7,maxHp:16,state:'injured',trait:'bolt',traitName:'连射',traitDesc:'连射：每回合可攻击两次',accent:'#ffb020',taunt:false,buffs:[{t:'负伤',c:'#ff5a3c'}],pal:{skin:'#d9a878',skinL:'#f0c79a',skinD:'#a87a4e',hair:'#cfd6e0',hair2:'#9aa3b0',uniform:'#5a3b3b',uniformL:'#7a5252',accent:'#ff8a3c',eye:'#1c222b'}}
+    ];
+
+    this.handBase = [
+      {id:'plasma',name:'等离子轰击',cost:2,cat:'attack',text:'对敌方单体造成 6 点伤害'},
+      {id:'shield',name:'偏导护盾',cost:1,cat:'defense',text:'我方全体获得 3 点护盾'},
+      {id:'nano',name:'纳米维修',cost:1,cat:'maintenance',text:'恢复一名船员 5 点生命'},
+      {id:'tactic',name:'战术调度',cost:0,cat:'tactics',text:'抽 2 张牌'},
+      {id:'torpedo',name:'鱼雷齐射',cost:3,cat:'attack',text:'对所有敌人造成 3 点伤害'},
+      {id:'deploy',name:'部署无人机',cost:2,cat:'tactics',text:'召唤一架 2/1 无人机'}
+    ];
+
+    this.enemyData = {
+      boss:{name:'虚空母舰 · 涅墨西斯',hp:60,maxHp:72,armor:8,phase:2,phases:['启动','装甲展开','核心过载'],
+        drones:[{id:'i1',name:'截击者',atk:5,hp:4,taunt:false},{id:'i2',name:'截击者',atk:5,hp:4,taunt:false},{id:'g1',name:'守卫无人机',atk:1,hp:6,taunt:true}],
+        intents:[{label:'集火攻击',type:'attack',val:'12',sub:'瞄准火力最高的船员·凯拉',color:'#ff5a3c'},{label:'召唤僚机',type:'summon',val:'×2',sub:'部署两架截击者',color:'#ffcc4d'},{label:'核心过载',type:'charge',val:'⚡',sub:'蓄力 · 下回合全屏轰击',color:'#c07bff'}]},
+      normal:{name:'掠夺者 · 赤隼',hp:34,maxHp:34,armor:0,phase:0,phases:[],
+        drones:[{id:'r1',name:'劫掠机',atk:3,hp:2,taunt:false},{id:'g2',name:'守卫无人机',atk:0,hp:5,taunt:true}],
+        intents:[{label:'召唤僚机',type:'summon',val:'+1',sub:'部署一架劫掠机',color:'#ffcc4d'},{label:'舷侧齐射',type:'attack',val:'6',sub:'攻击随机船员',color:'#ff5a3c'}]}
+    };
+
+    // variant chrome configs
+    this.V = {
+      A:{ panelBg:'linear-gradient(165deg,rgba(18,46,66,.85),rgba(8,18,30,.92))', border:'1px solid rgba(90,215,235,.5)',
+          clip:'polygon(15px 0,100% 0,100% calc(100% - 15px),calc(100% - 15px) 100%,0 100%,0 15px)',
+          shadow:'inset 0 0 28px rgba(60,200,235,.16),0 10px 28px rgba(0,0,0,.55)',
+          nameBg:'linear-gradient(180deg,rgba(10,28,42,.6),rgba(8,22,34,.95))', radius:'0', portTop:'10px', portInset:'10px' },
+      B:{ panelBg:'linear-gradient(180deg,#2e3d4e,#16222f 58%,#0e1822)', border:'2px solid #5e768a',
+          clip:'polygon(0 0,calc(100% - 20px) 0,100% 20px,100% 100%,20px 100%,0 calc(100% - 20px))',
+          shadow:'inset 0 2px 0 rgba(255,255,255,.14),inset 0 -4px 10px rgba(0,0,0,.6),0 9px 22px rgba(0,0,0,.6)',
+          nameBg:'linear-gradient(180deg,#3c4d60,#1a2734)', radius:'0', portTop:'14px', portInset:'14px', metal:true },
+      C:{ panelBg:'linear-gradient(180deg,rgba(10,22,34,0) 0%,rgba(9,20,32,.5) 45%,rgba(7,16,28,.96) 100%)', border:'1px solid rgba(90,215,235,.2)',
+          clip:'polygon(8px 0,100% 0,100% 100%,0 100%,0 8px)',
+          shadow:'0 16px 34px rgba(0,0,0,.5)',
+          nameBg:'linear-gradient(180deg,rgba(8,22,34,0),rgba(7,16,28,.92))', radius:'0', portTop:'-14px', portInset:'0', bleed:true }
+    };
+  }
+
+  /* ---------------- handlers ---------------- */
+  get sc(){ return this.state.scenario; }
+  get enemy(){ return this.enemyData[this.sc]; }
+
+  onCardClick(id){
+    const card = this.handBase.find(c=>c.id===id);
+    const afford = this.state.currentEnergy >= card.cost;
+    if(this.state.selectedCardId === id && afford){
+      // play
+      const isAtk = card.cat==='attack';
+      this.setState(s=>({ currentEnergy:s.currentEnergy-card.cost, playedIds:[...s.playedIds,id], selectedCardId:null,
+        beam: isAtk?{color:this.cat[card.cat].color}:null, log:`已打出「${card.name}」 — ${card.text}` }));
+      if(isAtk){ clearTimeout(this._bt); this._bt=setTimeout(()=>this.setState({beam:null}),760); }
+    } else {
+      this.setState({ selectedCardId:id, log: afford?`选中「${card.name}」 · 再次点击以打出`:`能量不足，无法打出「${card.name}」（需 ${card.cost}）` });
+    }
+  }
+
+  useCaptain(){
+    if(this.state.captainUsed || this.state.currentEnergy<2) return;
+    this.setState(s=>({ currentEnergy:s.currentEnergy-2, captainUsed:true, beam:{color:'#ffd27a'}, log:'舰长指令：轨道炮校准 — 对涅墨西斯造成 4 点伤害！' }));
+    clearTimeout(this._bt); this._bt=setTimeout(()=>this.setState({beam:null}),760);
+  }
+
+  endTurn(){
+    this.setState(s=>{
+      const ne = Math.min(10, s.maxEnergy+1);
+      return { turn:s.turn+1, maxEnergy:ne, currentEnergy:ne, captainUsed:false, playedIds:[], selectedCardId:null,
+        intentIndex:(s.intentIndex+1)%this.enemy.intents.length, beam:null, log:`第 ${s.turn+1} 回合 · 反应堆已充能至 ${ne} · 敌方意图已刷新` };
+    });
+  }
+
+  setScenario(v){ this.setState({ scenario:v, intentIndex:0, selectedCardId:null, log: v==='boss'?'切换至 BOSS 战 · 虚空母舰 涅墨西斯':'切换至 遭遇战 · 掠夺者 赤隼' }); }
+  setVariant(v){ this.setState({ variant:v }); }
+  selectCrew(id){ const c=this.crewBase.find(x=>x.id===id); this.setState({ selectedCrewId:id, log:`${c.name} · ${c.traitDesc}` }); }
+
+  /* ---------------- render ---------------- */
+  renderVals(){
+    const st=this.state, V=this.V[st.variant], variant=st.variant, en=this.enemy;
+    const cat=this.cat;
+
+    // scenario / variant chips
+    const chip=(active)=>({ padding:'6px 14px', fontSize:'12px', fontWeight:700, letterSpacing:'1px', cursor:'pointer', border:'none',
+      fontFamily:"'Noto Sans SC'", background: active?'linear-gradient(180deg,#3fe0ff,#1f9fcf)':'transparent', color: active?'#04202a':'#7fb6c8' });
+    const vchip=(active)=>({ width:'26px',height:'26px', fontFamily:"'Oxanium'", fontWeight:800, fontSize:'13px', cursor:'pointer', border:'none',
+      background: active?'#ffd27a':'transparent', color: active?'#2a1c04':'#7fb6c8' });
+
+    // boss phase
+    const phaseSegs = (en.phases||[]).map((p,i)=>({ style:{ flex:1, height:'7px',
+      background: i<en.phase ? 'linear-gradient(90deg,#7b4fd0,#c07bff)' : (i===en.phase? 'linear-gradient(90deg,#c07bff,#e9c8ff)':'rgba(40,30,60,.6)'),
+      border:'1px solid rgba(160,120,230,.45)', clipPath:'polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%)',
+      boxShadow: i<=en.phase?'0 0 10px rgba(160,100,230,.5)':'none' } }));
+
+    // enemy
+    const enemyShipStyle={ width:'430px',height:'144px', backgroundImage:`url("${this.enemyShip(this.sc==='boss')}")`, backgroundSize:'contain', backgroundRepeat:'no-repeat', backgroundPosition:'center', filter:'drop-shadow(0 0 24px '+(this.sc==='boss'?'rgba(180,110,255,.35)':'rgba(255,110,60,.35)')+')', animation:'float 5s ease-in-out infinite' };
+    const enemyObj={ name:en.name, armor:en.armor, hpText:`${en.hp} / ${en.maxHp}`,
+      hpFillStyle:{ position:'absolute',top:0,left:0,bottom:0, width:(en.hp/en.maxHp*100)+'%', background:'linear-gradient(90deg,#7a1a14,#ff5a3c,#ff8a5a)', boxShadow:'0 0 12px rgba(255,90,60,.6)' } };
+
+    // intent
+    const it=en.intents[st.intentIndex];
+    const intent={ label:it.label, sub:it.sub, val:it.val, color:it.color,
+      cardStyle:{ position:'relative', background:'linear-gradient(160deg,rgba(40,18,18,.9),rgba(12,18,28,.94))', border:`1px solid ${it.color}`, clipPath:'polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)', padding:'14px 15px', boxShadow:`0 0 24px ${it.color}44, inset 0 0 18px rgba(0,0,0,.4)`, animation:'intentblink 2.4s ease-in-out infinite' },
+      iconStyle:{ width:'48px',height:'48px',flex:'none', backgroundImage:`url("${this.intentIcon(it.type,it.color)}")`, backgroundSize:'contain', backgroundRepeat:'no-repeat', filter:`drop-shadow(0 0 8px ${it.color})` } };
+
+    // enemy drones
+    const enemyDrones = en.drones.map(d=>({ name:d.name, atk:d.atk, hp:d.hp, taunt:d.taunt,
+      wrapStyle:{ position:'relative', width:'92px', display:'flex', flexDirection:'column', alignItems:'center', gap:'3px',
+        padding: d.taunt?'12px 6px 6px':'6px', border: d.taunt?'1px solid rgba(143,191,232,.55)':'1px solid rgba(255,120,90,.28)', borderRadius:'6px',
+        background: d.taunt?'rgba(20,40,62,.5)':'rgba(30,16,16,.4)', boxShadow: d.taunt?'0 0 16px rgba(143,191,232,.3)':'none' },
+      svgStyle:{ width:'70px',height:'70px', backgroundImage:`url("${this.drone(this.sc==='boss')}")`, backgroundSize:'contain', backgroundRepeat:'no-repeat', backgroundPosition:'center' } }));
+
+    // beam
+    const beamStyle = st.beam ? { position:'absolute', top:'50%', left:'14%', width:'72%', height:'4px', transformOrigin:'left center',
+      background:`linear-gradient(90deg,transparent,${st.beam.color},#fff,${st.beam.color})`, boxShadow:`0 0 18px ${st.beam.color},0 0 6px #fff`, animation:'beamfly .7s cubic-bezier(.4,0,.2,1) forwards', borderRadius:'3px' } : {};
+
+    // crew
+    const crewList = this.crewBase.map(c=>{
+      const sel = st.selectedCrewId===c.id;
+      const acted = c.state==='acted', injured = c.state==='injured', ready=c.state==='ready';
+      const filter = injured ? 'brightness(.42) saturate(.6) contrast(1.05)' : acted ? 'grayscale(.85) brightness(.55)' : 'none';
+      const panelStyle={ position:'relative', width:'190px', height:'266px', cursor:'pointer', overflow:'visible',
+        background:V.panelBg, border:V.border, clipPath:V.clip, boxShadow: (ready&&sel)?V.shadow+',0 0 0 2px #4fd6e6':V.shadow,
+        transition:'transform .18s, box-shadow .18s', transform: sel?'translateY(-10px)':'none',
+        animation: ready?'readyglow 2.6s ease-in-out infinite':'none', opacity: acted?0.92:1 };
+      const portraitStyle={ position:'absolute', top:V.portTop, left:V.portInset, right:V.portInset, height: V.bleed?'215px':'186px',
+        backgroundImage:`url("${this.portrait(c.pal)}")`, backgroundSize:'cover', backgroundPosition:'top center',
+        clipPath: variant==='B'?'polygon(0 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%)':'none',
+        border: variant==='B'?'2px solid #45586b':'none', filter, transition:'filter .2s' };
+      const nameBarStyle={ position:'absolute', left:'40px', right:'40px', bottom: variant==='C'?'0':'8px',
+        padding:'7px 10px', background:V.nameBg, borderTop: variant==='B'?'2px solid #5e768a':'1px solid rgba(79,214,230,.3)',
+        clipPath: variant==='B'?'polygon(8px 0,100% 0,100% 100%,0 100%,0 0)':'none' };
+      const haloStyle={ position:'absolute', inset:'-3px', clipPath:V.clip, pointerEvents:'none',
+        boxShadow: sel?'inset 0 0 30px rgba(79,214,230,.4)':'none', background:'transparent' };
+      const traitBadgeStyle={ position:'absolute', top:'8px', right:'8px', width:'34px', height:'34px', zIndex:6,
+        background:'radial-gradient(circle,rgba(10,28,42,.95),rgba(6,16,26,.95))', border:`1px solid ${c.accent}`, borderRadius:'50%',
+        display:'flex', alignItems:'center', justifyContent:'center', boxShadow:`0 0 12px ${c.accent}77` };
+      const traitIconStyle={ width:'20px',height:'20px', backgroundImage:`url("${this.traitIcon(c.trait,c.accent)}")`, backgroundSize:'contain', backgroundRepeat:'no-repeat' };
+      const stateLabelStyle={ position:'absolute', top:V.bleed?'8px':'46px', left:'50%', transform:'translateX(-50%)', zIndex:7,
+        padding:'2px 12px', fontSize:'10px', letterSpacing:'2px', fontWeight:700, borderRadius:'9px', whiteSpace:'nowrap', display: ready?'none':'block',
+        background: injured?'rgba(60,14,8,.92)':'rgba(40,40,46,.92)', color: injured?'#ff7a5a':'#aebccb', border:`1px solid ${injured?'#ff5a3c':'#5a6a78'}` };
+      const hpChipStyle={ position:'absolute', bottom:'-12px', right:'-9px', width:'42px', height:'42px',
+        background:'radial-gradient(circle,#3a1410,#1a0806)', border:'2px solid #ff5a3c', borderRadius:'50%',
+        display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 0 14px rgba(255,90,60,.55)', zIndex:6,
+        filter: (c.hp<c.maxHp*0.4)?'drop-shadow(0 0 6px #ff3020)':'none' };
+      const crackStyle={ position:'absolute', inset:0, backgroundImage:`url("${this.crack}")`, backgroundSize:'cover', clipPath:V.clip, pointerEvents:'none', opacity:.9, zIndex:4, mixBlendMode:'screen' };
+      const buffs=c.buffs.map(b=>({ t:b.t, style:{ padding:'2px 7px', fontSize:'9px', fontWeight:700, letterSpacing:'1px', borderRadius:'8px', whiteSpace:'nowrap',
+        background:`${b.c}22`, border:`1px solid ${b.c}`, color:b.c, boxShadow:`0 0 8px ${b.c}55` } }));
+      return { ...c, panelStyle, portraitStyle, nameBarStyle, haloStyle, traitBadgeStyle, traitIconStyle, stateLabelStyle, hpChipStyle, crackStyle, buffs,
+        injured, taunt:c.taunt, traitDesc:c.traitDesc,
+        stateLabel: injured?'负伤退场':(acted?'已行动':''), accent:c.accent, onClick:()=>this.selectCrew(c.id) };
+    });
+
+    // summon slots (3): 1 filled + 2 empty
+    const summons=[{filled:true,empty:false,name:'无人机 MK-II',atk:2,hp:1},{filled:false,empty:true},{filled:false,empty:true}];
+    const summonList=summons.map(s=>({ ...s,
+      wrapStyle:{ width:'118px', height:'170px', borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'center',
+        border: s.empty?'1px dashed rgba(90,140,170,.4)':'1px solid rgba(79,214,230,.45)',
+        background: s.empty?'rgba(12,26,40,.3)':'linear-gradient(160deg,rgba(16,40,58,.7),rgba(8,18,30,.85))',
+        boxShadow: s.empty?'none':'inset 0 0 18px rgba(60,180,210,.15)' },
+      svgStyle: s.filled?{ width:'76px',height:'76px', backgroundImage:`url("${this.friendlyDrone}")`, backgroundSize:'contain', backgroundRepeat:'no-repeat', backgroundPosition:'center' }:{} }));
+
+    // hand
+    const visible=this.handBase.filter(c=>!st.playedIds.includes(c.id));
+    const n=visible.length, mid=(n-1)/2;
+    const handList=visible.map((c,i)=>{
+      const off=i-mid, m=cat[c.cat], sel=st.selectedCardId===c.id, afford=st.currentEnergy>=c.cost;
+      const rot=off*5, ty=Math.abs(off)*Math.abs(off)*5;
+      let transform=`translateX(-50%) translateY(${ty}px) rotate(${rot}deg)`;
+      if(sel) transform=`translateX(-50%) translateY(-58px) rotate(0deg) scale(1.08)`;
+      const cardFrame = variant==='B'
+        ? { background:'linear-gradient(180deg,#27323e,#0e1722)', border:`2px solid ${m.color}`, clipPath:'polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px))' }
+        : variant==='C'
+        ? { background:'linear-gradient(180deg,rgba(12,24,36,.96),rgba(7,14,24,.98))', border:`1px solid ${m.color}`, clipPath:'polygon(6px 0,100% 0,100% 100%,0 100%,0 6px)' }
+        : { background:'linear-gradient(180deg,rgba(14,30,44,.96),rgba(8,16,26,.98))', border:`2px solid ${m.color}`, clipPath:'polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)' };
+      const style={ position:'absolute', left:`calc(50% + ${off*116}px)`, bottom:'74px', width:'152px', height:'212px',
+        transformOrigin:'bottom center', transform, transition:'transform .2s, box-shadow .2s, filter .2s', cursor:'pointer', pointerEvents:'auto',
+        zIndex: sel?60:(20+i), ...cardFrame,
+        boxShadow: sel?`0 0 30px ${m.glow},0 16px 30px rgba(0,0,0,.6)`:`0 0 14px ${m.glow}55,0 8px 20px rgba(0,0,0,.5)`,
+        filter: afford?'none':'grayscale(.7) brightness(.62)', opacity: afford?1:0.82 };
+      const artStyle={ position:'absolute', top:'30px', left:'16px', right:'16px', height:'60px',
+        backgroundImage:`url("${this.cardArt(c.cat,m.color)}")`, backgroundSize:'contain', backgroundRepeat:'no-repeat', backgroundPosition:'center', opacity:.92, filter:`drop-shadow(0 0 8px ${m.glow})` };
+      const costStyle={ position:'absolute', top:'-12px', left:'-10px', width:'40px', height:'44px',
+        background: afford?'linear-gradient(180deg,#7b8cff,#4a2fd0)':'linear-gradient(180deg,#5a3a3a,#3a2020)',
+        border:'2px solid '+(afford?'#aeb8ff':'#8a6a6a'), clipPath:'polygon(50% 0,100% 26%,100% 74%,50% 100%,0 74%,0 26%)',
+        display:'flex', alignItems:'center', justifyContent:'center', boxShadow: afford?'0 0 16px rgba(120,140,255,.65)':'none', zIndex:2 };
+      const tagStyle={ position:'absolute', top:'10px', right:'10px', padding:'2px 9px', fontSize:'10px', fontWeight:700, letterSpacing:'2px',
+        background:`${m.color}22`, border:`1px solid ${m.color}`, color:m.color, borderRadius:'3px' };
+      return { ...c, catLabel:m.label, style, artStyle, costStyle, tagStyle, onClick:()=>this.onCardClick(c.id) };
+    });
+
+    // energy
+    const energyList=[]; for(let i=0;i<st.maxEnergy;i++){ const filled=i<st.currentEnergy;
+      energyList.push({ style:{ width:'24px',height:'30px', clipPath:'polygon(50% 0,100% 28%,100% 72%,50% 100%,0 72%,0 28%)',
+        background: filled?'linear-gradient(180deg,#aeb8ff,#5a4fe0)':'rgba(20,26,46,.7)',
+        border:'1px solid '+(filled?'#cfd4ff':'rgba(90,100,160,.5)'), boxShadow: filled?'0 0 12px rgba(130,140,255,.7)':'inset 0 0 6px rgba(0,0,0,.5)' } }); }
+
+    // hull
+    const hull={ val:30, text:'30 / 30', fillStyle:{ width:'100%', height:'100%', background:'linear-gradient(90deg,#2a8a64,#4dd6a0)', boxShadow:'0 0 10px rgba(77,214,160,.6)' } };
+
+    // captain
+    const capAfford = !st.captainUsed && st.currentEnergy>=2;
+    const captain={ costText:'消耗 2 能量', onClick:()=>this.useCaptain(),
+      style:{ width:'100%', marginTop:'12px', display:'flex', alignItems:'center', gap:'10px', padding:'9px 12px',
+        background: capAfford?'linear-gradient(180deg,rgba(60,120,90,.5),rgba(20,50,40,.7))':'rgba(30,36,42,.6)',
+        border:'1px solid '+(capAfford?'#4dd6a0':'#4a5560'), borderRadius:'5px', cursor: capAfford?'pointer':'not-allowed',
+        color: capAfford?'#bdffe0':'#6a7682', boxShadow: capAfford?'0 0 16px rgba(77,214,160,.3)':'none', fontFamily:"'Noto Sans SC'" } };
+
+    // deck
+    const deckBacks=[0,1,2].map(i=>({ style:{ position:'absolute', inset:0, transform:`translate(${i*3}px,${-i*3}px)`,
+      background:'linear-gradient(160deg,#14304a,#0a1828)', border:'1px solid rgba(79,214,230,.3)',
+      clipPath:'polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)', zIndex:i } }));
+
+    // end turn
+    const endTurnStyle={ position:'absolute', right:'26px', top:'430px', width:'118px', height:'132px', zIndex:45,
+      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'4px', cursor:'pointer',
+      background:'linear-gradient(180deg,#5fe8c0,#3fd0e0)', border:'2px solid #d6fff4',
+      clipPath:'polygon(18px 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%,0 18px)',
+      boxShadow:'0 0 28px rgba(79,230,200,.6),0 8px 24px rgba(0,0,0,.5)', fontFamily:"'Noto Sans SC'" };
+
+    return {
+      stageRef:this.stageRef,
+      stageStyle:{ position:'relative', width:'1920px', height:'1080px', transformOrigin:'center center', flex:'none',
+        background:'radial-gradient(ellipse 90% 70% at 50% 40%,#0a1830,#05080f 80%)', overflow:'hidden' },
+      starStyle:{ position:'absolute', inset:0, backgroundImage:`url("${this.starUri}")`, backgroundSize:'cover', opacity:.7, pointerEvents:'none' },
+      campaign:'深渊战役 · 第三章', campaignSub:'LOST STARGATE',
+      turnText:st.turn, isBoss:this.sc==='boss', phaseText:en.phases.length?`${en.phases[en.phase]} (${en.phase+1}/${en.phases.length})`:'',
+      phaseSegs,
+      scenarioChips:[ {label:'遭遇战',onClick:()=>this.setScenario('normal'),style:chip(this.sc==='normal')}, {label:'BOSS战',onClick:()=>this.setScenario('boss'),style:chip(this.sc==='boss')} ],
+      variantChips:['A','B','C'].map(v=>({label:v,onClick:()=>this.setVariant(v),style:vchip(st.variant===v)})),
+      enemyShipStyle, enemy:enemyObj, intent, enemyDrones,
+      beam:!!st.beam, beamStyle,
+      crewList, summonList, handList, energyList, energyText:`${st.currentEnergy} / ${st.maxEnergy}`,
+      hull, captain, deckBacks, deckCount:18,
+      onEndTurn:()=>this.endTurn(), endTurnStyle,
+      logText:st.log
+    };
+  }
+}
+</script>
+</body>
+</html>

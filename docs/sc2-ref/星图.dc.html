@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:#04060e;font-family:'Noto Sans SC',sans-serif;-webkit-font-smoothing:antialiased;}
+  @keyframes nodePulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.12);opacity:.85;}}
+  @keyframes ringSpin{from{transform:rotate(0);}to{transform:rotate(360deg);}}
+  @keyframes flagFloat{0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
+  @keyframes dash{to{stroke-dashoffset:-28;}}
+  @keyframes glowPulse{0%,100%{opacity:.4;}50%{opacity:.9;}}
+</style>
+</helmet>
+<div style="position:fixed;inset:0;background:#04060e;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+  <div ref="{{ stageRef }}" style="{{ stageStyle }}">
+
+    <!-- ===== PANNABLE MAP LAYER ===== -->
+    <div onMouseDown="{{ onPanStart }}" style="position:absolute;inset:0;overflow:hidden;cursor:grab;background:radial-gradient(ellipse 70% 60% at 30% 40%,rgba(40,80,130,.16),transparent 60%),radial-gradient(ellipse 60% 60% at 80% 60%,rgba(120,70,200,.14),transparent 60%),#05070f;">
+      <div style="{{ mapStyle }}">
+        <!-- faction region washes -->
+        <div style="position:absolute;left:60px;top:380px;width:560px;height:560px;border-radius:50%;background:radial-gradient(circle,rgba(95,224,238,.12),transparent 70%);"></div>
+        <div style="position:absolute;left:760px;top:300px;width:680px;height:700px;border-radius:50%;background:radial-gradient(circle,rgba(255,138,74,.1),transparent 70%);"></div>
+        <div style="position:absolute;left:1640px;top:300px;width:840px;height:760px;border-radius:50%;background:radial-gradient(circle,rgba(192,123,255,.13),transparent 70%);"></div>
+        <!-- region labels -->
+        <div style="position:absolute;left:230px;top:330px;font-size:14px;letter-spacing:8px;color:rgba(95,224,238,.5);">自 由 港 湾</div>
+        <div style="position:absolute;left:980px;top:270px;font-size:14px;letter-spacing:8px;color:rgba(255,168,110,.5);">争 议 星 域</div>
+        <div style="position:absolute;left:1900px;top:270px;font-size:14px;letter-spacing:8px;color:rgba(200,140,255,.5);">虚 空 回 廊</div>
+        <!-- map starfield -->
+        <div style="{{ mapStarStyle }}"></div>
+        <!-- routes -->
+        <svg width="2600" height="1320" style="position:absolute;left:0;top:0;pointer-events:none;">
+          <sc-for list="{{ routes }}" as="r" hint-placeholder-count="12">
+            <line x1="{{ r.x1 }}" y1="{{ r.y1 }}" x2="{{ r.x2 }}" y2="{{ r.y2 }}" stroke="{{ r.stroke }}" stroke-width="{{ r.width }}" stroke-dasharray="{{ r.dash }}" opacity="{{ r.opacity }}"></line>
+          </sc-for>
+        </svg>
+        <!-- nodes -->
+        <sc-for list="{{ nodes }}" as="n" hint-placeholder-count="10">
+          <div onClick="{{ n.onClick }}" onMouseDown="{{ n.onMouseDown }}" style="{{ n.wrapStyle }}">
+            <div style="{{ n.ringStyle }}"></div>
+            <div style="{{ n.bodyStyle }}">
+              <div style="{{ n.iconStyle }}"></div>
+            </div>
+            <div style="{{ n.labelStyle }}">{{ n.name }}</div>
+            <div style="{{ n.typeTagStyle }}">{{ n.typeLabel }}</div>
+            <sc-if value="{{ n.cleared }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;top:-6px;right:-6px;width:26px;height:26px;border-radius:50%;background:#0c2a1e;border:1px solid #3ff0a0;color:#7fffc0;font-size:13px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px rgba(63,240,160,.5);">✓</div>
+            </sc-if>
+            <sc-if value="{{ n.locked }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;top:-4px;right:-4px;font-size:15px;opacity:.85;">🔒</div>
+            </sc-if>
+          </div>
+        </sc-for>
+        <!-- flagship token -->
+        <div style="{{ flagStyle }}">
+          <div style="{{ flagIconStyle }}"></div>
+          <div style="position:absolute;top:-22px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10px;letter-spacing:1px;color:#9fe6f4;background:rgba(6,16,26,.8);padding:2px 8px;border-radius:8px;border:1px solid rgba(95,210,235,.4);">旗舰 · 奥德赛号</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TOP HUD ===== -->
+    <div style="position:absolute;top:0;left:0;width:1920px;height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:linear-gradient(180deg,rgba(8,16,28,.96),rgba(8,16,28,.2));border-bottom:1px solid rgba(79,214,230,.26);z-index:40;pointer-events:none;">
+      <div style="display:flex;align-items:center;gap:16px;pointer-events:auto;">
+        <button style="width:40px;height:40px;border:1px solid rgba(79,214,230,.4);background:rgba(12,30,44,.85);color:#7fd6e6;border-radius:3px;cursor:pointer;font-size:18px;">‹</button>
+        <div>
+          <div style="font-family:'Oxanium','Noto Sans SC';font-weight:700;font-size:19px;letter-spacing:3px;color:#d6f3ff;text-shadow:0 0 14px rgba(95,230,255,.45);">星域航图</div>
+          <div style="font-size:11px;letter-spacing:3px;color:#5a93ad;">深渊战役 · 第三章 · 失落的星门</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;pointer-events:auto;font-size:12px;letter-spacing:1px;color:#9fb6c6;">
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 14px;background:rgba(8,22,34,.85);border:1px solid rgba(79,214,230,.3);border-radius:3px;">
+          <span style="width:7px;height:7px;background:#5fe0ee;transform:rotate(45deg);"></span>跃迁燃料 <span style="font-family:'Oxanium';font-weight:800;color:#7fe6ff;">8</span>/10
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 14px;background:rgba(8,22,34,.85);border:1px solid rgba(255,176,32,.3);border-radius:3px;">
+          <span style="width:7px;height:7px;background:#ffd27a;transform:rotate(45deg);"></span>信用点 <span style="font-family:'Oxanium';font-weight:800;color:#ffd27a;">1,240</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- legend -->
+    <div style="position:absolute;bottom:24px;left:28px;display:flex;gap:16px;padding:10px 18px;background:rgba(8,16,28,.82);border:1px solid rgba(79,214,230,.22);border-radius:8px;z-index:35;backdrop-filter:blur(6px);">
+      <sc-for list="{{ legend }}" as="l" hint-placeholder-count="4">
+        <div style="display:flex;align-items:center;gap:7px;font-size:11px;letter-spacing:1px;color:#b6c6d4;">
+          <span style="{{ l.dotStyle }}"></span>{{ l.label }}
+        </div>
+      </sc-for>
+      <div style="width:1px;background:rgba(79,214,230,.2);"></div>
+      <span style="font-size:11px;letter-spacing:1px;color:#6a8090;">拖动平移星图</span>
+    </div>
+
+    <!-- ===== DETAIL PANEL ===== -->
+    <div data-screen-label="节点详情" style="position:absolute;top:84px;right:28px;width:436px;bottom:24px;background:linear-gradient(160deg,rgba(12,26,42,.9),rgba(8,16,28,.94));border:1px solid rgba(79,214,230,.34);clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);z-index:38;display:flex;flex-direction:column;box-shadow:0 12px 50px rgba(0,0,0,.5),inset 0 0 30px rgba(60,160,200,.08);backdrop-filter:blur(8px);">
+      <!-- header -->
+      <div style="{{ detail.headerStyle }}">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="{{ detail.factionDotStyle }}"></span>
+          <span style="font-size:11px;letter-spacing:2px;color:{{ detail.factionColor }};">{{ detail.region }} · {{ detail.faction }}</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
+          <span style="font-weight:800;font-size:24px;letter-spacing:1px;color:#fff;">{{ detail.name }}</span>
+          <span style="{{ detail.typeBadgeStyle }}">{{ detail.typeLabel }}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:8px;">
+          <span style="font-size:11px;color:#8a9aa8;letter-spacing:1px;">威胁等级</span>
+          <span style="font-size:14px;letter-spacing:2px;color:#ffb86a;">{{ detail.stars }}</span>
+        </div>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:18px 20px;display:flex;flex-direction:column;gap:18px;">
+        <p style="margin:0;font-size:13px;line-height:1.65;color:#aebfce;">{{ detail.desc }}</p>
+
+        <!-- enemy preview -->
+        <sc-if value="{{ detail.hasEnemy }}" hint-placeholder-val="{{ true }}">
+          <div>
+            <div style="font-size:11px;letter-spacing:3px;color:#7a93a8;margin-bottom:9px;">敌军预览</div>
+            <div style="display:flex;align-items:center;gap:14px;padding:14px;background:rgba(8,18,30,.7);border:1px solid {{ detail.factionColor }}55;border-radius:8px;">
+              <div style="{{ detail.enemyShipStyle }}"></div>
+              <div style="flex:1;">
+                <div style="font-weight:700;font-size:15px;color:#ffd9c8;">{{ detail.enemyName }}</div>
+                <div style="display:flex;gap:14px;margin-top:6px;font-size:12px;">
+                  <span style="color:#ff8a6a;">HP <span style="font-family:'Oxanium';font-weight:800;font-size:15px;">{{ detail.enemyHp }}</span></span>
+                  <span style="color:#9fb6c6;">护甲 <span style="font-family:'Oxanium';font-weight:800;font-size:15px;color:#cfe6ff;">{{ detail.enemyArmor }}</span></span>
+                </div>
+                <div style="margin-top:8px;display:flex;align-items:center;gap:7px;padding:5px 10px;background:rgba(40,16,16,.7);border:1px solid rgba(255,90,60,.4);border-radius:6px;width:fit-content;">
+                  <span style="{{ detail.intentIconStyle }}"></span>
+                  <span style="font-size:11px;color:#ffb0a0;">下回合意图 · {{ detail.enemyIntent }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- rewards -->
+        <div>
+          <div style="font-size:11px;letter-spacing:3px;color:#7a93a8;margin-bottom:9px;">清剿奖励</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <sc-for list="{{ detail.rewards }}" as="rw" hint-placeholder-count="2">
+              <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;background:rgba(10,20,32,.6);border-left:3px solid {{ rw.color }};border-radius:0 6px 6px 0;">
+                <div style="{{ rw.iconStyle }}"></div>
+                <span style="flex:1;font-size:13px;color:#dce8f4;">{{ rw.text }}</span>
+                <span style="font-size:11px;color:{{ rw.color }};letter-spacing:1px;">{{ rw.tag }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <!-- action -->
+      <div style="padding:16px 20px;border-top:1px solid rgba(79,214,230,.2);">
+        <button onClick="{{ detail.onAction }}" style="{{ detail.actionStyle }}">{{ detail.actionLabel }}</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1920,&quot;height&quot;:1080}}">
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    this.stageRef=React.createRef();
+    this.uri=(s)=>'data:image/svg+xml,'+encodeURIComponent(s);
+    this.buildData();
+    this.state={ pan:{x:-40,y:-70}, selected:'n4', dragging:false };
+    this._moved=false;
+  }
+  componentDidMount(){
+    this.fit(); requestAnimationFrame(()=>this.fit()); this._fit=()=>this.fit(); window.addEventListener('resize', this._fit); window.addEventListener('load', this._fit); if(window.ResizeObserver){ this._ro=new ResizeObserver(()=>this.fit()); this._ro.observe(document.documentElement); }
+    this._mm=(e)=>this.onMove(e); this._mu=()=>this.onUp();
+    window.addEventListener('mousemove',this._mm); window.addEventListener('mouseup',this._mu);
+  }
+  componentWillUnmount(){ window.removeEventListener('resize',this._fit); window.removeEventListener('load',this._fit); if(this._ro) this._ro.disconnect(); window.removeEventListener('mousemove',this._mm); window.removeEventListener('mouseup',this._mu); }
+  fit(){ const el=this.stageRef.current; if(!el){ requestAnimationFrame(()=>this.fit()); return; } const w=window.innerWidth||document.documentElement.clientWidth, h=window.innerHeight||document.documentElement.clientHeight; const s=Math.min(w/1920,h/1080); if(!(s>0)){ requestAnimationFrame(()=>this.fit()); return; } this._scale=s; el.style.transform=`scale(${s})`; }
+
+  onPanStart(e){ this._panning=true; this._start={mx:e.clientX,my:e.clientY,px:this.state.pan.x,py:this.state.pan.y}; this._moved=false; this.setState({dragging:true}); }
+  onMove(e){ if(!this._panning||!this._start) return; const s=this._scale||1; const dx=(e.clientX-this._start.mx)/s, dy=(e.clientY-this._start.my)/s; if(Math.abs(dx)+Math.abs(dy)>4) this._moved=true; let x=this._start.px+dx, y=this._start.py+dy; x=Math.max(-(2600-1920),Math.min(80,x)); y=Math.max(-(1320-1080),Math.min(60,y)); this.setState({pan:{x,y}}); }
+  onUp(){ this._panning=false; if(this.state.dragging) this.setState({dragging:false}); }
+
+  buildData(){
+    const U=this.uri;
+    let stars=''; for(let i=0;i<260;i++){const x=(Math.random()*2600)|0,y=(Math.random()*1320)|0,r=(Math.random()*1.4+.3).toFixed(1),o=(Math.random()*.6+.12).toFixed(2);stars+=`<circle cx='${x}' cy='${y}' r='${r}' fill='#cfe6ff' opacity='${o}'/>`;}
+    this.mapStarUri=U(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 2600 1320'>${stars}</svg>`);
+
+    this.fac={
+      free:{name:'自由舰队',color:'#5fe0ee'}, raider:{name:'掠夺者',color:'#ff8a4a'},
+      void:{name:'虚空教团',color:'#c07bff'}, neutral:{name:'中立',color:'#8fa6b6'}
+    };
+    this.typeMeta={
+      combat:{label:'战斗',icon:'combat'}, elite:{label:'精英',icon:'elite'}, boss:{label:'BOSS',icon:'boss'},
+      event:{label:'事件',icon:'event'}, supply:{label:'补给',icon:'supply'}
+    };
+
+    this.nodeIcon=(t,c)=>{
+      const m={
+        combat:`<g stroke='${c}' stroke-width='3.4' fill='none' stroke-linecap='round'><path d='M12 36L34 14M28 14h8v8'/><path d='M36 36L14 14M20 14h-8v8'/></g>`,
+        elite:`<path d='M24 6l5 13 14 1-11 9 4 14-12-8-12 8 4-14-11-9 14-1z' fill='${c}'/>`,
+        boss:`<g fill='none' stroke='${c}' stroke-width='3'><circle cx='24' cy='24' r='12'/><path d='M24 12v24M12 24h24M15 15l18 18M33 15L15 33'/></g>`,
+        event:`<g fill='none' stroke='${c}' stroke-width='3.6' stroke-linecap='round'><path d='M18 19a6 6 0 1 1 9 5c-2 1.5-3 2.5-3 5'/><circle cx='24' cy='35' r='1.6' fill='${c}'/></g>`,
+        supply:`<g fill='none' stroke='${c}' stroke-width='3.6' stroke-linecap='round'><path d='M24 14v20M14 24h20'/></g>`
+      };
+      return U(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'>${m[t]}</svg>`);
+    };
+    this.enemyThumb=(c)=>U(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 120'><ellipse cx='80' cy='60' rx='70' ry='34' fill='${c}' opacity='.16'/><path d='M20 40 L60 50 L60 70 L26 80 Z' fill='#2a2436' stroke='${c}' stroke-width='1.6'/><path d='M140 40 L100 50 L100 70 L134 80 Z' fill='#2a2436' stroke='${c}' stroke-width='1.6'/><path d='M60 38 L100 38 L116 60 L92 84 L68 84 L44 60 Z' fill='#2a2436' stroke='${c}' stroke-width='2.4'/><polygon points='80,46 96,60 80,74 64,60' fill='${c}'/><circle cx='80' cy='60' r='8' fill='#fff'/></svg>`);
+    this.flagSvg=U(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 90'><ellipse cx='60' cy='46' rx='52' ry='24' fill='#5fe0ee' opacity='.18'/><path d='M18 36 L66 28 L96 46 L66 64 L18 56 Z' fill='#13344a' stroke='#5fe0ee' stroke-width='2.2'/><path d='M18 36 L66 28 L70 46 L18 46 Z' fill='#1e5168' opacity='.7'/><polygon points='90,40 104,46 90,52' fill='#5fe0ee'/><circle cx='60' cy='46' r='6' fill='#d6f6ff'/><circle cx='60' cy='46' r='12' fill='none' stroke='#5fe0ee' stroke-width='1.4' opacity='.6'/></svg>`);
+
+    // nodes
+    this.nodes=[
+      {id:'n1',x:200,y:650,name:'自由港',type:'supply',fac:'free',state:'cleared',region:'自由港湾',desc:'舰队的补给前哨，安全的避风港。可在此修复舰体、补充燃料与采购卡牌。',rewards:[{t:'修复舰体 / 补给燃料',tag:'服务',c:'#5fe0ee',ic:'supply'},{t:'卡牌商店',tag:'商店',c:'#ffcc4d',ic:'event'}]},
+      {id:'n2',x:480,y:500,name:'哨戒星',type:'combat',fac:'neutral',state:'cleared',region:'自由港湾',desc:'外围哨戒空域，零星的废弃无人机仍在游荡。',enemy:{name:'废弃无人机群',hp:18,armor:0,intent:'集火攻击',c:'#8fa6b6'},rewards:[{t:'信用点 ×80',tag:'+80',c:'#ffd27a',ic:'supply'}]},
+      {id:'n3',x:480,y:800,name:'残骸带',type:'event',fac:'neutral',state:'cleared',region:'自由港湾',desc:'一片古老的战场残骸，漂浮着待打捞的舱段。',rewards:[{t:'随机零件 / 剧情线索',tag:'事件',c:'#c07bff',ic:'event'}]},
+      {id:'n4',x:820,y:640,name:'赤隼巢穴',type:'elite',fac:'raider',state:'available',region:'争议星域',desc:'掠夺者头目「赤隼」盘踞的小行星基地。清剿后将打通前往双子星域的航路。',enemy:{name:'掠夺者 · 赤隼',hp:34,armor:2,intent:'召唤僚机',c:'#ff8a4a'},rewards:[{t:'新卡「破甲弹」',tag:'攻击',c:'#ff4d4d',ic:'elite'},{t:'信用点 ×120',tag:'+120',c:'#ffd27a',ic:'supply'}]},
+      {id:'n5',x:1180,y:440,name:'双子星',type:'combat',fac:'raider',state:'locked',region:'争议星域',desc:'两颗互绕的恒星之间，掠夺者的巡逻舰队往来频繁。',enemy:{name:'掠夺者巡逻队',hp:28,armor:1,intent:'舷侧齐射',c:'#ff8a4a'},rewards:[{t:'信用点 ×140',tag:'+140',c:'#ffd27a',ic:'supply'}]},
+      {id:'n6',x:1180,y:860,name:'静默舱',type:'event',fac:'neutral',state:'locked',region:'争议星域',desc:'一具漂流的医疗冷冻舱发出微弱信标——里面似乎还有幸存的船员。',rewards:[{t:'可招募新船员',tag:'养成',c:'#3ff0a0',ic:'event'},{t:'对话事件',tag:'剧情',c:'#c07bff',ic:'event'}]},
+      {id:'n7',x:1560,y:640,name:'回廊补给站',type:'supply',fac:'free',state:'locked',region:'虚空回廊',desc:'深入虚空回廊前的最后一处补给点。',rewards:[{t:'修复 / 升级卡牌',tag:'服务',c:'#5fe0ee',ic:'supply'}]},
+      {id:'n8',x:1940,y:460,name:'截击者据点',type:'combat',fac:'void',state:'locked',region:'虚空回廊',desc:'虚空教团的前哨据点，截击者编队严阵以待。',enemy:{name:'虚空截击编队',hp:40,armor:3,intent:'核心蓄力',c:'#c07bff'},rewards:[{t:'新卡「相位干扰」',tag:'调度',c:'#ffcc4d',ic:'combat'}]},
+      {id:'n9',x:1940,y:840,name:'暗物质云',type:'elite',fac:'void',state:'locked',region:'虚空回廊',desc:'扭曲的暗物质云团，能量读数异常。精英守卫潜伏其中。',enemy:{name:'湮灭者',hp:46,armor:4,intent:'集火攻击',c:'#c07bff'},rewards:[{t:'稀有零件',tag:'养成',c:'#3ff0a0',ic:'elite'}]},
+      {id:'n10',x:2320,y:640,name:'涅墨西斯',type:'boss',fac:'void',state:'locked',region:'虚空回廊',desc:'虚空母舰「涅墨西斯」——本章的最终目标。击破它，夺回失落的星门。',enemy:{name:'虚空母舰 · 涅墨西斯',hp:72,armor:8,intent:'核心过载',c:'#c07bff'},rewards:[{t:'章节通关',tag:'BOSS',c:'#c07bff',ic:'boss'},{t:'传说卡 + 大量信用点',tag:'传说',c:'#ffd27a',ic:'elite'}]}
+    ];
+    this.edges=[['n1','n2'],['n1','n3'],['n2','n4'],['n3','n4'],['n4','n5'],['n4','n6'],['n5','n7'],['n6','n7'],['n7','n8'],['n7','n9'],['n8','n10'],['n9','n10']];
+    this.flagAt='n4';
+  }
+
+  byId(id){ return this.nodes.find(n=>n.id===id); }
+  selectNode(id){ if(this._moved) return; this.setState({selected:id}); }
+
+  renderVals(){
+    const st=this.state, F=this.fac, T=this.typeMeta;
+    const map=Object.fromEntries(this.nodes.map(n=>[n.id,n]));
+
+    const routes=this.edges.map(([a,b])=>{
+      const A=map[a],B=map[b]; const cleared=A.state==='cleared'&&(B.state==='cleared'||B.state==='available');
+      const active=(A.state==='cleared'||A.state==='available')&&B.state==='available';
+      return { x1:A.x,y1:A.y,x2:B.x,y2:B.y,
+        stroke: cleared?'#5fe0ee':active?'#ffb86a':'rgba(120,150,180,.3)',
+        width: (cleared||active)?2.4:1.6, dash:(cleared)?'0':'6 8', opacity:(cleared||active)?0.8:0.4 };
+    });
+
+    const nodes=this.nodes.map(n=>{
+      const fc=F[n.fac].color, cleared=n.state==='cleared', avail=n.state==='available', locked=n.state==='locked', sel=st.selected===n.id, boss=n.type==='boss';
+      const size=boss?96:avail?84:72;
+      return { name:n.name, typeLabel:T[n.type].label, cleared, locked,
+        onClick:()=>this.selectNode(n.id), onMouseDown:(e)=>{ if(e&&e.stopPropagation)e.stopPropagation(); this._moved=false; this._panning=false; },
+        wrapStyle:{ position:'absolute',left:`${n.x}px`,top:`${n.y}px`,transform:'translate(-50%,-50%)',width:`${size+40}px`,
+          display:'flex',flexDirection:'column',alignItems:'center',cursor:'pointer',zIndex: sel?20:10, opacity: locked?0.62:1 },
+        ringStyle:{ position:'absolute',top:`${20-size/2+ (boss?2:6)}px`,width:`${size+22}px`,height:`${size+22}px`,borderRadius:'50%',
+          border:`1.5px ${avail?'solid':'dashed'} ${sel?'#fff':fc}`, opacity: avail?0.9:0.5,
+          animation: avail?'ringSpin 14s linear infinite':'none', boxShadow: sel?`0 0 22px ${fc}`:'none' },
+        bodyStyle:{ width:`${size}px`,height:`${size}px`,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',
+          background:`radial-gradient(circle at 40% 35%, ${fc}33, rgba(8,14,24,.95))`, border:`2px solid ${sel?'#fff':fc}`,
+          boxShadow: avail?`0 0 30px ${fc}66, inset 0 0 18px ${fc}44`:`0 0 14px ${fc}33`,
+          animation: avail?'nodePulse 2.6s ease-in-out infinite':'none' },
+        iconStyle:{ width:`${boss?44:34}px`,height:`${boss?44:34}px`,backgroundImage:`url("${this.nodeIcon(n.type,boss?'#e8c8ff':fc)}")`,backgroundSize:'contain',backgroundRepeat:'no-repeat' },
+        labelStyle:{ marginTop:'10px',fontSize:`${boss?16:14}px`,fontWeight:700,letterSpacing:'1px',color: locked?'#8a9aa8':'#eaf4ff',
+          textShadow:'0 2px 6px rgba(0,0,0,.8)',whiteSpace:'nowrap' },
+        typeTagStyle:{ marginTop:'3px',fontSize:'10px',letterSpacing:'2px',padding:'1px 8px',color:fc,background:`${fc}1a`,border:`1px solid ${fc}66`,borderRadius:'8px' } };
+    });
+
+    const fa=map[this.flagAt];
+    const flagStyle={ position:'absolute',left:`${fa.x+58}px`,top:`${fa.y-58}px`,transform:'translate(-50%,-50%)',width:'72px',height:'54px',zIndex:25,
+      animation:'flagFloat 3.4s ease-in-out infinite' };
+    const flagIconStyle={ width:'72px',height:'54px',backgroundImage:`url("${this.flagSvg}")`,backgroundSize:'contain',backgroundRepeat:'no-repeat',
+      filter:'drop-shadow(0 0 14px rgba(95,224,238,.6))' };
+
+    const legend=[
+      {label:'自由舰队',c:'#5fe0ee'},{label:'掠夺者',c:'#ff8a4a'},{label:'虚空教团',c:'#c07bff'},{label:'中立',c:'#8fa6b6'}
+    ].map(l=>({ label:l.label, dotStyle:{ width:'10px',height:'10px',background:l.c,transform:'rotate(45deg)',boxShadow:`0 0 6px ${l.c}` } }));
+
+    // detail
+    const n=map[st.selected], fc=F[n.fac].color, locked=n.state==='locked', cleared=n.state==='cleared';
+    const stars='★★★★★'.slice(0, n.type==='boss'?5:n.type==='elite'?3:n.type==='combat'?2:1)+'☆☆☆☆☆'.slice(0,5-(n.type==='boss'?5:n.type==='elite'?3:n.type==='combat'?2:1));
+    const rewards=(n.rewards||[]).map(rw=>({ text:rw.t, tag:rw.tag, color:rw.c,
+      iconStyle:{ width:'22px',height:'22px',backgroundImage:`url("${this.nodeIcon(rw.ic,rw.c)}")`,backgroundSize:'contain',backgroundRepeat:'no-repeat' } }));
+    const actionLabel = cleared?'已清剿 · 重新进入' : n.state==='available'?(n.type==='supply'?'进入港口':'出击') : '🔒 需先清剿前置节点';
+    const detail={
+      name:n.name, region:n.region, faction:F[n.fac].name, factionColor:fc, stars,
+      typeLabel:T[n.type].label, desc:n.desc,
+      headerStyle:{ padding:'18px 20px 16px',borderBottom:`1px solid ${fc}33`,background:`linear-gradient(160deg,${fc}1f,transparent)` },
+      factionDotStyle:{ width:'9px',height:'9px',background:fc,transform:'rotate(45deg)',boxShadow:`0 0 8px ${fc}` },
+      typeBadgeStyle:{ fontSize:'11px',fontWeight:700,letterSpacing:'2px',padding:'4px 12px',color:fc,background:`${fc}1a`,border:`1px solid ${fc}`,borderRadius:'4px' },
+      hasEnemy:!!n.enemy, enemyName:n.enemy?n.enemy.name:'', enemyHp:n.enemy?n.enemy.hp:'', enemyArmor:n.enemy?n.enemy.armor:'', enemyIntent:n.enemy?n.enemy.intent:'',
+      enemyShipStyle:{ width:'120px',height:'90px',flex:'none',backgroundImage:`url("${this.enemyThumb(fc)}")`,backgroundSize:'contain',backgroundRepeat:'no-repeat',backgroundPosition:'center',filter:`drop-shadow(0 0 12px ${fc}55)` },
+      intentIconStyle:{ width:'15px',height:'15px',backgroundImage:`url("${this.nodeIcon('combat','#ff7a5a')}")`,backgroundSize:'contain',backgroundRepeat:'no-repeat' },
+      rewards,
+      actionLabel, onAction:()=>{},
+      actionStyle:{ width:'100%',padding:'15px',cursor: locked?'not-allowed':'pointer',fontFamily:"'Noto Sans SC'",fontWeight:900,fontSize:'17px',letterSpacing:'3px',
+        clipPath:'polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px)',
+        background: locked?'rgba(40,48,58,.7)':'linear-gradient(180deg,#5fe8c0,#3fd0e0)', color: locked?'#7a8794':'#06202a',
+        border: locked?'1px solid #4a5560':'2px solid #d6fff4', boxShadow: locked?'none':'0 0 24px rgba(79,230,200,.5)' }
+    };
+
+    return {
+      stageRef:this.stageRef,
+      stageStyle:{ position:'relative',width:'1920px',height:'1080px',transformOrigin:'center center',flex:'none',overflow:'hidden',background:'#05070f' },
+      onPanStart:(e)=>this.onPanStart(e),
+      mapStyle:{ position:'absolute',left:'0',top:'0',width:'2600px',height:'1320px',transform:`translate(${st.pan.x}px,${st.pan.y}px)`,
+        transition: st.dragging?'none':'transform .12s ease-out' },
+      mapStarStyle:{ position:'absolute',inset:0,backgroundImage:`url("${this.mapStarUri}")`,opacity:.8,pointerEvents:'none' },
+      routes, nodes, flagStyle, flagIconStyle, legend, detail
+    };
+  }
+}
+</script>
+</body>
+</html>
