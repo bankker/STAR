@@ -1,6 +1,6 @@
 import { execute, resolveRoute, executeStream } from '../gateway/gateway.js';
 import { GatewayError, gatewayError } from '../gateway/errors.js';
-import { refreshHealth, getHealthSnapshot } from '../gateway/health.js';
+import { refreshHealth, getHealthSnapshot, userHealthSnapshot } from '../gateway/health.js';
 import { listJobs, getJob, retryJob, sanitize, submitJob } from '../gateway/jobs.js';
 import { estimateRequest } from '../gateway/costs.js';
 import { summarize } from '../gateway/ledger.js';
@@ -10,6 +10,7 @@ import { generatedUrlToDataUrl, saveDataUrl } from '../lib/files.js';
 import { ENV_FILE, GENERATED_DIR } from '../lib/paths.js';
 import { buildPlanMessages, buildScriptMessages, extractDialogue } from '../studio/interview.js';
 import { currentUser } from './auth.js';
+import { setUserKey, getUserKeys } from '../studio/users.js';
 import { ffmpegAvailable, runFfmpeg, probeDurationSec, buildSrt, transcodeToWav } from '../lib/ffmpeg.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -264,7 +265,13 @@ export function registerRoutes(route) {
   }
 
   route('GET /api/health', async (req, res, { url }) => {
-    if (url.searchParams.get('refresh') === '1') await refreshHealth();
+    const refresh = url.searchParams.get('refresh') === '1';
+    const u = currentUser(req);
+    // 登录用户 → 按其私有 key 现场探测；否则用全局后台探测快照
+    if (u && u.provider === 'local' && u.id) {
+      return json(res, { providers: await userHealthSnapshot(u.id, { refresh }) });
+    }
+    if (refresh) await refreshHealth();
     json(res, { providers: getHealthSnapshot() });
   });
 
@@ -339,14 +346,17 @@ export function registerRoutes(route) {
   });
 
   route('GET /api/config/keys', async (req, res) => {
+    const u = currentUser(req);
+    // 登录用户 → 读其私有 key（存 users.json）；否则 → 全局 .env（open/password 模式）
+    const userKeys = u && u.provider === 'local' && u.id ? getUserKeys(u.id) : null;
     const keys = [];
     for (const p of listProviders()) {
       for (const k of p.envKeys) {
-        const v = process.env[k] || '';
+        const v = (userKeys ? userKeys[k] : process.env[k]) || '';
         keys.push({ provider: p.label, key: k, configured: Boolean(v), tail: v ? v.slice(-4) : '' });
       }
     }
-    json(res, { keys });
+    json(res, { keys, scope: userKeys ? 'user' : 'global' });
   });
 
   route('POST /api/config/keys', async (req, res, { readJsonBody }) => {
@@ -354,10 +364,17 @@ export function registerRoutes(route) {
     const known = new Set(listProviders().flatMap((p) => p.envKeys));
     if (!known.has(key)) return jsonError(res, 'bad_request', `未知的 key 名: ${key}`);
     if (typeof value !== 'string' || !value.trim()) return jsonError(res, 'bad_request', 'value 必填');
+    const u = currentUser(req);
     try {
-      setEnvKey(ENV_FILE, key, value.trim());
-      await refreshHealth();
-      json(res, { ok: true, tail: value.trim().slice(-4) });
+      if (u && u.provider === 'local' && u.id) {
+        // 登录用户 → 写入该用户私有 key（不落全局 .env，互不可见）
+        const tail = setUserKey(u.id, key, value.trim());
+        json(res, { ok: true, tail });
+      } else {
+        setEnvKey(ENV_FILE, key, value.trim());
+        await refreshHealth();
+        json(res, { ok: true, tail: value.trim().slice(-4) });
+      }
     } catch (e) { jsonError(res, 'bad_request', e.message); }
   });
 

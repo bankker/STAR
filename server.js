@@ -1,7 +1,9 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { handleAuthRoutes, isAuthed, denyAuth } from './src/api/auth.js';
+import { handleAuthRoutes, isAuthed, denyAuth, localUser } from './src/api/auth.js';
+import { runWithContext } from './src/lib/request-context.js';
+import { safeUser } from './src/studio/users.js';
 import { loadEnv } from './src/lib/env.js';
 import { safeJoin } from './src/lib/files.js';
 import { ROOT_DIR, PROTOTYPE_DIR, GENERATED_DIR, ENV_FILE } from './src/lib/paths.js';
@@ -75,13 +77,19 @@ const server = http.createServer(async (req, res) => {
   try {
     if (await handleAuthRoutes(req, res, pathname)) return; // 登录页 / 令牌校验 / 登出
     if (!isAuthed(req)) return denyAuth(req, res);
-    const handler = exact.get(`${req.method} ${pathname}`);
-    if (handler) return await handler(req, res, { url, readJsonBody: () => readJsonBody(req, pathname) });
-    const dyn = matchDynamic(req.method, pathname);
-    if (dyn) return await dyn.handler(req, res, { url, params: dyn.params, readJsonBody: () => readJsonBody(req, pathname) });
-    if (pathname.startsWith('/api/')) return jsonError(res, 'not_found', `未知端点: ${pathname}`);
-    if (req.method === 'GET') return serveStatic(res, pathname);
-    res.writeHead(405).end();
+    // 多租户：登录用户 → 把其私有 key 叠加进有效 env，绑定到本请求的异步上下文；
+    // open/password/oauth 模式下 u 为 null，上下文为空，能力网关回落到全局 process.env（零破坏）。
+    const u = localUser(req);
+    const store = u ? { userId: u.id, user: safeUser(u), env: { ...process.env, ...(u.keys || {}) } } : {};
+    return await runWithContext(store, async () => {
+      const handler = exact.get(`${req.method} ${pathname}`);
+      if (handler) return await handler(req, res, { url, readJsonBody: () => readJsonBody(req, pathname) });
+      const dyn = matchDynamic(req.method, pathname);
+      if (dyn) return await dyn.handler(req, res, { url, params: dyn.params, readJsonBody: () => readJsonBody(req, pathname) });
+      if (pathname.startsWith('/api/')) return jsonError(res, 'not_found', `未知端点: ${pathname}`);
+      if (req.method === 'GET') return serveStatic(res, pathname);
+      res.writeHead(405).end();
+    });
   } catch (err) {
     if (err.message === 'JSON 解析失败' || err.message === '请求体过大') return json(res, { error: { code: 'bad_request', message: err.message } }, 400);
     console.error('[server] 未捕获异常', err);

@@ -28,8 +28,10 @@ async function waitReady(ms = 10000) {
 }
 
 // Windows: use ['inherit','inherit','ignore'] to suppress libuv assertion abort on server.kill()
+// 冒烟测核心 API（鉴权由单测覆盖）→ 强制 open 模式，忽略本机 .env 里的 LOCAL_AUTH。
+// 空串是「已定义」，loadEnv 不会再用 .env 覆盖它 → authMode() 落到 open。
 const server = spawn(process.execPath, ['server.js'], {
-  env: { ...process.env, PORT: String(PORT) },
+  env: { ...process.env, PORT: String(PORT), LOCAL_AUTH: '' },
   stdio: ['inherit', 'inherit', 'ignore'],
   detached: true,
 });
@@ -72,7 +74,7 @@ try {
 
   const home = await fetch(`${BASE}/`);
   const homeText = await home.text();
-  ok('工作台首页', home.status === 200 && homeText.includes('工作台'));
+  ok('首页可服务', home.status === 200 && homeText.includes('虚拟艺人'));
 
   const traversal = await fetch(`${BASE}/..%2f.env`);
   ok('路径穿越被拦截', traversal.status === 404);

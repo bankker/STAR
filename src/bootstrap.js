@@ -13,6 +13,8 @@ import { initAssets, addAssets } from './studio/assets.js';
 import { initDrama } from './studio/drama-store.js';
 import { initGuests } from './studio/guests.js';
 import { initSessions } from './studio/session-store.js';
+import { initUsers, getUserKeys } from './studio/users.js';
+import { runWithContext } from './lib/request-context.js';
 
 export function bootstrap() {
   try {
@@ -21,8 +23,11 @@ export function bootstrap() {
     initLedger(path.join(LOGS_DIR, 'ai-usage.jsonl'));
     const cfg = loadConfig();
     if (cfg.costs) setPriceOverrides(cfg.costs);
-    const galleryExecutor = async (capability, request, opts) => {
-      const r = await execute(capability, request, opts);
+    const galleryExecutor = async (capability, request, opts = {}) => {
+      // 异步任务执行时（脱离原 HTTP 请求）按提交者的私有 key 还原上下文（多租户）
+      const { userId, ...rest } = opts;
+      const env = userId ? { ...process.env, ...getUserKeys(userId) } : process.env;
+      const r = await runWithContext({ userId: userId || null, env }, () => execute(capability, request, rest));
       if (request.artistId && Array.isArray(r.files) && r.files.length) {
         try {
           addAssets(request.artistId, r.files.map((f) => ({
@@ -43,6 +48,7 @@ export function bootstrap() {
     initDrama(DRAMA_DIR);
     initGuests(GUESTS_DIR);
     initSessions(INTERVIEWS_DIR);
+    initUsers(path.join(DATA_DIR, 'users.json'));
     startHealthLoop();
   } catch (e) {
     console.error('[bootstrap] 启动失败:', e.message);

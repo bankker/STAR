@@ -92,6 +92,53 @@ button { font-family: inherit; cursor: pointer; }
 .umenu-item:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
 .umenu-item.danger { color: #c0392b; }
 
+/* ── 设置面板（API Key，按账号私有）── */
+.sx-overlay { position: fixed; inset: 0; z-index: 95; display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--ink) 32%, transparent); backdrop-filter: blur(3px); padding: 20px; }
+.sx-overlay[hidden] { display: none; }
+.sx-panel { width: min(94vw, 540px); max-height: 86vh; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--paper); border: 1px solid var(--line-2); border-radius: 18px; box-shadow: 0 24px 70px rgba(0,0,0,.3); }
+.sx-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px 14px; border-bottom: 1px solid var(--line); }
+.sx-title { font-family: var(--serif); font-size: 18px; font-weight: 600; color: var(--ink); }
+.sx-close { border: 0; background: transparent; font-size: 18px; line-height: 1; color: var(--ink-3); cursor: pointer; padding: 4px 8px; border-radius: 8px; }
+.sx-close:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
+.sx-acct { display: flex; align-items: baseline; gap: 10px; padding: 12px 22px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.sx-acct-email { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.sx-acct-note { font-size: 11.5px; color: var(--ink-3); }
+.sx-scroll { flex: 1; min-height: 0; overflow: auto; padding: 4px 0; }
+.sx-sec-title { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 12px 22px 2px; font-size: 12px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--ink-3); }
+.sx-usage { font-size: 11px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink-3); }
+.sx-body { padding: 0 22px; }
+.sx-row { display: flex; align-items: center; gap: 14px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+.sx-row:last-child { border-bottom: 0; }
+.sx-row-info { width: 190px; flex-shrink: 0; }
+.sx-row-prov { font-size: 13px; font-weight: 600; color: var(--ink); }
+.sx-row-key { font-size: 11px; color: var(--ink-3); font-family: ui-monospace, Menlo, Consolas, monospace; margin-top: 1px; }
+.sx-row-status { font-size: 11.5px; color: var(--ink-3); margin-top: 3px; }
+.sx-row-status.ok { color: #2f8f5b; }
+.sx-row-status.err { color: #c0392b; }
+.sx-input { flex: 1; min-width: 0; height: 38px; padding: 0 12px; border: 1px solid var(--line-2); border-radius: 10px;
+  background: var(--surface); color: var(--ink); font-size: 13px; outline: none; }
+.sx-input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 16%, transparent); }
+.sx-adv { margin: 14px 22px 4px; border-top: 1px solid var(--line); padding-top: 12px; }
+.sx-adv summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--ink-2); list-style: none; }
+.sx-adv summary::-webkit-details-marker { display: none; }
+.sx-adv summary::before { content: '▸ '; color: var(--ink-3); }
+.sx-adv[open] summary::before { content: '▾ '; }
+.sx-adv-note { font-size: 11.5px; color: var(--ink-3); line-height: 1.6; margin: 8px 0; }
+.sx-config { width: 100%; box-sizing: border-box; min-height: 180px; resize: vertical; padding: 10px 12px;
+  border: 1px solid var(--line-2); border-radius: 10px; background: var(--surface); color: var(--ink);
+  font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.5; outline: none; }
+.sx-config:focus { border-color: var(--brand); }
+.sx-adv-bar { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.sx-save { padding: 8px 16px; border: 0; border-radius: 999px; background: var(--brand); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }
+.sx-save:hover { filter: brightness(1.05); }
+.sx-adv-msg { font-size: 12px; color: var(--ink-3); }
+.sx-adv-msg.ok { color: #2f8f5b; }
+.sx-adv-msg.err { color: #c0392b; }
+.sx-foot { padding: 13px 22px 18px; font-size: 11.5px; color: var(--ink-3); border-top: 1px solid var(--line); line-height: 1.6; }
+.sx-empty { padding: 24px; text-align: center; color: var(--ink-3); font-size: 13px; }
+
 /* ── 故事模式：全屏游戏 overlay（深空风，区别于纸面主界面）── */
 .story-entry { margin-top: 8px; }
 /* 窄体拉丁字体：unicode-range 限定，只接管数字/英文/%；中文自动落系统重黑 */

@@ -8,7 +8,11 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DATA_DIR } from '../lib/paths.js';
+import { createUser, verifyLogin, getUserById, safeUser } from '../studio/users.js';
 
+// local 模式开关：设 LOCAL_AUTH=1（或 true）即启用本地邮箱+密码注册/登录。
+// 不设则维持原默认（open），所以测试/冒烟脚本不受影响。
+const localAuthOn = () => /^(1|true|on|yes)$/i.test(String(process.env.LOCAL_AUTH || '').trim());
 const clientId = () => (process.env.GOOGLE_CLIENT_ID || '').trim();
 const appleClientId = () => (process.env.APPLE_CLIENT_ID || '').trim();
 const appleRedirect = () => (process.env.APPLE_REDIRECT_URI || 'https://star.wangrui.computer/api/auth/apple/callback').trim();
@@ -28,6 +32,7 @@ export function emailAllowed(email) {
 
 export function authMode() {
   if (clientId() || appleClientId()) return 'oauth';
+  if (localAuthOn()) return 'local';
   if (appPassword()) return 'password';
   return 'open';
 }
@@ -64,6 +69,13 @@ function hmacVerify(token) {
 }
 export function signSession(obj) { return hmacSign(obj); }
 export function verifySession(token) { const o = hmacVerify(token); if (!o) return null; if (!emailAllowed(o.email)) return null; return o; }
+
+// 本地账号会话：HMAC 票据带 uid，回查用户库（用户被删则失效）。返回完整记录（含 keys，仅服务端用）。
+export function localUser(req) {
+  const o = hmacVerify(readCookie(req, 'ss_session'));
+  if (!o || o.provider !== 'local' || !o.uid) return null;
+  return getUserById(o.uid);
+}
 
 function readCookie(req, name) {
   for (const part of (req.headers.cookie || '').split(';')) {
@@ -130,6 +142,45 @@ function setSessionAndRedirect(res, email, provider, extraClear) {
   res.end();
 }
 
+function setLocalSession(res, user, status, payload) {
+  const token = signSession({ uid: user.id, email: user.email, provider: 'local', exp: Math.floor(Date.now() / 1000) + SESSION_TTL });
+  res.writeHead(status, {
+    'Set-Cookie': `ss_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_TTL}`,
+    'Content-Type': 'application/json; charset=utf-8',
+  });
+  res.end(JSON.stringify(payload));
+}
+
+async function readJson(req, max = 8192) {
+  let raw = ''; for await (const c of req) { raw += c; if (raw.length > max) break; }
+  try { return JSON.parse(raw); } catch { return {}; }
+}
+
+// ── 本地账号路由：登录/注册页、注册、登录、登出 ──
+async function handleLocalAuthRoutes(req, res, pathname) {
+  if (req.method === 'GET' && pathname === '/login') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(localLoginPage()); return true;
+  }
+  if (req.method === 'GET' && pathname === '/logout') {
+    res.writeHead(302, { 'Set-Cookie': 'ss_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0', Location: '/login' });
+    res.end(); return true;
+  }
+  if (req.method === 'POST' && pathname === '/api/auth/register') {
+    const { email, name, password } = await readJson(req);
+    let user; try { user = createUser({ email, name, password }); }
+    catch (e) { res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify({ error: e.message })); return true; }
+    setLocalSession(res, user, 200, { ok: true, user: safeUser(user) }); return true;
+  }
+  if (req.method === 'POST' && pathname === '/api/auth/login') {
+    const { email, password } = await readJson(req);
+    const user = verifyLogin(email, password);
+    if (!user) { res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify({ error: '邮箱或密码错误' })); return true; }
+    setLocalSession(res, user, 200, { ok: true, user: safeUser(user) }); return true;
+  }
+  return false;
+}
+
 // ── 路由：登录页 / 第三方校验 / 登出 / Apple 域名验证文件 ────────────────────
 export async function handleAuthRoutes(req, res, pathname) {
   // Apple 域名验证文件：只要配了内容就提供（与登录模式无关，配置阶段要用）
@@ -137,6 +188,7 @@ export async function handleAuthRoutes(req, res, pathname) {
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end(appleDomainAssoc()); return true;
   }
+  if (authMode() === 'local') return handleLocalAuthRoutes(req, res, pathname);
   if (authMode() !== 'oauth') return false;
 
   if (req.method === 'GET' && pathname === '/login') {
@@ -210,6 +262,7 @@ export function isAuthed(req) {
       if (safeEq(pass, appPassword())) return true;
     }
   }
+  if (authMode() === 'local') return Boolean(localUser(req));
   if (authMode() === 'oauth') return Boolean(verifySession(readCookie(req, 'ss_session')));
   return false;
 }
@@ -217,6 +270,7 @@ export function isAuthed(req) {
 // 当前登录用户（给前端显示）。open 模式无"用户"概念 → null。
 export function currentUser(req) {
   if (authMode() === 'open') return null;
+  if (authMode() === 'local') { const u = localUser(req); return u ? safeUser(u) : (isAuthed(req) ? { email: '', provider: 'password', name: '' } : null); }
   const s = verifySession(readCookie(req, 'ss_session'));
   if (s) return { email: s.email || '', provider: s.provider || 'oauth', name: s.name || '' };
   if (isAuthed(req)) return { email: '', provider: 'password', name: '' }; // 口令/Basic 后门
@@ -224,7 +278,7 @@ export function currentUser(req) {
 }
 
 export function denyAuth(req, res) {
-  if (authMode() === 'oauth') {
+  if (authMode() === 'oauth' || authMode() === 'local') {
     if (req.method === 'GET' && (req.headers.accept || '').includes('text/html')) {
       res.writeHead(302, { Location: '/login' }); res.end(); return;
     }
@@ -232,6 +286,71 @@ export function denyAuth(req, res) {
   }
   res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="AI Star Studio", charset="UTF-8"', 'Content-Type': 'text/plain; charset=utf-8' });
   res.end('需要登录');
+}
+
+function localLoginPage() {
+  return `<!doctype html><html lang="zh"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/><title>登录 · Star Studio</title>
+<style>
+  :root{color-scheme:dark}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:system-ui,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:radial-gradient(120% 120% at 50% 0%,#1a1030 0%,#0c0a18 55%,#070611 100%);color:#e8e6f0}
+  .card{width:min(92vw,400px);padding:38px 34px;border-radius:20px;
+    background:rgba(30,24,54,.55);border:1px solid rgba(150,120,255,.18);backdrop-filter:blur(14px);
+    box-shadow:0 20px 60px rgba(0,0,0,.45)}
+  .logo{font-size:28px;font-weight:800;letter-spacing:.04em;text-align:center;
+    background:linear-gradient(100deg,#b69bff,#67e8f9);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{margin:8px 0 24px;color:#a8a2c4;font-size:13px;text-align:center}
+  .tabs{display:flex;gap:6px;margin-bottom:20px;background:rgba(0,0,0,.25);border-radius:12px;padding:4px}
+  .tab{flex:1;text-align:center;padding:9px;border-radius:9px;cursor:pointer;font-size:14px;color:#a8a2c4;user-select:none}
+  .tab.active{background:rgba(150,120,255,.22);color:#fff}
+  label{display:block;font-size:12px;color:#a8a2c4;margin:0 0 6px 2px}
+  input{width:100%;height:44px;padding:0 14px;margin-bottom:14px;border-radius:11px;font-size:15px;
+    background:rgba(12,10,24,.6);border:1px solid rgba(150,120,255,.2);color:#e8e6f0;outline:none}
+  input:focus{border-color:#8b6fff}
+  .btn{width:100%;height:46px;border:none;border-radius:23px;cursor:pointer;font-size:15px;font-weight:600;color:#fff;
+    background:linear-gradient(100deg,#7c5cff,#4aa8ff)}
+  .btn:active{transform:translateY(1px)}
+  .field-name{display:none}
+  #msg{margin-top:14px;min-height:18px;color:#ff9a9a;font-size:13px;text-align:center}
+</style></head><body>
+  <div class="card">
+    <div class="logo">✦ Star Studio</div>
+    <div class="sub">虚拟艺人制片棚 · 本地账号</div>
+    <div class="tabs">
+      <div class="tab active" data-tab="login">登录</div>
+      <div class="tab" data-tab="register">注册</div>
+    </div>
+    <form id="form">
+      <div class="field-name"><label>昵称（可选）</label><input id="name" autocomplete="nickname" placeholder="怎么称呼你"></div>
+      <label>邮箱</label><input id="email" type="email" autocomplete="email" placeholder="you@example.com">
+      <label>密码</label><input id="password" type="password" autocomplete="current-password" placeholder="至少 6 位">
+      <button class="btn" id="submit" type="submit">登录</button>
+    </form>
+    <div id="msg"></div>
+  </div>
+  <script>
+    var mode='login';
+    var tabs=document.querySelectorAll('.tab'), nameField=document.querySelector('.field-name');
+    var submit=document.getElementById('submit'), msg=document.getElementById('msg');
+    tabs.forEach(function(t){t.addEventListener('click',function(){
+      mode=t.dataset.tab; msg.textContent='';
+      tabs.forEach(function(x){x.classList.toggle('active',x===t);});
+      nameField.style.display=mode==='register'?'block':'none';
+      submit.textContent=mode==='register'?'注册并进入':'登录';
+      document.getElementById('password').autocomplete=mode==='register'?'new-password':'current-password';
+    });});
+    document.getElementById('form').addEventListener('submit',function(e){
+      e.preventDefault(); msg.textContent='处理中…';
+      var body={email:document.getElementById('email').value.trim(),password:document.getElementById('password').value};
+      if(mode==='register') body.name=document.getElementById('name').value.trim();
+      fetch('/api/auth/'+mode,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+        .then(function(r){return r.ok?(location.href='/'):r.json().then(function(j){msg.textContent=(j&&j.error)||'失败，请重试';});})
+        .catch(function(){msg.textContent='网络错误，请重试';});
+    });
+  </script>
+</body></html>`;
 }
 
 function loginPage(opts) {

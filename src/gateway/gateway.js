@@ -5,6 +5,7 @@ import { costOfUsage } from './costs.js';
 import { fetchJson, fetchBuffer, fetchStream } from '../lib/http-fetch.js';
 import { saveBufferToGenerated } from '../lib/files.js';
 import { GENERATED_DIR } from '../lib/paths.js';
+import { currentEnv } from '../lib/request-context.js';
 
 export function resolveRoute(capability) {
   const cfg = loadConfig()[capability];
@@ -12,7 +13,8 @@ export function resolveRoute(capability) {
   const chain = [cfg, ...(cfg.fallback || [])]
     .map((e) => ({ provider: getProvider(e.provider), model: e.model, params: e.params || {} }))
     .filter((e) => e.provider);
-  return { chain, configured: chain.filter((e) => e.provider.isConfigured(process.env)) };
+  // 按「当前请求用户」的有效环境判断哪些已配置 key（多租户）；无上下文时 currentEnv() 即 process.env
+  return { chain, configured: chain.filter((e) => e.provider.isConfigured(currentEnv())) };
 }
 
 export function makeCtx(providerId, onProgress) {
@@ -20,7 +22,7 @@ export function makeCtx(providerId, onProgress) {
   const settings = (loadConfig().providers || {})[providerId] || {};
   const base = { providerId, proxy: settings.proxy, timeoutMs: settings.timeoutMs || 120000 };
   return {
-    env: process.env,
+    env: currentEnv(),
     fetchJson: (url, opts = {}) => fetchJson(url, { ...base, ...opts }),
     fetchBuffer: (url, opts = {}) => fetchBuffer(url, { ...base, ...opts }),
     fetchStream: (url, opts = {}, onChunk) => fetchStream(url, { ...base, ...opts }, onChunk),

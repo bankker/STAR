@@ -9,7 +9,11 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const api = async (url, body, method) => {
   const opt = { method: method || (body ? 'POST' : 'GET'), headers: {} };
   if (body) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
-  try { return await (await fetch(url, opt)).json(); } catch (e) { return { error: { message: String(e) } }; }
+  try {
+    const res = await fetch(url, opt);
+    if (res.status === 401) { location.href = '/login'; return { error: { code: 'unauthorized', message: '会话已过期，请重新登录' } }; }
+    return await res.json();
+  } catch (e) { return { error: { message: String(e) } }; }
 };
 let toastTimer;
 function toast(msg) {
@@ -1191,13 +1195,122 @@ function openUserMenu(me) {
   const head = me.email
     ? `<div class="umenu-head"><div class="umenu-email">${esc(me.email)}</div><div class="umenu-role">${PROVIDER_LABEL[me.provider] || ''}</div></div>`
     : `<div class="umenu-head"><div class="umenu-email">已登录</div><div class="umenu-role">${PROVIDER_LABEL[me.provider] || ''}</div></div>`;
-  m.innerHTML = `${head}<button class="umenu-item danger" data-act="logout"><span>⎋</span><span>登出</span></button>`;
+  m.innerHTML = `${head}<button class="umenu-item" data-act="settings"><span>⚙️</span><span>设置 · API Key</span></button><button class="umenu-item danger" data-act="logout"><span>⎋</span><span>登出</span></button>`;
   m.hidden = false;
   const r = $('#railUser').getBoundingClientRect();
   m.style.left = r.left + 'px';
   m.style.top = 'auto';
   m.style.bottom = (window.innerHeight - r.top + 6) + 'px';
+  m.querySelector('[data-act="settings"]').onclick = () => { m.hidden = true; openSettings(); };
   m.querySelector('[data-act="logout"]').onclick = () => { location.href = '/logout'; };
+}
+
+/* ── 设置面板（按账号私有：API Key + 健康 + 本周用量 + 能力路由）──
+   这是系统设置的唯一入口（原 studio 工作台已废止）。 */
+async function openSettings() {
+  let ov = $('#sxOverlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'sxOverlay';
+    ov.className = 'sx-overlay';
+    ov.innerHTML = `<div class="sx-panel" role="dialog" aria-modal="true">
+        <div class="sx-head"><div class="sx-title">设置</div><button class="sx-close" id="sxClose" title="关闭">✕</button></div>
+        <div class="sx-acct" id="sxAcct"></div>
+        <div class="sx-scroll">
+          <div class="sx-sec-title">API Key<span class="sx-usage" id="sxUsage"></span></div>
+          <div class="sx-body" id="sxBody">加载中…</div>
+          <details class="sx-adv">
+            <summary>高级 · 能力路由（JSON）</summary>
+            <p class="sx-adv-note">指定每个能力走哪个 Provider/模型与降级链，保存即热生效、无需重启。改错可能导致某能力不可用。</p>
+            <textarea class="sx-config" id="sxConfig" spellcheck="false" rows="10" placeholder="加载中…"></textarea>
+            <div class="sx-adv-bar"><button class="sx-save" id="sxConfigSave">保存路由</button><span class="sx-adv-msg" id="sxConfigMsg"></span></div>
+          </details>
+        </div>
+        <div class="sx-foot">Key 与路由仅存服务端、按账号私有，只显示末四位。绿点＝该平台用你的 Key 实测在线。</div>
+      </div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('click', (e) => { if (e.target === ov) ov.hidden = true; });
+    $('#sxClose').onclick = () => { ov.hidden = true; };
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !ov.hidden) ov.hidden = true; });
+  }
+  ov.hidden = false;
+  renderSettings();
+}
+
+async function renderSettings() {
+  // 账号
+  const me = await api('/api/me');
+  const acct = $('#sxAcct');
+  if (acct) acct.innerHTML = me && me.email
+    ? `<span class="sx-acct-email">${esc(me.email)}</span><span class="sx-acct-note">私有配置仅本账号可见</span>`
+    : '';
+  // 本周用量（轻量，异步填充）
+  api('/api/usage').then((u) => {
+    const el = $('#sxUsage');
+    if (el && u && !u.error) el.textContent = `本周 $${u.totalUsd}（文本 $${u.textUsd}）`;
+  });
+  // Key 列表
+  const keys = await api('/api/config/keys');
+  const body = $('#sxBody');
+  if (body) {
+    if (!keys || !Array.isArray(keys.keys)) {
+      body.innerHTML = '<div class="sx-empty">无法加载 Key 列表</div>';
+    } else {
+      body.innerHTML = keys.keys.map((k) => `
+        <div class="sx-row" data-prov="${esc(k.provider)}">
+          <div class="sx-row-info">
+            <div class="sx-row-prov">${esc(k.provider)}</div>
+            <div class="sx-row-key">${esc(k.key)}</div>
+            <div class="sx-row-status${k.configured ? ' ok' : ''}" data-tail="${esc(k.tail)}" data-cfg="${k.configured ? 1 : 0}">${k.configured ? '已配置 ****' + esc(k.tail) : '未配置'}</div>
+          </div>
+          <input class="sx-input" type="password" data-key="${esc(k.key)}" placeholder="粘贴新 Key 回车保存" autocomplete="off">
+        </div>`).join('');
+      body.querySelectorAll('input[data-key]').forEach((inp) => {
+        inp.addEventListener('keydown', async (e) => {
+          if (e.key !== 'Enter' || !inp.value.trim()) return;
+          const r = await api('/api/config/keys', { key: inp.dataset.key, value: inp.value.trim() });
+          if (r && r.error) { toast((r.error.message) || '保存失败'); return; }
+          inp.value = '';
+          toast('Key 已保存');
+          renderSettings();
+        });
+      });
+      // 健康探测（按你的 Key 实测，可能耗时几秒）→ 异步回填状态
+      api('/api/health').then((h) => {
+        if (!h || !Array.isArray(h.providers)) return;
+        const byLabel = {};
+        h.providers.forEach((p) => { byLabel[p.label] = p; });
+        document.querySelectorAll('#sxBody .sx-row').forEach((row) => {
+          const p = byLabel[row.dataset.prov];
+          const st = row.querySelector('.sx-row-status');
+          if (!p || !st) return;
+          const tail = st.dataset.tail;
+          st.classList.remove('ok', 'err');
+          if (p.state === 'online') { st.classList.add('ok'); st.textContent = `● 在线${tail ? ' · ****' + tail : ''}`; }
+          else if (p.state === 'error') { st.classList.add('err'); st.textContent = '● 连接失败（检查 Key/配额）'; }
+          else if (p.state === 'unconfigured') { st.textContent = '未配置'; }
+          else { st.textContent = st.dataset.cfg === '1' ? '已配置 · 探测中…' : '未配置'; }
+        });
+      });
+    }
+  }
+  // 能力路由 JSON
+  const cfg = await api('/api/config');
+  const ta = $('#sxConfig');
+  if (ta && cfg && !cfg.error) ta.value = JSON.stringify(cfg, null, 2);
+  const saveBtn = $('#sxConfigSave');
+  if (saveBtn && !saveBtn._wired) {
+    saveBtn._wired = true;
+    saveBtn.onclick = async () => {
+      const msg = $('#sxConfigMsg');
+      let next;
+      try { next = JSON.parse($('#sxConfig').value); }
+      catch { if (msg) { msg.textContent = 'JSON 格式错误'; msg.className = 'sx-adv-msg err'; } return; }
+      const r = await api('/api/config', next, 'PUT');
+      if (r && r.error) { if (msg) { msg.textContent = (r.error.message) || '保存失败'; msg.className = 'sx-adv-msg err'; } return; }
+      if (msg) { msg.textContent = '已保存，热生效'; msg.className = 'sx-adv-msg ok'; }
+    };
+  }
 }
 
 function init() {

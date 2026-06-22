@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { costOfUsage } from './costs.js';
+import { currentUserId } from '../lib/request-context.js';
 
 let jobsFile = null;
 let executor = null;
@@ -28,10 +29,12 @@ export function initJobs({ file, executeFn, concurrency }) {
   }
 }
 
-export function submitJob(capability, request, { estimate = null } = {}) {
+export function submitJob(capability, request, { estimate = null, userId = null } = {}) {
   const job = {
     id: `job_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
     capability, request, requestIntact: true,
+    // 记下提交者，执行/重试时用其私有 key 还原上下文（多租户）。重启后仍可凭此重解析 key。
+    userId: userId || currentUserId(),
     status: 'queued', stage: '排队中', progress: 0,
     costEstimate: estimate, costActual: null, result: null, error: null,
     createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
@@ -74,6 +77,7 @@ async function runJob(job) {
   touch(job);
   try {
     const result = await executor(job.capability, job.request, {
+      userId: job.userId || null,
       onProgress: (stage, progress) => {
         if (job.status !== 'running') return; // 终态后迟到的进度回调不再生效
         job.stage = stage; if (progress != null) job.progress = progress; touch(job);
