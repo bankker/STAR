@@ -1,0 +1,152 @@
+/* ===== 虚拟艺人 · 通讯终端（SC2 深空风）=====
+   覆盖 claude.css 的暖纸主题 → 深空终端。加载顺序在 claude.css 之后，靠层叠取胜。
+   依据设计稿 艺人通讯.dc.html：深蓝黑底 + 青色描边斜切面板 + Oxanium 标题。 */
+@font-face { font-family: 'Oxanium'; src: local('Oxanium'); }
+
+:root {
+  --paper: #04070e;            /* 深空底 */
+  --surface: #0c1c2c;          /* 面板 */
+  --surface-2: #0a1622;
+  --line: rgba(79,214,230,.22); /* 青描边 */
+  --line-2: rgba(79,214,230,.34);
+  --ink: #d8eefb;              /* 亮文字 */
+  --ink-2: #9fb6c6;
+  --ink-3: #5f8aa3;
+  --brand: #5fe6ff;            /* 青 */
+  --brand-2: #7fe6ff;
+  --user: #5fd6e6;
+  --warm: #ffc089;             /* 暖橙点缀（好感/换照） */
+  --sans: 'Noto Sans SC', -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Roboto, sans-serif;
+  --serif: 'Oxanium', 'Noto Sans SC', sans-serif;
+}
+.clip-tl { clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px); }
+
+@keyframes commsScan { 0% { transform: translateY(-100%); } 100% { transform: translateY(2400%); } }
+@keyframes onPulse { 0%, 100% { opacity: 1; box-shadow: 0 0 6px currentColor; } 50% { opacity: .45; box-shadow: 0 0 2px currentColor; } }
+
+html, body { background: var(--paper); color: var(--ink); }
+body {
+  height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+  background:
+    radial-gradient(ellipse 90% 60% at 22% 18%, rgba(40,90,140,.18), transparent 60%),
+    radial-gradient(ellipse 80% 60% at 82% 70%, rgba(120,70,200,.13), transparent 60%),
+    #04070e;
+}
+body::before {  /* 星点 */
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .5;
+  background-image:
+    radial-gradient(1px 1px at 12% 22%, #cfe6ff 99%, transparent), radial-gradient(1px 1px at 38% 64%, #9fd0ff 99%, transparent),
+    radial-gradient(1.2px 1.2px at 68% 28%, #cfe6ff 99%, transparent), radial-gradient(1px 1px at 84% 52%, #bfe0ff 99%, transparent),
+    radial-gradient(1px 1px at 54% 84%, #cfe6ff 99%, transparent), radial-gradient(1px 1px at 26% 46%, #aecbff 99%, transparent);
+  background-repeat: no-repeat;
+}
+.serif { letter-spacing: 2px; }
+
+/* ===== 顶栏 ===== */
+.topbar {
+  position: relative; z-index: 30; height: 56px; flex: none;
+  display: flex; align-items: center; justify-content: space-between; padding: 0 24px;
+  background: linear-gradient(180deg, rgba(10,26,40,.96), rgba(8,18,30,.55));
+  border-bottom: 1px solid rgba(79,214,230,.3);
+}
+.tb-brand { display: flex; align-items: center; gap: 12px; }
+.tb-star { font-size: 19px; color: #7fe6ff; text-shadow: 0 0 14px rgba(95,230,255,.6); }
+.tb-title { font-family: var(--serif); font-weight: 800; font-size: 17px; letter-spacing: 5px; color: #d6f3ff; text-shadow: 0 0 14px rgba(95,230,255,.45); line-height: 1; }
+.tb-sub { font-size: 10px; letter-spacing: 3px; color: #5a93ad; margin-top: 3px; }
+.tb-status { display: flex; align-items: center; gap: 10px; font-size: 12px; letter-spacing: 2px; color: #7fb6c8; }
+.tb-online, .tb-sync { display: flex; align-items: center; gap: 7px; padding: 6px 14px; background: rgba(8,22,34,.85); border: 1px solid rgba(79,214,230,.3); border-radius: 3px; }
+.tb-online { color: #7fe6c0; border-color: rgba(63,240,160,.3); }
+.tb-online i { width: 7px; height: 7px; border-radius: 50%; background: #3ff0a0; color: #3ff0a0; animation: onPulse 2s ease-in-out infinite; }
+.tb-sync b { font-family: var(--serif); font-weight: 800; color: #7fe6ff; }
+.tb-cog { width: 36px; height: 36px; border: 1px solid rgba(79,214,230,.35); background: rgba(12,30,44,.85); color: #7fd6e6; border-radius: 3px; font-size: 15px; }
+
+.app { height: auto; flex: 1; min-height: 0; gap: 14px; padding: 14px; }
+
+/* ===== 左 · 名册 ===== */
+.rail {
+  width: 300px; background: linear-gradient(160deg, rgba(12,28,42,.72), rgba(8,16,28,.8));
+  border: 1px solid rgba(79,214,230,.26);
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  padding: 14px 12px;
+}
+.brand { display: none; }   /* 顶栏已有品牌 */
+.new-artist {
+  border: 1px dashed rgba(95,210,235,.5); background: rgba(8,22,34,.5); color: #9fe6f4;
+  border-radius: 5px; letter-spacing: 1px;
+}
+.new-artist span { color: #7fe6ff; }
+.new-artist:hover { border-color: #5fe6ff; color: #cdf3ff; background: rgba(95,210,235,.08); }
+.story-entry { border: 1px solid rgba(255,160,90,.4); background: rgba(40,28,18,.45); color: #ffc089; border-style: solid; }
+.story-entry span { color: #ff9a5a; }
+.story-entry:hover { border-color: #ffb072; color: #ffd9b0; background: rgba(255,160,90,.12); }
+.rail-label { color: #7a93a8; letter-spacing: 3px; }
+.artist-row { border-radius: 6px; background: rgba(10,20,32,.45); border: 1px solid transparent; padding: 9px 11px; }
+.artist-row:hover { background: rgba(95,210,235,.08); border-color: rgba(79,214,230,.2); }
+.artist-row.active { background: linear-gradient(100deg, rgba(95,210,235,.16), rgba(10,20,32,.6)); border-color: rgba(95,210,235,.55); }
+.artist-row.active .ar-name { color: #eaf4ff; }
+.ar-av, .ar-avatar, .artist-row img { border: 1px solid rgba(95,210,235,.4); box-shadow: 0 0 10px rgba(95,210,235,.2); }
+.rail-user { border: 1px solid rgba(79,214,230,.2); background: rgba(10,20,32,.5); }
+.rail-user:hover { background: rgba(95,210,235,.08); }
+
+/* ===== 中 · 通讯 ===== */
+.main { min-width: 420px; }
+.conv-empty-mark { color: #7fe6ff; text-shadow: 0 0 24px rgba(95,230,255,.5); }
+.conv-empty-inner h1 { font-family: var(--serif); color: #eaf4ff; letter-spacing: 2px; }
+.conv-empty-inner p { color: #9fb6c6; }
+.conv-head {
+  background: linear-gradient(160deg, rgba(14,30,46,.82), rgba(8,16,28,.85));
+  border: 1px solid rgba(79,214,230,.28);
+  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+  border-radius: 0; margin-bottom: 12px;
+}
+.thread-inner { max-width: 880px; }
+/* AI 气泡：斜切青描边卡片 */
+.msg.ai .msg-text {
+  background: linear-gradient(160deg, rgba(14,28,44,.72), rgba(8,16,26,.78));
+  border: 1px solid rgba(79,214,230,.24); border-left: 3px solid #5fd2e6;
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
+  padding: 14px 22px 15px; color: #e3eef7; box-shadow: 0 8px 26px rgba(0,0,0,.35);
+}
+.msg.ai .msg-text.typing::after { color: #5fe6ff; }
+.msg.user .msg-text {
+  background: linear-gradient(160deg, rgba(18,44,62,.9), rgba(10,28,42,.92));
+  border: 1px solid rgba(95,210,235,.5); color: #eaf6ff;
+  clip-path: polygon(16px 0, 100% 0, 100% 100%, 0 100%, 0 16px); border-radius: 0;
+}
+.msg-av { border: 1px solid rgba(95,210,235,.4); box-shadow: 0 0 10px rgba(95,210,235,.25); background: rgba(10,22,34,.7); }
+
+/* 输入条 */
+.composer {
+  background: linear-gradient(160deg, rgba(14,30,46,.82), rgba(8,16,28,.85));
+  border: 1px solid rgba(79,214,230,.28);
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  border-radius: 0;
+}
+.composer:focus-within { border-color: rgba(95,210,235,.6); }
+.composer textarea { color: #e8f3fb; }
+.composer textarea::placeholder { color: #5f7d90; }
+.composer-plus { background: rgba(8,22,34,.6); color: #7fd6e6; border: 1px solid rgba(79,214,230,.35); border-radius: 5px; }
+.composer-send { background: linear-gradient(180deg, #5fe8c0, #3fd0e0); color: #06141e; }
+.composer-hint, .suggest { color: #7a93a8; }
+.suggest button, .chip {
+  background: rgba(10,24,36,.7); border: 1px solid rgba(79,214,230,.3); color: #bfe0ee;
+}
+.suggest button:hover { border-color: #5fe6ff; color: #eaf6ff; }
+
+/* ===== 右 · 档案 DOSSIER ===== */
+.rpanel {
+  width: 480px; background: linear-gradient(160deg, rgba(12,28,42,.74), rgba(8,16,28,.82));
+  border: 1px solid rgba(79,214,230,.3);
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  box-shadow: inset 0 0 30px rgba(60,160,200,.08);
+}
+.rpanel-head { border-bottom: 1px solid rgba(79,214,230,.2); }
+.rpanel-title { color: #d6f3ff; letter-spacing: 3px; }
+.rpanel-back { color: #9fe6f4; }
+
+/* 通用：卡片/按钮/输入在深空下的兜底 */
+.rpanel-body input, .rpanel-body textarea, .rpanel-body select {
+  background: rgba(8,18,30,.7); border: 1px solid rgba(79,214,230,.25); color: #e3eef7;
+}
+.toast { background: rgba(8,20,32,.95); border: 1px solid rgba(79,214,230,.4); color: #d6f3ff; }
+.cmenu, .umenu { background: rgba(10,22,34,.97); border: 1px solid rgba(79,214,230,.3); color: #d6f3ff; }

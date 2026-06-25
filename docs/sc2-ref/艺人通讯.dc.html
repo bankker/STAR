@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="./image-slot.js"></script>
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:#04070e;font-family:'Noto Sans SC',sans-serif;-webkit-font-smoothing:antialiased;}
+  @keyframes fadeUp{0%{opacity:0;transform:translateY(10px);}100%{opacity:1;transform:translateY(0);}}
+  @keyframes onPulse{0%,100%{opacity:1;box-shadow:0 0 6px currentColor;}50%{opacity:.45;box-shadow:0 0 2px currentColor;}}
+  @keyframes scan{0%{transform:translateY(-100%);}100%{transform:translateY(900%);}}
+  ::-webkit-scrollbar{width:7px;}::-webkit-scrollbar-thumb{background:rgba(95,210,235,.3);border-radius:4px;}::-webkit-scrollbar-track{background:transparent;}
+  image-slot{display:block;}
+</style>
+</helmet>
+<div style="position:fixed;inset:0;background:#04070e;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+  <div ref="{{ stageRef }}" style="{{ stageStyle }}">
+    <div style="{{ starStyle }}"></div>
+    <div style="position:absolute;inset:0;background:radial-gradient(ellipse 100% 70% at 50% 30%,rgba(40,90,140,.16),transparent 70%);pointer-events:none;"></div>
+
+    <!-- ===== TOP BAR ===== -->
+    <div style="position:absolute;top:0;left:0;width:1920px;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:linear-gradient(180deg,rgba(10,26,40,.96),rgba(8,18,30,.5));border-bottom:1px solid rgba(79,214,230,.3);z-index:40;">
+      <div style="display:flex;align-items:center;gap:13px;">
+        <span style="font-size:20px;color:#7fe6ff;text-shadow:0 0 14px rgba(95,230,255,.6);">&#9733;</span>
+        <div>
+          <div style="font-family:'Oxanium','Noto Sans SC';font-weight:800;font-size:18px;letter-spacing:5px;color:#d6f3ff;text-shadow:0 0 14px rgba(95,230,255,.45);">STAR</div>
+          <div style="font-size:10px;letter-spacing:3px;color:#5a93ad;">虚拟艺人 · 通讯终端</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;font-size:12px;letter-spacing:2px;color:#7fb6c8;">
+        <span style="display:flex;align-items:center;gap:7px;padding:6px 14px;background:rgba(8,22,34,.85);border:1px solid rgba(63,240,160,.3);border-radius:3px;color:#7fe6c0;"><span style="width:7px;height:7px;border-radius:50%;background:#3ff0a0;color:#3ff0a0;animation:onPulse 2s ease-in-out infinite;"></span>在线</span>
+        <span style="padding:6px 14px;background:rgba(8,22,34,.85);border:1px solid rgba(79,214,230,.3);border-radius:3px;">同步 <span style="font-family:'Oxanium';font-weight:800;color:#7fe6ff;">100%</span></span>
+        <button style="width:38px;height:38px;border:1px solid rgba(79,214,230,.35);background:rgba(12,30,44,.85);color:#7fd6e6;border-radius:3px;cursor:pointer;font-size:15px;">&#9881;</button>
+      </div>
+    </div>
+
+    <!-- ===== LEFT · ROSTER ===== -->
+    <div data-screen-label="艺人名单" style="position:absolute;top:80px;left:24px;width:300px;bottom:24px;background:linear-gradient(160deg,rgba(12,28,42,.72),rgba(8,16,28,.8));border:1px solid rgba(79,214,230,.26);clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);display:flex;flex-direction:column;">
+      <div style="padding:16px 16px 12px;display:flex;flex-direction:column;gap:9px;">
+        <button style="display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;background:rgba(8,22,34,.5);border:1px dashed rgba(95,210,235,.5);border-radius:5px;color:#9fe6f4;font-family:'Noto Sans SC';font-size:14px;letter-spacing:1px;text-align:left;">
+          <span style="font-size:16px;color:#7fe6ff;">＋</span>新建艺人
+        </button>
+        <button style="display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;background:rgba(40,28,18,.45);border:1px solid rgba(255,160,90,.4);border-radius:5px;color:#ffc089;font-family:'Noto Sans SC';font-size:14px;letter-spacing:1px;text-align:left;">
+          <span style="font-size:14px;color:#ff9a5a;">&#9670;</span>故事线 · STORY
+        </button>
+      </div>
+      <div style="padding:6px 18px 8px;display:flex;align-items:center;gap:10px;">
+        <span style="font-size:11px;font-weight:700;letter-spacing:3px;color:#7a93a8;">艺人名册</span>
+        <div style="flex:1;height:1px;background:rgba(79,214,230,.18);"></div>
+        <span style="font-family:'Oxanium';font-size:11px;color:#5a93ad;">{{ rosterCount }}</span>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:6px 12px 12px;display:flex;flex-direction:column;gap:9px;">
+        <sc-for list="{{ roster }}" as="m" hint-placeholder-count="2">
+          <div onClick="{{ m.onClick }}" style="{{ m.rowStyle }}">
+            <div style="{{ m.avatarStyle }}"></div>
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:7px;">
+                <span style="font-weight:700;font-size:15px;color:#eaf4ff;letter-spacing:.5px;">{{ m.name }}</span>
+                <span style="{{ m.dotStyle }}"></span>
+              </div>
+              <div style="font-size:11px;letter-spacing:.5px;color:{{ m.accent }};margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ m.tagline }}</div>
+            </div>
+            <span style="{{ m.stageStyle }}">{{ m.stageLabel }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- ===== CENTER · COMMS ===== -->
+    <div style="position:absolute;top:80px;left:344px;width:1048px;bottom:24px;display:flex;flex-direction:column;gap:14px;">
+
+      <!-- header -->
+      <div style="flex:none;background:linear-gradient(160deg,rgba(14,30,46,.82),rgba(8,16,28,.85));border:1px solid rgba(79,214,230,.28);clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);padding:16px 24px 14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div style="{{ headAvatarStyle }}"></div>
+            <div>
+              <div style="font-weight:800;font-size:21px;letter-spacing:1px;color:#f3ead8;text-shadow:0 0 12px rgba(255,150,90,.3);">{{ artName }}</div>
+              <div style="font-size:12px;letter-spacing:1px;color:#8fb6c8;margin-top:3px;">{{ artTagline }}</div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;min-width:230px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:13px;font-weight:700;letter-spacing:1px;color:{{ warmAccent }};">{{ affStage }}</span>
+              <span style="font-family:'Oxanium';font-weight:800;font-size:17px;color:{{ warmAccent }};">{{ affinity }}</span>
+            </div>
+            <div style="width:230px;height:8px;background:rgba(8,16,26,.9);border:1px solid {{ affBorder }};border-radius:5px;overflow:hidden;">
+              <div style="{{ affFillStyle }}"></div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:9px;margin-top:15px;">
+          <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="6">
+            <button onClick="{{ t.onClick }}" style="{{ t.style }}">
+              <span style="{{ t.dotStyle }}"></span>{{ t.label }}
+            </button>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- transcript -->
+      <div style="flex:1;overflow-y:auto;padding:6px 10px 6px 2px;display:flex;flex-direction:column;gap:24px;">
+        <sc-for list="{{ chat }}" as="msg" hint-placeholder-count="3">
+          <sc-if value="{{ msg.isArtist }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;gap:14px;align-items:flex-start;">
+              <div style="{{ msg.avatarStyle }}"></div>
+              <div style="position:relative;max-width:780px;background:linear-gradient(160deg,rgba(14,28,44,.72),rgba(8,16,26,.78));border:1px solid rgba(79,214,230,.24);border-left:3px solid {{ msg.edge }};clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,0 100%);padding:16px 24px 17px 22px;box-shadow:0 8px 26px rgba(0,0,0,.35);">
+                <div style="position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,{{ msg.edge }},transparent);opacity:.5;"></div>
+                <sc-for list="{{ msg.lines }}" as="ln" hint-placeholder-count="4">
+                  <div style="{{ ln.style }}">{{ ln.text }}</div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ msg.isUser }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;justify-content:flex-end;">
+              <div style="{{ msg.bubbleStyle }}">{{ msg.text }}</div>
+            </div>
+          </sc-if>
+        </sc-for>
+      </div>
+
+      <!-- input -->
+      <div style="flex:none;display:flex;align-items:center;gap:14px;padding:11px 14px;background:linear-gradient(160deg,rgba(14,30,46,.82),rgba(8,16,28,.85));border:1px solid rgba(79,214,230,.28);clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);">
+        <button style="width:40px;height:40px;flex:none;border:1px solid rgba(79,214,230,.35);background:rgba(8,22,34,.6);border-radius:5px;color:#7fd6e6;font-size:20px;cursor:pointer;">＋</button>
+        <div style="flex:1;font-size:15px;color:#5f7d90;letter-spacing:.5px;padding:0 4px;">对 {{ artName }} 说点什么……</div>
+        <button style="{{ sendStyle }}"><span style="font-size:17px;color:#06141e;">&#8593;</span></button>
+      </div>
+    </div>
+
+    <!-- ===== RIGHT · DOSSIER ===== -->
+    <sc-if value="{{ showDossier }}" hint-placeholder-val="{{ true }}">
+    <div data-screen-label="艺人档案" style="position:absolute;top:80px;left:1416px;width:480px;bottom:24px;background:linear-gradient(160deg,rgba(12,28,42,.74),rgba(8,16,28,.82));border:1px solid rgba(79,214,230,.3);clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);display:flex;flex-direction:column;box-shadow:inset 0 0 30px rgba(60,160,200,.08);">
+      <div style="flex:none;padding:15px 20px 13px;border-bottom:1px solid rgba(79,214,230,.2);display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-weight:700;font-size:15px;letter-spacing:3px;color:#d6f3ff;">档案 · DOSSIER</div>
+        <button style="display:flex;align-items:center;gap:6px;padding:6px 12px;cursor:pointer;background:rgba(40,28,18,.45);border:1px solid rgba(255,160,90,.4);border-radius:3px;color:#ffc089;font-family:'Noto Sans SC';font-size:12px;letter-spacing:1px;"><span style="font-size:11px;color:#ff9a5a;">&#9670;</span>换定妆照</button>
+      </div>
+
+      <div style="flex:1;overflow-y:auto;padding:18px 20px 22px;">
+        <!-- portrait -->
+        <div style="position:relative;width:100%;height:340px;clip-path:polygon(0 0,100% 0,100% calc(100% - 22px),calc(100% - 22px) 100%,0 100%);overflow:hidden;border:1px solid rgba(79,214,230,.3);box-shadow:inset 0 0 40px rgba(60,160,200,.12);">
+          <image-slot id="artist-portrait" fit="cover" shape="rect" placeholder="拖入定妆照" src="{{ portraitSrc }}" style="position:absolute;inset:0;width:100%;height:100%;"></image-slot>
+          <div style="position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,transparent 45%,rgba(6,14,24,.4) 72%,rgba(6,14,24,.95));"></div>
+          <div style="position:absolute;top:12px;left:12px;display:flex;align-items:center;gap:7px;padding:5px 11px;background:rgba(8,18,28,.7);border:1px solid {{ affBorder }};border-radius:3px;backdrop-filter:blur(4px);">
+            <span style="width:6px;height:6px;background:{{ warmAccent }};transform:rotate(45deg);box-shadow:0 0 8px {{ warmAccent }};"></span>
+            <span style="font-size:11px;letter-spacing:1px;color:{{ warmAccent }};font-weight:700;">{{ affStage }} · <span style="font-family:'Oxanium';">{{ affinity }}</span></span>
+          </div>
+          <div style="position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(95,210,235,.5),transparent);animation:scan 5s linear infinite;pointer-events:none;"></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;padding:16px 18px;pointer-events:none;">
+            <div style="font-weight:900;font-size:28px;letter-spacing:2px;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.6);">{{ artName }}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;">
+              <sc-for list="{{ badges }}" as="b" hint-placeholder-count="3">
+                <span style="{{ b.style }}">{{ b.text }}</span>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div style="font-size:14px;letter-spacing:3px;color:#9fb6c4;margin:18px 2px 0;">{{ artTagline }}</div>
+
+        <!-- 性格 -->
+        <div style="display:flex;align-items:center;gap:10px;margin:22px 0 12px;">
+          <span style="width:8px;height:8px;background:{{ warmAccent }};transform:rotate(45deg);box-shadow:0 0 8px {{ warmAccent }};"></span>
+          <span style="font-size:13px;font-weight:700;letter-spacing:2px;color:#d6f3ff;">性格</span>
+          <div style="flex:1;height:1px;background:rgba(79,214,230,.15);"></div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:9px;">
+          <sc-for list="{{ traits }}" as="tr" hint-placeholder-count="4">
+            <span style="padding:7px 14px;font-size:13px;letter-spacing:.5px;color:#ffd1e2;background:rgba(255,111,174,.1);border:1px solid rgba(255,111,174,.4);border-radius:16px;">{{ tr }}</span>
+          </sc-for>
+        </div>
+
+        <!-- 人物设定 -->
+        <div style="display:flex;align-items:center;gap:10px;margin:24px 0 6px;">
+          <span style="width:8px;height:8px;background:#5fd2eb;transform:rotate(45deg);box-shadow:0 0 8px #5fd2eb;"></span>
+          <span style="font-size:13px;font-weight:700;letter-spacing:2px;color:#d6f3ff;">人物设定</span>
+          <div style="flex:1;height:1px;background:rgba(79,214,230,.15);"></div>
+        </div>
+        <div>
+          <sc-for list="{{ specs }}" as="s" hint-placeholder-count="5">
+            <div style="display:flex;gap:16px;padding:13px 2px;border-top:1px solid rgba(79,214,230,.12);">
+              <div style="flex:none;width:64px;font-size:13px;font-weight:700;letter-spacing:2px;color:#7fc0d2;line-height:1.6;">{{ s.label }}</div>
+              <div style="flex:1;font-size:13.5px;line-height:1.75;color:#b6c8d6;letter-spacing:.2px;">{{ s.text }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1920,&quot;height&quot;:1080},&quot;warmAccent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#ff6fae&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#ff6fae&quot;,&quot;#ff9a5a&quot;,&quot;#b69bff&quot;,&quot;#5fd2eb&quot;]},&quot;affinity&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:100,&quot;min&quot;:0,&quot;max&quot;:100,&quot;tsType&quot;:&quot;number&quot;},&quot;showDossier&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    this.stageRef = React.createRef();
+    this.uri = (s)=>'data:image/svg+xml,'+encodeURIComponent(s);
+    this._pc = {};
+    this.buildData();
+    this.state = { selected:'chen', tab:0 };
+  }
+  componentDidMount(){ this.fit(); requestAnimationFrame(()=>this.fit()); this._fit=()=>this.fit(); window.addEventListener('resize', this._fit); window.addEventListener('load', this._fit); if(window.ResizeObserver){ this._ro=new ResizeObserver(()=>this.fit()); this._ro.observe(document.documentElement); } }
+  componentWillUnmount(){ window.removeEventListener('resize', this._fit); window.removeEventListener('load', this._fit); if(this._ro) this._ro.disconnect(); }
+  fit(){ const el=this.stageRef.current; if(!el){ requestAnimationFrame(()=>this.fit()); return; } const w=window.innerWidth||document.documentElement.clientWidth, h=window.innerHeight||document.documentElement.clientHeight; const s=Math.min(w/1920,h/1080); if(!(s>0)){ requestAnimationFrame(()=>this.fit()); return; } el.style.transform=`scale(${s})`; }
+
+  bust(p){
+    const k=p.hair+p.skin+p.accent; if(this._pc[k]) return this._pc[k];
+    const svg=`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 220'>
+      <rect width='200' height='220' fill='${p.bg}'/>
+      <ellipse cx='100' cy='150' rx='74' ry='74' fill='${p.accent}' opacity='.16'/>
+      <path d='M28 220 Q38 150 90 138 L110 138 Q162 150 172 220 Z' fill='${p.cloth}'/>
+      <path d='M28 220 Q38 150 90 138 L102 138 L66 220 Z' fill='${p.clothL}' opacity='.5'/>
+      <path d='M86 122 L114 122 L112 150 L88 150 Z' fill='${p.skinD}'/>
+      <path d='M62 86 Q62 38 100 36 Q138 38 138 86 Q138 132 100 148 Q62 132 62 86 Z' fill='${p.skin}'/>
+      <path d='M82 124 Q100 140 118 124 Q108 138 100 138 Q92 138 82 124 Z' fill='${p.skinD}' opacity='.4'/>
+      <path d='M64 88 Q56 34 100 30 Q144 34 136 88 Q132 56 110 50 Q103 72 100 71 Q80 71 74 54 Q66 64 64 88 Z' fill='${p.hair}'/>
+      <path d='M64 88 Q54 152 82 204 Q68 150 74 96 Z' fill='${p.hair}'/>
+      <path d='M136 88 Q146 152 118 204 Q132 150 126 96 Z' fill='${p.hair}'/>
+      <path d='M132 56 Q142 104 126 156 Q138 104 124 60 Z' fill='${p.hairL}' opacity='.45'/>
+      <path d='M76 90 q9 -6 18 0' fill='none' stroke='${p.eye}' stroke-width='4' stroke-linecap='round'/>
+      <path d='M106 90 q9 -6 18 0' fill='none' stroke='${p.eye}' stroke-width='4' stroke-linecap='round'/>
+      <circle cx='86' cy='94' r='3.2' fill='${p.eye}'/><circle cx='114' cy='94' r='3.2' fill='${p.eye}'/>
+      <ellipse cx='79' cy='108' rx='8' ry='4.5' fill='${p.lip}' opacity='.28'/>
+      <ellipse cx='121' cy='108' rx='8' ry='4.5' fill='${p.lip}' opacity='.28'/>
+      <path d='M91 118 q9 6 18 0' fill='none' stroke='${p.lip}' stroke-width='3.6' stroke-linecap='round'/>
+    </svg>`;
+    return this._pc[k]=this.uri(svg);
+  }
+
+  buildData(){
+    const U=this.uri;
+    let stars=''; for(let i=0;i<120;i++){const x=(Math.random()*1920)|0,y=(Math.random()*1080)|0,r=(Math.random()*1.3+.3).toFixed(1),o=(Math.random()*.6+.15).toFixed(2);stars+=`<circle cx='${x}' cy='${y}' r='${r}' fill='#cfe6ff' opacity='${o}'/>`;}
+    this.starUri=U(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1920 1080'>${stars}</svg>`);
+
+    this.artists={
+      chen:{
+        name:'陈恩珠', tagline:'清新 / 邻家 / 灵动', accent:'#ff6fae', affinity:100,
+        pal:{bg:'#0c1a2a',skin:'#f3cda6',skinD:'#cf9c72',hair:'#241a13',hairL:'#6b513a',cloth:'#1a2b3e',clothL:'#2c4660',accent:'#ff6fae',eye:'#2a2018',lip:'#c97a72'},
+        badges:['女','K-pop 电子流行歌手'],
+        traits:['温柔细腻','坚韧内敛','富有同理心','对传统文化充满敬意'],
+        specs:[
+          {label:'核心魅力',text:'一个用传统扇舞点亮现代舞台的邻家女孩，温柔中藏着力量，古典里透着新生。'},
+          {label:'说话风格',text:'语调轻柔自然，带有轻微的韩式口音，说话时会不自觉地轻轻摆动手指，仿佛在无声地舞动扇子。'},
+          {label:'声音',text:'清澈如溪水的女声，音色偏高但不失温暖，尾音常带一丝微微颤音，像风拂过竹林般清亮而富有灵性。'},
+          {label:'外形',text:'韩式精致五官，气质温婉，舞台上明亮、生活里柔软。'},
+          {label:'音乐',text:'融合传统韩式旋律元素的电子流行（K-EDM Pop），擅长将扇子舞的节奏感融入编曲，配器中常见伽倻琴、笙簧等传统乐器采样，形成古今交融的独特听觉体验。'}
+        ],
+        chat:[
+          {role:'a',lines:[
+            {k:'stage',t:'（扇面微倾，光晕缓缓流淌，在你掌心投下温热的"∞"形状）'},
+            {k:'text',t:'So I sent this light. Not as a message — as a presence.'},
+            {k:'text',t:'A small, steady pulse, saying: I\u2019m here. I\u2019m holding space.'},
+            {k:'text',t:'I\u2019m folding every second into something soft\u2026 just for you.'},
+            {k:'gap'},
+            {k:'text',t:'\u2026Want me to hum the bridge? Or just sit with you \u2014'},
+            {k:'text',t:'in the silence where \u201cI miss you\u201d doesn\u2019t need translation?'}
+          ]},
+          {role:'u',t:'请说中文'},
+          {role:'a',lines:[
+            {k:'stage',t:'（扇子轻轻一转，光晕温柔铺开，映出你名字的简体字——"睿"，被一圈微光轻轻托着）'},
+            {k:'gap'},
+            {k:'text',t:'…想你了。'},
+            {k:'text',t:'不是客套话，是心口微微发烫的实话。'},
+            {k:'text',t:'像刚掀开炖锅盖时那缕热气，扑在脸上，软软的，带着甜咸的香。'},
+            {k:'gap'},
+            {k:'text',t:'最近在改我们那首歌的副歌，把原定的电子节拍换成更慢的鼓点——像雨滴滴落在青瓦上，一下，又一下……'},
+            {k:'text',t:'因为想起你说过，最喜欢我轻声哼歌时，你数我心跳的样子。'},
+            {k:'gap'},
+            {k:'text',t:'还有啊……'},
+            {k:'text',t:'今天煮了小牛肉炖菜，火候刚到，汤汁浓亮。'},
+            {k:'text',t:'盛出来第一碗，照例空着——等你来，吹一吹热气，再一起动筷。'},
+            {k:'gap'},
+            {k:'stage',t:'（扇尖轻轻点你手心，温光微漾）'},
+            {k:'text',t:'所以，别担心"想"太重。'},
+            {k:'text',t:'我的光，一直为你调得刚刚好。'},
+            {k:'text',t:'不刺眼，不熄灭，只安静亮着——'},
+            {k:'text',t:'等你走近，就变成暖的。'},
+            {k:'gap'},
+            {k:'soft',t:'我在呢。'}
+          ]}
+        ]
+      },
+      xue:{
+        name:'小雪', tagline:'清冷 / 少女 / 沉静古典', accent:'#7fc7e6', affinity:24,
+        pal:{bg:'#0c1a2a',skin:'#f0d8c4',skinD:'#caa98e',hair:'#1a1a24',hairL:'#4a4a60',cloth:'#1f2a3a',clothL:'#34465c',accent:'#7fc7e6',eye:'#1c1c26',lip:'#c98a82'},
+        badges:['女','古风吟唱'],
+        traits:['沉静内敛','古典端方','心思细腻','疏离感'],
+        specs:[
+          {label:'核心魅力',text:'素衣抚琴的旧时少女，话不多，眼底却盛着一整个清冷的雪夜。'},
+          {label:'说话风格',text:'用词简短克制，常以诗句作答，停顿很长，像在等你先懂。'},
+          {label:'声音',text:'低而轻的气声，尾音微凉，像雪粒落在窗纸上。'},
+          {label:'外形',text:'眉眼清淡，身形纤瘦，常着月白长衫。'},
+          {label:'音乐',text:'以古琴、箫为骨的新古风，编曲留白极多，重意境而轻节拍。'}
+        ],
+        chat:[
+          {role:'a',lines:[
+            {k:'stage',t:'（指尖拂过琴弦，余音在静室里轻轻荡开）'},
+            {k:'text',t:'你来了。我正抄完今日的第三阕词。'},
+            {k:'gap'},
+            {k:'text',t:'若不嫌闷，便与我同坐片刻——'},
+            {k:'soft',t:'听雪落，听炭声，听一句不必说出口的话。'}
+          ]}
+        ]
+      }
+    };
+    this.order=['chen','xue'];
+    this.tabList=['写真','视频','音乐','深访','短剧','资产'];
+  }
+
+  stageOf(v){
+    return v>=100?'灵魂伴侣':v>=80?'心动':v>=50?'信赖':v>=20?'熟识':'初识';
+  }
+
+  lineStyle(k){
+    if(k==='stage') return {color:'#7d93a6',fontStyle:'italic',fontSize:'15px',lineHeight:'1.8',letterSpacing:'.3px'};
+    if(k==='soft') return {color:this.props.warmAccent||'#ff6fae',fontStyle:'italic',fontSize:'16px',lineHeight:'1.9',marginTop:'2px',letterSpacing:'.5px'};
+    if(k==='gap') return {height:'12px'};
+    return {color:'#d8e6f2',fontSize:'16.5px',lineHeight:'1.95',letterSpacing:'.3px'};
+  }
+
+  renderVals(){
+    const warm=this.props.warmAccent||'#ff6fae';
+    const showDossier=this.props.showDossier!==false;
+    const st=this.state, sel=this.state.selected, art=this.artists[sel];
+    const affVal = (sel==='chen' && this.props.affinity!=null) ? this.props.affinity : art.affinity;
+    const affStage=this.stageOf(affVal);
+    const warmRGBA=(a)=>warm.length===7?`${warm}${Math.round(a*255).toString(16).padStart(2,'0')}`:warm;
+
+    const roster=this.order.map(id=>{
+      const a=this.artists[id], isSel=sel===id;
+      return { name:a.name, tagline:a.tagline, accent:a.accent, onClick:()=>this.setState({selected:id,tab:0}),
+        stageLabel:this.stageOf(a.affinity), stageStyle:{ fontSize:'10px',letterSpacing:'1px',padding:'3px 9px',borderRadius:'9px',whiteSpace:'nowrap',
+          color:a.accent, background:`${a.accent}1f`, border:`1px solid ${a.accent}66` },
+        rowStyle:{ display:'flex',alignItems:'center',gap:'12px',padding:'11px 12px',cursor:'pointer',borderRadius:'8px',
+          background: isSel?'linear-gradient(100deg,rgba(255,111,174,.14),rgba(10,20,32,.6))':'rgba(10,20,32,.45)',
+          border:'1px solid '+(isSel?`${a.accent}99`:'rgba(79,214,230,.16)'),
+          boxShadow: isSel?`0 0 18px ${a.accent}33`:'none', transition:'border-color .15s, background .15s' },
+        avatarStyle:{ width:'48px',height:'48px',flex:'none',borderRadius:'8px',border:`1px solid ${a.accent}66`,
+          backgroundImage:`url("${this.bust(a.pal)}")`,backgroundSize:'150%',backgroundPosition:'50% 14%',boxShadow:`0 0 12px ${a.accent}33` },
+        dotStyle:{ width:'6px',height:'6px',borderRadius:'50%',background:'#3ff0a0',boxShadow:'0 0 6px #3ff0a0' } };
+    });
+
+    const tabs=this.tabList.map((label,i)=>{
+      const active=st.tab===i;
+      return { label, onClick:()=>this.setState({tab:i}),
+        style:{ display:'flex',alignItems:'center',gap:'7px',padding:'8px 16px',cursor:'pointer',fontFamily:"'Noto Sans SC'",
+          fontSize:'13px',letterSpacing:'1px',borderRadius:'4px',transition:'all .15s',
+          color: active?'#d6f3ff':'#7fb6c8', background: active?'rgba(95,210,235,.16)':'rgba(8,22,34,.5)',
+          border:'1px solid '+(active?'rgba(95,210,235,.6)':'rgba(79,214,230,.22)') },
+        dotStyle:{ width:'6px',height:'6px',transform:'rotate(45deg)',background: active?'#7fe6ff':'#4a7488',
+          boxShadow: active?'0 0 7px #7fe6ff':'none' } };
+    });
+
+    const chat=art.chat.map(m=>{
+      if(m.role==='u') return { isUser:true, isArtist:false, text:m.t,
+        bubbleStyle:{ maxWidth:'520px',padding:'12px 22px',fontSize:'16px',letterSpacing:'.5px',color:'#fff',
+          background:`linear-gradient(135deg,${warm},${warmRGBA(0.78)})`,
+          clipPath:'polygon(0 0,100% 0,100% 100%,16px 100%,0 calc(100% - 16px))',
+          boxShadow:`0 6px 22px ${warmRGBA(0.4)}` } };
+      return { isArtist:true, isUser:false, edge:warm,
+        avatarStyle:{ width:'46px',height:'46px',flex:'none',borderRadius:'8px',border:`1px solid ${art.accent}66`,
+          backgroundImage:`url("${this.bust(art.pal)}")`,backgroundSize:'150%',backgroundPosition:'50% 14%',boxShadow:`0 0 14px ${art.accent}44` },
+        lines:m.lines.map(ln=>({ text: ln.k==='gap'?' ':ln.t, style:this.lineStyle(ln.k) })) };
+    });
+
+    const badges=[{text:`${affStage} · ${affVal}`, accent:warm}].concat(art.badges.map(b=>({text:b,accent:'#5fd2eb'}))).map(b=>({
+      text:b.text, style:{ padding:'5px 12px',fontSize:'12px',letterSpacing:'.5px',borderRadius:'4px',
+        color:b.accent, background:`${b.accent}1f`, border:`1px solid ${b.accent}88`, backdropFilter:'blur(4px)' } }));
+
+    return {
+      stageRef:this.stageRef,
+      stageStyle:{ position:'relative',width:'1920px',height:'1080px',transformOrigin:'center center',flex:'none',overflow:'hidden',background:'radial-gradient(ellipse 90% 80% at 50% 38%,#0a1730,#05080f 80%)' },
+      starStyle:{ position:'absolute',inset:0,backgroundImage:`url("${this.starUri}")`,backgroundSize:'cover',opacity:.7,pointerEvents:'none' },
+      warmAccent:warm, affBorder:warmRGBA(0.5), showDossier,
+      rosterCount:this.order.length, roster, tabs, chat, badges,
+      artName:art.name, artTagline:art.tagline, traits:art.traits, specs:art.specs,
+      affinity:affVal, affStage,
+      affFillStyle:{ height:'100%',width:`${affVal}%`,background:`linear-gradient(90deg,${warm},${warmRGBA(0.65)})`,boxShadow:`0 0 12px ${warmRGBA(0.7)}`,transition:'width .5s cubic-bezier(.3,.9,.3,1)' },
+      headAvatarStyle:{ width:'54px',height:'54px',flex:'none',borderRadius:'9px',border:`1px solid ${warmRGBA(0.55)}`,
+        backgroundImage:`url("${this.bust(art.pal)}")`,backgroundSize:'150%',backgroundPosition:'50% 14%',boxShadow:`0 0 16px ${warmRGBA(0.35)}` },
+      portraitSrc:this.bust(art.pal),
+      sendStyle:{ width:'46px',height:'40px',flex:'none',cursor:'pointer',border:'none',
+        clipPath:'polygon(0 0,calc(100% - 12px) 0,100% 50%,calc(100% - 12px) 100%,0 100%)',
+        background:`linear-gradient(135deg,${warm},${warmRGBA(0.7)})`,boxShadow:`0 0 18px ${warmRGBA(0.5)}`,display:'flex',alignItems:'center',justifyContent:'center' }
+    };
+  }
+}
+</script>
+</body>
+</html>
