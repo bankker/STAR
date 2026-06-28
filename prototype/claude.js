@@ -197,8 +197,16 @@ async function renderProfile(body) {
       <input id="profLookStyle" type="text" placeholder="新外形描述，如：齐耳银色短发、清冷妆感、米色西装…">
       <div class="look-edit-note">填写即<b>替换 Ta 的「外形」设定</b>（后续写真/视频也会用新外形）；留空＝按现有外形重出一张。</div>
       <div class="look-edit-row">
-        <button class="op-gen" id="profLookGen" style="margin-left:0">✦ 生成新定妆照</button>
+        <button class="op-gen" id="profLookPreview" style="margin-left:0">✦ 预览提示词</button>
         <button class="profile-btn" id="profLookCancel" style="flex:0 0 auto;min-width:0">取消</button>
+      </div>
+      <div id="profLookPromptWrap" hidden style="margin-top:10px">
+        <div class="look-edit-note" style="margin-bottom:6px">提示词（可编辑后再生成）：</div>
+        <textarea id="profLookPromptText" rows="5" style="width:100%;border:1px solid var(--line-2);border-radius:11px;background:var(--surface);font-size:13px;line-height:1.5;color:var(--ink);padding:10px 12px;outline:none;resize:vertical"></textarea>
+        <div class="look-edit-row" style="margin-top:10px">
+          <button class="op-gen" id="profLookGen" style="margin-left:0">✦ 确认生成</button>
+          <button class="profile-btn" id="profLookRe" style="flex:0 0 auto;min-width:0">↻ 重算</button>
+        </div>
       </div>
       <div class="op-status" id="profLookMsg"></div>
     </div>
@@ -228,7 +236,9 @@ async function renderProfile(body) {
   // 换定妆照
   $('#profEditLook').addEventListener('click', () => { const f = $('#profLookForm'); f.hidden = !f.hidden; if (!f.hidden) $('#profLookStyle').focus(); });
   $('#profLookCancel').addEventListener('click', () => { $('#profLookForm').hidden = true; });
+  $('#profLookPreview').addEventListener('click', previewRegenPortrait);
   $('#profLookGen').addEventListener('click', regenPortrait);
+  $('#profLookRe').addEventListener('click', previewRegenPortrait);
   // 最近作品（异步填充，不阻塞资料渲染）
   const g = await loadGallery();
   const recent = g.filter((x) => isImg(x.url) || isVid(x.url)).slice(0, 8);
@@ -237,13 +247,28 @@ async function renderProfile(body) {
     $('#recentStrip').innerHTML = recent.map((x) => `<div class="rs">${isVid(x.url) ? `<video src="${esc(x.url)}" muted></video>` : `<img src="${esc(x.url)}" alt="" loading="lazy">`}</div>`).join('');
   }
 }
-/* 换定妆照：重新生成并置为头像（portraits[0]）*/
+/* 换定妆照·第一步：预览合成提示词（不出图） */
+async function previewRegenPortrait() {
+  if (!state.current) return;
+  const msg = $('#profLookMsg'); const btn = $('#profLookPreview');
+  const stylePrompt = ($('#profLookStyle').value || '').trim();
+  btn.disabled = true; setMsg(msg, '正在合成提示词…', true);
+  const r = await api(`/api/artist/${encodeURIComponent(state.current.id)}/portrait`, { stylePrompt, overrideLook: !!stylePrompt, previewOnly: true });
+  btn.disabled = false;
+  if (r.error || !r.prompt) { setMsg(msg, (r.error && r.error.message) || '提示词生成失败', false, true); return; }
+  $('#profLookPromptText').value = r.prompt;
+  $('#profLookPromptWrap').hidden = false;
+  btn.textContent = '↻ 重新预览';
+  setMsg(msg, '可调整提示词，满意后点「确认生成」', false);
+}
+/* 换定妆照·第二步：用（可能改过的）提示词出图，并置为头像（portraits[0]）*/
 async function regenPortrait() {
   if (!state.current) return;
   const msg = $('#profLookMsg'); const btn = $('#profLookGen');
   const stylePrompt = ($('#profLookStyle').value || '').trim();
+  const promptOverride = (($('#profLookPromptText') && $('#profLookPromptText').value) || '').trim();
   btn.disabled = true; setMsg(msg, stylePrompt ? '正在按新外形生成定妆照…（约 20 秒）' : '正在重出定妆照…（约 20 秒）', true);
-  const r = await api(`/api/artist/${encodeURIComponent(state.current.id)}/portrait`, { stylePrompt, makePrimary: true, overrideLook: !!stylePrompt });
+  const r = await api(`/api/artist/${encodeURIComponent(state.current.id)}/portrait`, { stylePrompt, makePrimary: true, overrideLook: !!stylePrompt, promptOverride });
   if (r.error || !(r.artist && r.artist.portraits)) { setMsg(msg, (r.error && r.error.message) || '出图失败', false, true); btn.disabled = false; return; }
   state.current = r.artist;
   const idx = state.artists.findIndex((a) => a.id === r.artist.id); if (idx >= 0) state.artists[idx] = r.artist;
