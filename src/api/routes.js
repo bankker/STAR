@@ -487,7 +487,12 @@ export function registerRoutes(route) {
           '从头顶到鞋子完整入镜的全身像，站在纯白色背景前，影棚柔光，真人写实摄影、照片级真实质感，超高细节，画面干净无任何文字与水印、只有一个人'].filter(Boolean).join('，');
     if (body.previewOnly) return json(res, { prompt: base });
     // 方案B：一次画一张「四格等宽形象设定图」（头像 + 正/侧/背全身），再切成 4 张——同一次生成 → 天然同一张脸。
-    const sheetPrompt = `${base}，把同一个人物画成一张四格等宽并排的形象设定图（同一张脸、同一发型、四格都穿着上面要求的同一套完整保守服装与鞋子、上身是包裹严实的长袖上衣绝不是内衣）：第1格=头肩特写大头像（清晰正脸），第2格=全身正面（面朝镜头），第3格=全身侧面（90度正侧身），第4格=全身背面（背对镜头）；四格等宽等高、纯白背景、各格之间留白；真人写实摄影`;
+    const sheetPrompt = `${base}，把同一个人物画成一张【四格等宽并排】的形象设定图，从左到右共四格，四格里是同一个人（同一张脸、同一发型、同一套完整保守服装与鞋子、上身是包裹严实的长袖上衣绝不是内衣）：`
+      + `第1格=头肩特写肖像，正脸看镜头、五官清晰完整、头顶靠近该格顶部、画面到胸口为止、脸部水平居中；`
+      + `第2格=全身正面，整个人面朝镜头正面站立、从头到鞋完整入镜；`
+      + `第3格=全身正侧面（profile侧视图）：整个身体向右转90度、完全侧对镜头，只看得到半张脸的侧影（一只眼睛、一只耳朵、鼻子的侧轮廓），双脚朝向画面右侧——这一格绝对不是正面、也不是背面，必须是标准侧面；`
+      + `第4格=全身背面，完全背对镜头、只看到后脑勺与后背、看不到脸；`
+      + `四格等宽等高、人物大小一致、纯白背景、各格之间留白；真人写实摄影`;
     const neg = '裸露, 裸体, 半裸, 内衣, 文胸, 胸罩, 抹胸, 吊带, 吊带背心, 低胸, 露胸, 露肩, 露腰, 露腹, 露脐, 露脐装, 短上衣, 内裤, 三角裤, 比基尼, 泳装, 仅穿内衣, 内衣模特, 性感内衣, lingerie, underwear, bra, bralette, crop top, bikini, swimsuit, nude, topless, cleavage, 暴露, 性感, NSFW, 卡通, 动漫, 插画, 漫画, 2D, 线稿, 三维渲染, Q版, 不同的人, 文字, 水印, logo, 服装印字';
     const panels = [['avatar', '头像'], ['front', '正面'], ['side', '侧面'], ['back', '背面']];
     try {
@@ -503,15 +508,22 @@ export function registerRoutes(route) {
       }
       const q = Math.floor(dim.w / 4);
       const stamp = Date.now();
-      const cut = [];
-      for (let i = 0; i < 4; i++) {
+      // 头像：从第1格（头肩特写）顶部裁一个正方形，正好框住脸+肩——避免整条 4:9 竖图被 CSS object-fit:cover 居中裁到胸口。
+      const avSide = Math.min(dim.h, q);
+      const avatarName = `${stamp}_av.png`;
+      runFfmpeg(['-y', '-i', sheetPath, '-vf', `crop=${q}:${avSide}:0:0`, '-frames:v', '1', path.join(GENERATED_DIR, avatarName)]);
+      const avatarUrl = `/generated/${avatarName}`;
+      // 三视图：第2/3/4格各取整条竖图（全身正/侧/背）。
+      const views = [];
+      for (let i = 1; i < 4; i++) {
         const name = `${stamp}_ls${i}.png`;
         runFfmpeg(['-y', '-i', sheetPath, '-vf', `crop=${q}:${dim.h}:${i * q}:0`, '-frames:v', '1', path.join(GENERATED_DIR, name)]);
-        cut.push({ key: panels[i][0], label: panels[i][1], url: `/generated/${name}` });
+        const url = `/generated/${name}`;
+        addAssets(artist.id, [{ type: 'photo', url, prompt: sheetPrompt, title: '三视图·' + panels[i][1] }]);
+        views.push({ view: panels[i][0], label: panels[i][1], url });
       }
-      addPortrait(artist.id, { url: cut[0].url, prompt: sheetPrompt }, { primary: body.makePrimary !== false });   // 第1格=头像/定妆照
-      const views = cut.slice(1).map((v) => { addAssets(artist.id, [{ type: 'photo', url: v.url, prompt: sheetPrompt, title: '三视图·' + v.label }]); return { view: v.key, label: v.label, url: v.url }; });
-      json(res, { avatar: cut[0].url, views, sheet: sheetUrl, artist: getArtist(artist.id) });
+      addPortrait(artist.id, { url: avatarUrl, prompt: sheetPrompt }, { primary: body.makePrimary !== false });   // 头像/定妆照
+      json(res, { avatar: avatarUrl, views, sheet: sheetUrl, artist: getArtist(artist.id) });
     } catch (e) { sendGatewayError(res, e); }
   });
 
