@@ -1047,13 +1047,6 @@ function renderLookBuilder() {
     <div style="display:flex;flex-wrap:wrap;gap:6px">${d.opts.map((o) => `<button class="look-chip" data-dim="${d.key}" data-val="${esc(o)}" style="padding:5px 11px;font-size:12.5px;border-radius:14px;cursor:pointer;border:1px solid ${sel[d.key] === o ? 'var(--brand)' : 'var(--line-2)'};background:${sel[d.key] === o ? 'color-mix(in srgb,var(--brand) 16%,transparent)' : 'var(--surface)'};color:${sel[d.key] === o ? 'var(--brand)' : 'var(--ink-2)'}">${esc(o)}</button>`).join('')}</div>
   </div>`).join('');
 }
-function composeLook() {
-  const sel = state.lookSel || {};
-  const parts = LOOK_DIMS.map((d) => sel[d.key]).filter(Boolean);
-  const extra = (($('#crLookExtra') && $('#crLookExtra').value) || '').trim();
-  if (extra) parts.push(extra);
-  return parts.join('，');
-}
 function wireLookBuilder(rootId) {
   const lb = $('#' + rootId); if (!lb) return;
   lb.addEventListener('click', (e) => {
@@ -1067,7 +1060,6 @@ function wireLookBuilder(rootId) {
 function renderCreatedPanel(body) {
   const a = state.create.artist || {};
   const av = avatarOf(a);
-  state.lookSel = {};   // 每次进入创建完成面板重置捏人选择
   body.innerHTML = `<div class="rp-col">
     <div class="profile-hero">
       ${av ? `<img src="${esc(av)}" alt="">` : '<div class="profile-hero-ph">🎭</div>'}
@@ -1077,10 +1069,9 @@ function renderCreatedPanel(body) {
     </div>
     ${a.persona ? `<div class="profile-persona">${esc(a.persona)}</div>` : ''}
     <div class="op-form" style="margin-top:16px">
-      <div class="dp-fin-h">✦ 定妆照 · 捏外貌</div>
-      <div class="dp-fin-hint">用选项捏出外貌（比文字设定更稳、更好看）；可补充细节，再预览提示词、确认出图。这套外貌会写回 Ta 的「外形」设定。</div>
-      <div id="crLookBuilder">${renderLookBuilder()}</div>
-      <input id="crLookExtra" type="text" placeholder="补充（选填）：如 珍珠耳饰、米白色调、影棚柔光…" style="width:100%;margin-top:10px;border:1px solid var(--line-2);border-radius:11px;background:var(--surface);font-size:13px;color:var(--ink);padding:9px 12px;outline:none">
+      <div class="dp-fin-h">✦ 定妆照</div>
+      <div class="dp-fin-hint">外貌已按你刚才捏的设定，这里直接预览提示词、可微调，再确认出图（也会成为头像）。</div>
+      <input id="crLookStyle" type="text" placeholder="风格/场景（选填）：如 影棚柔光、纯色背景、暖光…" style="width:100%;border:1px solid var(--line-2);border-radius:11px;background:var(--surface);font-size:13px;color:var(--ink);padding:9px 12px;outline:none">
       <button class="op-gen" id="crPreviewBtn" style="margin-left:0;margin-top:12px">✦ 预览提示词</button>
       <div id="crPromptWrap" hidden style="margin-top:12px">
         <div class="dp-fin-hint" style="margin-bottom:6px">提示词（可编辑后再生成）：</div>
@@ -1097,19 +1088,17 @@ function renderCreatedPanel(body) {
       <button class="profile-btn primary" id="crEnter">进入 Ta 的工作台 →</button>
     </div>
   </div>`;
-  wireLookBuilder('crLookBuilder');
   $('#crPreviewBtn').addEventListener('click', previewCreatePortrait);
   $('#crGenBtn').addEventListener('click', genCreatePortrait);
   $('#crRePreview').addEventListener('click', previewCreatePortrait);
   $('#crEnter').addEventListener('click', () => { const id = state.create.artistId; state.creating = false; openArtist(id); });
 }
-/* 第一步：把捏好的外貌合成提示词预览（不出图）。overrideLook → 用捏人外貌替换文学化外形 */
+/* 第一步：用已设定的外形（创建时捏好的）合成提示词预览，不出图。可选填风格/场景。 */
 async function previewCreatePortrait() {
   const msg = $('#crPortraitMsg'); const btn = $('#crPreviewBtn');
-  const look = composeLook();
-  if (!look) { setMsg(msg, '先从上面捏一套外貌吧（至少选几项）', false, true); return; }
+  const stylePrompt = (($('#crLookStyle') && $('#crLookStyle').value) || '').trim();
   btn.disabled = true; setMsg(msg, '正在合成提示词…', true);
-  const r = await api(`/api/artist/${encodeURIComponent(state.create.artistId)}/portrait`, { stylePrompt: look, overrideLook: true, previewOnly: true });
+  const r = await api(`/api/artist/${encodeURIComponent(state.create.artistId)}/portrait`, { stylePrompt, previewOnly: true });
   btn.disabled = false;
   if (r.error || !r.prompt) { setMsg(msg, (r.error && r.error.message) || '提示词生成失败', false, true); return; }
   $('#crPromptText').value = r.prompt;
@@ -1117,13 +1106,13 @@ async function previewCreatePortrait() {
   btn.textContent = '↻ 重新预览';
   setMsg(msg, '可调整提示词，满意后点「确认生成」', false);
 }
-/* 第二步：用（可能改过的）提示词出图，并把这套外貌写回「外形」设定 */
+/* 第二步：用（可能改过的）提示词出图 */
 async function genCreatePortrait() {
   const msg = $('#crPortraitMsg'); const btn = $('#crGenBtn');
-  const look = composeLook();
+  const stylePrompt = (($('#crLookStyle') && $('#crLookStyle').value) || '').trim();
   const promptOverride = (($('#crPromptText') && $('#crPromptText').value) || '').trim();
   btn.disabled = true; setMsg(msg, '正在拍定妆照…（约 20 秒）', true);
-  const r = await api(`/api/artist/${encodeURIComponent(state.create.artistId)}/portrait`, { stylePrompt: look, overrideLook: !!look, promptOverride, makePrimary: true });
+  const r = await api(`/api/artist/${encodeURIComponent(state.create.artistId)}/portrait`, { stylePrompt, promptOverride, makePrimary: true });
   btn.disabled = false;
   if (r.error || !(r.portrait && r.portrait.url)) { setMsg(msg, (r.error && r.error.message) || '出图失败', false, true); return; }
   setMsg(msg, '定妆照好啦 ✨', false);
