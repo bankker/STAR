@@ -458,9 +458,14 @@ export function registerRoutes(route) {
     try {
       // overrideLook：把输入作为新外形（覆盖 visualIdentity 出图，并写回档案「外形」设定，使其对后续写真/视频也生效）
       const look = body.overrideLook ? String(body.stylePrompt || '').trim() : '';
-      const { prompt, negative } = buildPortraitPrompt(artist, body.stylePrompt, { overrideLook: look });
-      // 指定新外形时关掉智能扩写，确保「银色短发」等具体外形被如实采纳；外形里的否定项并入负向词
-      const r = await execute('image', { prompt, refImages: [], aspect: '3:4', promptExtend: !look, negativePrompt: ['全身, 全身照, 站姿全身, 远景, 大长腿, 露出双腿, 半身以下', negative].filter(Boolean).join(', ') });
+      const built = buildPortraitPrompt(artist, body.stylePrompt, { overrideLook: look });
+      const override = String(body.promptOverride || '').trim();   // 用户改过的完整提示词：原样出图，不再智能扩写
+      const prompt = override || built.prompt;
+      const negative = built.negative;
+      // previewOnly：只返回将要使用的提示词，不出图（让用户先看、可调整再确认生成，不花钱）
+      if (body.previewOnly) return json(res, { prompt, negative });
+      // 指定新外形 / 用了自定义提示词时关掉智能扩写，确保如实采纳；外形里的否定项并入负向词
+      const r = await execute('image', { prompt, refImages: [], aspect: '3:4', promptExtend: !look && !override, negativePrompt: ['全身, 全身照, 站姿全身, 远景, 大长腿, 露出双腿, 半身以下', negative].filter(Boolean).join(', ') });
       const url = r.files?.[0]?.url;
       if (!url) return jsonError(res, 'provider_error', '图像生成未返回文件');
       // makePrimary：把新定妆照置为头像（portraits[0]）——用于「换定妆照」

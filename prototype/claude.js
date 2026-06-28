@@ -970,9 +970,17 @@ function renderCreatedPanel(body) {
     ${a.persona ? `<div class="profile-persona">${esc(a.persona)}</div>` : ''}
     <div class="op-form" style="margin-top:16px">
       <div class="dp-fin-h">✦ 定妆照</div>
-      <div class="dp-fin-hint">为 Ta 生成第一张正式形象照（也会成为头像）。</div>
+      <div class="dp-fin-hint">先预览提示词，可在出图前调整（也会成为头像）。</div>
       <input id="crLookStyle" type="text" placeholder="选填：风格/场景，如 影棚柔光、纯色背景…" style="width:100%;border:1px solid var(--line-2);border-radius:11px;background:var(--surface);font-size:14px;color:var(--ink);padding:10px 12px;outline:none">
-      <button class="op-gen" id="crPortraitBtn" style="margin-left:0;margin-top:12px">✦ 生成定妆照</button>
+      <button class="op-gen" id="crPreviewBtn" style="margin-left:0;margin-top:12px">✦ 预览提示词</button>
+      <div id="crPromptWrap" hidden style="margin-top:12px">
+        <div class="dp-fin-hint" style="margin-bottom:6px">提示词（可编辑后再生成）：</div>
+        <textarea id="crPromptText" rows="5" style="width:100%;border:1px solid var(--line-2);border-radius:11px;background:var(--surface);font-size:13px;line-height:1.5;color:var(--ink);padding:10px 12px;outline:none;resize:vertical"></textarea>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="op-gen" id="crGenBtn" style="margin-left:0">✦ 确认生成</button>
+          <button class="profile-btn" id="crRePreview" style="flex:none">↻ 按风格重算</button>
+        </div>
+      </div>
       <div class="op-status" id="crPortraitMsg"></div>
       <div id="crPortraitArea"></div>
     </div>
@@ -980,14 +988,31 @@ function renderCreatedPanel(body) {
       <button class="profile-btn primary" id="crEnter">进入 Ta 的工作台 →</button>
     </div>
   </div>`;
-  $('#crPortraitBtn').addEventListener('click', genCreatePortrait);
+  $('#crPreviewBtn').addEventListener('click', previewCreatePortrait);
+  $('#crGenBtn').addEventListener('click', genCreatePortrait);
+  $('#crRePreview').addEventListener('click', previewCreatePortrait);
   $('#crEnter').addEventListener('click', () => { const id = state.create.artistId; state.creating = false; openArtist(id); });
 }
-async function genCreatePortrait() {
-  const msg = $('#crPortraitMsg'); const btn = $('#crPortraitBtn');
+/* 第一步：预览（合成）提示词，不出图 */
+async function previewCreatePortrait() {
+  const msg = $('#crPortraitMsg'); const btn = $('#crPreviewBtn');
   const stylePrompt = ($('#crLookStyle').value || '').trim();
-  btn.disabled = true; setMsg(msg, '正在拍定妆照…', true);
-  const r = await api(`/api/artist/${encodeURIComponent(state.create.artistId)}/portrait`, { stylePrompt, makePrimary: true });
+  btn.disabled = true; setMsg(msg, '正在合成提示词…', true);
+  const r = await api(`/api/artist/${encodeURIComponent(state.create.artistId)}/portrait`, { stylePrompt, previewOnly: true });
+  btn.disabled = false;
+  if (r.error || !r.prompt) { setMsg(msg, (r.error && r.error.message) || '提示词生成失败', false, true); return; }
+  $('#crPromptText').value = r.prompt;
+  $('#crPromptWrap').hidden = false;
+  btn.textContent = '↻ 重新预览';
+  setMsg(msg, '可调整提示词，满意后点「确认生成」', false);
+}
+/* 第二步：用（可能改过的）提示词出图 */
+async function genCreatePortrait() {
+  const msg = $('#crPortraitMsg'); const btn = $('#crGenBtn');
+  const stylePrompt = ($('#crLookStyle').value || '').trim();
+  const promptOverride = (($('#crPromptText') && $('#crPromptText').value) || '').trim();
+  btn.disabled = true; setMsg(msg, '正在拍定妆照…（约 20 秒）', true);
+  const r = await api(`/api/artist/${encodeURIComponent(state.create.artistId)}/portrait`, { stylePrompt, promptOverride, makePrimary: true });
   btn.disabled = false;
   if (r.error || !(r.portrait && r.portrait.url)) { setMsg(msg, (r.error && r.error.message) || '出图失败', false, true); return; }
   setMsg(msg, '定妆照好啦 ✨', false);
