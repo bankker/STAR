@@ -922,7 +922,7 @@ function renderCreateSpecPanel(body) {
   body.innerHTML = `<div class="rp-col">
     <div class="op-form">
       <div class="dp-fin-h">✦ 捏一位艺人</div>
-      <div class="dp-fin-hint">点选项直接捏出来：性别 / 脸型 / 发型发色 / 五官 / 身材 / 妆容 / 服装。全是具体可绘制的特征，出图更好看。</div>
+      <div class="dp-fin-hint">点选项捏出长相：性别 / 脸型 / 发型发色 / 五官 / 身材 / 妆容 / 服装。只生成长相档案，不会自动编人设/背景/声音/音乐（想加自己写在「补充」里）。</div>
       <div id="specLookBuilder">${renderLookBuilder()}</div>
       <input id="specName" type="text" placeholder="艺名（选填，留空我来起）" style="width:100%;margin-top:12px;border:1px solid var(--line-2);border-radius:11px;background:var(--surface);font-size:14px;color:var(--ink);padding:10px 12px;outline:none">
       <input id="specExtra" type="text" placeholder="补充人设/背景（选填）：如 留学归来的独立音乐人…" style="width:100%;margin-top:8px;border:1px solid var(--line-2);border-radius:11px;background:var(--surface);font-size:13px;color:var(--ink);padding:9px 12px;outline:none">
@@ -943,22 +943,21 @@ async function genFromSpec() {
   const appearance = LOOK_DIMS.map((d) => sel[d.key]).filter(Boolean).join('，');   // 具体可绘制外貌
   if (!appearance) { setMsg(msg, '先从上面捏几项外貌吧（至少选脸型/发型等）', false, true); return; }
   const gender = sel.gender || '';
-  const name = (($('#specName') && $('#specName').value) || '').trim();
+  let name = (($('#specName') && $('#specName').value) || '').trim();
   const extra = (($('#specExtra') && $('#specExtra').value) || '').trim();
-  const transcript = [
-    gender && `性别：${gender}`,
-    `外貌（必须严格采用这些具体特征，不要改写成意象）：${appearance}`,
-    name && `艺名：${name}`,
-    extra && `补充：${extra}`,
-  ].filter(Boolean).join('\n');
-  btn.disabled = true; setMsg(msg, '正在生成艺人档案…', true);
-  const r = await api('/api/artist/finalize', { transcript });
-  btn.disabled = false;
-  if (r.error || !r.draft) { setMsg(msg, (r.error && r.error.message) || '生成失败', false, true); return; }
-  const draft = r.draft;
-  draft.visualIdentity = appearance;                 // 锁死具体外貌（防 LLM 文学化）
-  if (name) draft.name = name;
+  // 只要长相：不让 AI 编核心魅力/说话风格/声音/音乐/背景
+  const draft = { visualIdentity: appearance };
   if (gender) draft.gender = gender;
+  if (extra) draft.persona = extra;   // 仅保留用户手写的补充
+  if (!name) {
+    // 艺名留空时，只为取一个名字做一次轻量生成（其余一律不取）
+    btn.disabled = true; setMsg(msg, '正在起个艺名…', true);
+    const r = await api('/api/artist/finalize', { transcript: `外貌：${appearance}${gender ? '；性别：' + gender : ''}${extra ? '；补充：' + extra : ''}\n请只起一个合适的中文艺名。` });
+    btn.disabled = false;
+    if (r.error) { setMsg(msg, (r.error && r.error.message) || '生成失败', false, true); return; }
+    name = (r.draft && r.draft.name) || '新艺人';
+  }
+  draft.name = name;
   state.create.draft = draft; state.create.phase = 'draft';
   renderPanel();
 }
