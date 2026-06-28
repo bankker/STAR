@@ -11,7 +11,7 @@ import { ENV_FILE, GENERATED_DIR } from '../lib/paths.js';
 import { buildPlanMessages, buildScriptMessages, extractDialogue } from '../studio/interview.js';
 import { currentUser } from './auth.js';
 import { setUserKey, getUserKeys } from '../studio/users.js';
-import { ffmpegAvailable, runFfmpeg, probeDurationSec, buildSrt, transcodeToWav } from '../lib/ffmpeg.js';
+import { ffmpegAvailable, runFfmpeg, probeDurationSec, probeImageSize, buildSrt, transcodeToWav } from '../lib/ffmpeg.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
@@ -472,6 +472,46 @@ export function registerRoutes(route) {
       addPortrait(params.id, { url, prompt }, { primary: body.makePrimary === true });
       const updated = look ? updateArtist(params.id, { visualIdentity: look }) : getArtist(params.id);
       json(res, { portrait: { url, prompt }, artist: updated });
+    } catch (e) { sendGatewayError(res, e); }
+  });
+
+  // 三视图：正面/侧面/背面 三张独立全身图（基础生成，先定妆照后三视图）。支持 previewOnly 预览提示词、promptOverride 改后再出。
+  route('POST /api/artist/:id/threeview', async (req, res, { params, readJsonBody }) => {
+    const body = await readJsonBody();
+    const artist = getArtist(params.id);
+    if (!artist) return jsonError(res, 'not_found', `无此艺人 ${params.id}`);
+    const g = (artist.gender || '').trim(), look = (artist.visualIdentity || '').trim();
+    const base = String(body.promptOverride || '').trim()
+      || [look ? `一位${g}虚拟人物，外形特征：${look}` : `一位${g || ''}虚拟人物`,
+          '穿着上衣、下装、鞋子齐全的得体时尚整套服装（若外形未指定服装则配一身简约时装；绝不只穿内衣或暴露），从头顶到鞋子完整入镜的全身像，站在纯白色背景前，影棚柔光，真人写实摄影、照片级真实质感，超高细节，画面干净无任何文字与水印、只有一个人'].filter(Boolean).join('，');
+    if (body.previewOnly) return json(res, { prompt: base });
+    // 一致性 + 正确朝向：把三视图作为「一张并排真人全身照」整体生成（同一人同套服装），再切成三张独立图片。
+    const sheetPrompt = `${base}，把同一个人物的三张真人全身照等距并排拼成一张图、三人同样大小、从头到脚完整：左为【正面·面朝镜头】、中为【正侧面·90 度侧身】、右为【背面·背对镜头】；三张都是同一张脸、同一发型、同一套服装与鞋子；纯白背景、人物之间留白；真人写实摄影风格`;
+    const neg = '卡通, 动漫, 插画, 漫画, 2D, 线稿, 三维渲染, Q版, 裸露, 裸体, 内衣, 内裤, 比基尼, 暴露, 性感, NSFW, 文字, 水印, logo, 服装印字, 大头特写, 只有头部';
+    const labels = [['front', '正面'], ['side', '侧面'], ['back', '背面']];
+    try {
+      const r = await execute('image', { prompt: sheetPrompt, refImages: [], aspect: '16:9', promptExtend: false, negativePrompt: neg });
+      const sheetUrl = r.files?.[0]?.url;
+      if (!sheetUrl) return jsonError(res, 'provider_error', '三视图生成未返回文件');
+      const sheetPath = path.join(GENERATED_DIR, sheetUrl.replace(/^\/generated\//, ''));
+      const dim = probeImageSize(sheetPath);
+      const views = [];
+      if (dim && dim.w && dim.h && ffmpegAvailable()) {
+        const third = Math.floor(dim.w / 3);
+        for (let i = 0; i < 3; i++) {
+          const name = `${Date.now()}_tv${i}.png`;
+          const outPath = path.join(GENERATED_DIR, name);
+          runFfmpeg(['-y', '-i', sheetPath, '-vf', `crop=${third}:${dim.h}:${i * third}:0`, '-frames:v', '1', outPath]);
+          const url = `/generated/${name}`;
+          addAssets(artist.id, [{ type: 'photo', url, prompt: sheetPrompt, title: '三视图·' + labels[i][1] }]);
+          views.push({ view: labels[i][0], label: labels[i][1], url });
+        }
+      } else {
+        // 无 ffmpeg：退化为返回整张三视图
+        addAssets(artist.id, [{ type: 'photo', url: sheetUrl, prompt: sheetPrompt, title: '三视图' }]);
+        views.push({ view: 'sheet', label: '三视图', url: sheetUrl });
+      }
+      json(res, { views, sheet: sheetUrl });
     } catch (e) { sendGatewayError(res, e); }
   });
 

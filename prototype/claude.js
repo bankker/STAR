@@ -226,6 +226,7 @@ async function renderProfile(body) {
       <div class="profile-section-h">最近作品</div>
       <div class="recent-strip" id="recentStrip"></div>
     </div>
+    ${threeViewSection('pf')}
     <div class="profile-actions">
       <button class="profile-btn primary" data-go="photo">📸 拍写真</button>
       <button class="profile-btn" data-go="video">🎬 出视频</button>
@@ -239,6 +240,7 @@ async function renderProfile(body) {
   $('#profLookPreview').addEventListener('click', previewRegenPortrait);
   $('#profLookGen').addEventListener('click', regenPortrait);
   $('#profLookRe').addEventListener('click', previewRegenPortrait);
+  wireThreeView('pf', () => state.current && state.current.id);
   // 最近作品（异步填充，不阻塞资料渲染）
   const g = await loadGallery();
   const recent = g.filter((x) => isImg(x.url) || isVid(x.url)).slice(0, 8);
@@ -1056,6 +1058,51 @@ function wireLookBuilder(rootId) {
     lb.innerHTML = renderLookBuilder();
   });
 }
+/* ── 三视图（正面/侧面/背面 三张独立全身图）：可复用区块，prefix 区分创建页/资料页 ── */
+function threeViewSection(prefix) {
+  return `<div class="op-form" style="margin-top:14px">
+    <div class="dp-fin-h">✦ 三视图（正面 / 侧面 / 背面）</div>
+    <div class="dp-fin-hint">基于 Ta 的外形与定妆照，生成正面/侧面/背面三张独立全身图；先预览提示词、可调整再生成。</div>
+    <button class="op-gen" id="${prefix}TvPreview" style="margin-left:0">✦ 预览提示词</button>
+    <div id="${prefix}TvWrap" hidden style="margin-top:12px">
+      <div class="dp-fin-hint" style="margin-bottom:6px">提示词（可编辑后再生成）：</div>
+      <textarea id="${prefix}TvPrompt" rows="4" style="width:100%;border:1px solid var(--line-2);border-radius:11px;background:var(--surface);font-size:13px;line-height:1.5;color:var(--ink);padding:10px 12px;outline:none;resize:vertical"></textarea>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="op-gen" id="${prefix}TvGen" style="margin-left:0">✦ 生成三视图</button>
+        <button class="profile-btn" id="${prefix}TvRe" style="flex:none">↻ 重新预览</button>
+      </div>
+    </div>
+    <div class="op-status" id="${prefix}TvMsg"></div>
+    <div id="${prefix}TvArea" style="display:flex;gap:6px;margin-top:10px"></div>
+  </div>`;
+}
+function wireThreeView(prefix, getId) {
+  const id = (s) => $('#' + prefix + s);
+  const preview = async () => {
+    const aid = getId(); if (!aid) return;
+    const btn = id('TvPreview'), msg = id('TvMsg');
+    btn.disabled = true; setMsg(msg, '正在合成提示词…', true);
+    const r = await api(`/api/artist/${encodeURIComponent(aid)}/threeview`, { previewOnly: true });
+    btn.disabled = false;
+    if (r.error || !r.prompt) { setMsg(msg, (r.error && r.error.message) || '提示词生成失败', false, true); return; }
+    id('TvPrompt').value = r.prompt; id('TvWrap').hidden = false; btn.textContent = '↻ 重新预览';
+    setMsg(msg, '可调整提示词，满意后点「生成三视图」', false);
+  };
+  const gen = async () => {
+    const aid = getId(); if (!aid) return;
+    const btn = id('TvGen'), msg = id('TvMsg');
+    const promptOverride = ((id('TvPrompt') && id('TvPrompt').value) || '').trim();
+    btn.disabled = true; setMsg(msg, '正在生成三视图…（三张，约 1 分钟）', true);
+    const r = await api(`/api/artist/${encodeURIComponent(aid)}/threeview`, { promptOverride });
+    btn.disabled = false;
+    if (r.error || !(r.views && r.views.length)) { setMsg(msg, (r.error && r.error.message) || '生成失败', false, true); return; }
+    setMsg(msg, '三视图好啦 ✨', false);
+    id('TvArea').innerHTML = r.views.map((v) => `<div style="flex:1"><div class="op-tile"><img src="${esc(v.url)}" alt=""></div><div style="text-align:center;font-size:11px;color:var(--ink-3);margin-top:3px">${esc(v.label)}</div></div>`).join('');
+  };
+  if (id('TvPreview')) id('TvPreview').addEventListener('click', preview);
+  if (id('TvGen')) id('TvGen').addEventListener('click', gen);
+  if (id('TvRe')) id('TvRe').addEventListener('click', preview);
+}
 function renderCreatedPanel(body) {
   const a = state.create.artist || {};
   const av = avatarOf(a);
@@ -1083,6 +1130,7 @@ function renderCreatedPanel(body) {
       <div class="op-status" id="crPortraitMsg"></div>
       <div id="crPortraitArea"></div>
     </div>
+    ${threeViewSection('cr')}
     <div class="profile-actions">
       <button class="profile-btn primary" id="crEnter">进入 Ta 的工作台 →</button>
     </div>
@@ -1090,6 +1138,7 @@ function renderCreatedPanel(body) {
   $('#crPreviewBtn').addEventListener('click', previewCreatePortrait);
   $('#crGenBtn').addEventListener('click', genCreatePortrait);
   $('#crRePreview').addEventListener('click', previewCreatePortrait);
+  wireThreeView('cr', () => state.create.artistId);
   $('#crEnter').addEventListener('click', () => { const id = state.create.artistId; state.creating = false; openArtist(id); });
 }
 /* 第一步：用已设定的外形（创建时捏好的）合成提示词预览，不出图。可选填风格/场景。 */
