@@ -24,6 +24,28 @@ function toast(msg) {
 
 const state = { artists: [], current: null, mode: 'chat', busy: false, panel: 'profile', chat: null, gallery: [], creating: false, create: null, createMsgs: [] };
 
+/* ── 作品图点击放大（lightbox）── */
+function openLightbox(src) {
+  let lb = document.getElementById('imgLightbox');
+  if (!lb) {
+    lb = document.createElement('div');
+    lb.id = 'imgLightbox'; lb.className = 'img-lightbox';
+    lb.addEventListener('click', () => lb.classList.remove('open'));
+    document.body.appendChild(lb);
+  }
+  lb.innerHTML = `<img src="${src}" alt=""><button class="lb-close" aria-label="关闭">✕</button>`;
+  lb.classList.add('open');
+}
+document.addEventListener('click', (e) => {
+  const img = e.target.closest && e.target.closest('img'); if (!img || !img.src) return;
+  // 仅放大作品图：在作品容器内，或 src 是生成/上传的图；排除小头像与图标
+  const inWork = img.closest('.op-tile, .artifact, .recent-strip, [id$="TvArea"], .profile-hero, .draft-card, .gal-tile, .thread');
+  const isGen = /\/generated\/|^data:image/.test(img.src);
+  if ((!inWork && !isGen) || img.closest('.ar-av, .msg-av, .rail, .tb-brand, button')) return;
+  openLightbox(img.currentSrc || img.src);
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { const lb = document.getElementById('imgLightbox'); if (lb) lb.classList.remove('open'); } });
+
 const STAGES = [[0, '陌生'], [20, '初识'], [40, '朋友'], [58, '暧昧'], [75, '恋人'], [92, '灵魂伴侣']];
 const stageName = (a) => { let n = '陌生'; STAGES.forEach(([m, s]) => { if ((a || 0) >= m) n = s; }); return n; };
 const avatarOf = (a) => (a && a.portraits && a.portraits[0] && a.portraits[0].url) || '';
