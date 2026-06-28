@@ -982,9 +982,47 @@ async function doCreateFromDraft() {
   toast('已创建 ' + r.artist.name);
   renderPanel();
 }
+/* ── 捏人：结构化外貌设定（取代文学化背景描述，确保出图好看不奇怪）── */
+const LOOK_DIMS = [
+  { key: 'gender', label: '性别', opts: ['少女', '女性', '少年', '男性'] },
+  { key: 'vibe', label: '气质', opts: ['清纯邻家', '清冷御姐', '甜美可爱', '英气飒爽', '温柔知性', '高级冷艳', '阳光元气'] },
+  { key: 'face', label: '脸型', opts: ['鹅蛋脸', '瓜子脸', '圆润脸', '立体小脸'] },
+  { key: 'hair', label: '发型', opts: ['黑长直', '微卷长发', '齐肩短发', '利落短发', '高马尾', '空气刘海', '丸子头'] },
+  { key: 'haircolor', label: '发色', opts: ['乌黑', '深棕', '栗棕', '亚麻金', '银灰', '挑染'] },
+  { key: 'eyes', label: '眼型', opts: ['杏眼', '桃花眼', '丹凤眼', '圆眼'] },
+  { key: 'pupil', label: '瞳色', opts: ['深邃黑', '琥珀棕', '灰蓝', '浅褐'] },
+  { key: 'build', label: '身材', opts: ['娇小纤细', '匀称', '高挑', '健美'] },
+  { key: 'makeup', label: '妆容', opts: ['清透淡妆', '精致妆容', '冷淡风', '无妆感'] },
+  { key: 'outfit', label: '服装', opts: ['休闲卫衣', '通勤西装', '学院风', '国风改良', '简约连衣裙', '街头机能', '校园制服', '晚礼服'] },
+];
+function renderLookBuilder() {
+  const sel = state.lookSel || (state.lookSel = {});
+  return LOOK_DIMS.map((d) => `<div style="margin-top:9px">
+    <div style="font-size:11px;letter-spacing:1px;color:var(--ink-3);margin-bottom:5px">${d.label}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">${d.opts.map((o) => `<button class="look-chip" data-dim="${d.key}" data-val="${esc(o)}" style="padding:5px 11px;font-size:12.5px;border-radius:14px;cursor:pointer;border:1px solid ${sel[d.key] === o ? 'var(--brand)' : 'var(--line-2)'};background:${sel[d.key] === o ? 'color-mix(in srgb,var(--brand) 16%,transparent)' : 'var(--surface)'};color:${sel[d.key] === o ? 'var(--brand)' : 'var(--ink-2)'}">${esc(o)}</button>`).join('')}</div>
+  </div>`).join('');
+}
+function composeLook() {
+  const sel = state.lookSel || {};
+  const parts = LOOK_DIMS.map((d) => sel[d.key]).filter(Boolean);
+  const extra = (($('#crLookExtra') && $('#crLookExtra').value) || '').trim();
+  if (extra) parts.push(extra);
+  return parts.join('，');
+}
+function wireLookBuilder(rootId) {
+  const lb = $('#' + rootId); if (!lb) return;
+  lb.addEventListener('click', (e) => {
+    const c = e.target.closest('.look-chip'); if (!c) return;
+    const dim = c.dataset.dim, val = c.dataset.val;
+    state.lookSel = state.lookSel || {};
+    state.lookSel[dim] = (state.lookSel[dim] === val) ? '' : val;
+    lb.innerHTML = renderLookBuilder();
+  });
+}
 function renderCreatedPanel(body) {
   const a = state.create.artist || {};
   const av = avatarOf(a);
+  state.lookSel = {};   // 每次进入创建完成面板重置捏人选择
   body.innerHTML = `<div class="rp-col">
     <div class="profile-hero">
       ${av ? `<img src="${esc(av)}" alt="">` : '<div class="profile-hero-ph">🎭</div>'}
@@ -994,9 +1032,10 @@ function renderCreatedPanel(body) {
     </div>
     ${a.persona ? `<div class="profile-persona">${esc(a.persona)}</div>` : ''}
     <div class="op-form" style="margin-top:16px">
-      <div class="dp-fin-h">✦ 定妆照</div>
-      <div class="dp-fin-hint">先预览提示词，可在出图前调整（也会成为头像）。</div>
-      <input id="crLookStyle" type="text" placeholder="选填：风格/场景，如 影棚柔光、纯色背景…" style="width:100%;border:1px solid var(--line-2);border-radius:11px;background:var(--surface);font-size:14px;color:var(--ink);padding:10px 12px;outline:none">
+      <div class="dp-fin-h">✦ 定妆照 · 捏外貌</div>
+      <div class="dp-fin-hint">用选项捏出外貌（比文字设定更稳、更好看）；可补充细节，再预览提示词、确认出图。这套外貌会写回 Ta 的「外形」设定。</div>
+      <div id="crLookBuilder">${renderLookBuilder()}</div>
+      <input id="crLookExtra" type="text" placeholder="补充（选填）：如 珍珠耳饰、米白色调、影棚柔光…" style="width:100%;margin-top:10px;border:1px solid var(--line-2);border-radius:11px;background:var(--surface);font-size:13px;color:var(--ink);padding:9px 12px;outline:none">
       <button class="op-gen" id="crPreviewBtn" style="margin-left:0;margin-top:12px">✦ 预览提示词</button>
       <div id="crPromptWrap" hidden style="margin-top:12px">
         <div class="dp-fin-hint" style="margin-bottom:6px">提示词（可编辑后再生成）：</div>
@@ -1013,17 +1052,19 @@ function renderCreatedPanel(body) {
       <button class="profile-btn primary" id="crEnter">进入 Ta 的工作台 →</button>
     </div>
   </div>`;
+  wireLookBuilder('crLookBuilder');
   $('#crPreviewBtn').addEventListener('click', previewCreatePortrait);
   $('#crGenBtn').addEventListener('click', genCreatePortrait);
   $('#crRePreview').addEventListener('click', previewCreatePortrait);
   $('#crEnter').addEventListener('click', () => { const id = state.create.artistId; state.creating = false; openArtist(id); });
 }
-/* 第一步：预览（合成）提示词，不出图 */
+/* 第一步：把捏好的外貌合成提示词预览（不出图）。overrideLook → 用捏人外貌替换文学化外形 */
 async function previewCreatePortrait() {
   const msg = $('#crPortraitMsg'); const btn = $('#crPreviewBtn');
-  const stylePrompt = ($('#crLookStyle').value || '').trim();
+  const look = composeLook();
+  if (!look) { setMsg(msg, '先从上面捏一套外貌吧（至少选几项）', false, true); return; }
   btn.disabled = true; setMsg(msg, '正在合成提示词…', true);
-  const r = await api(`/api/artist/${encodeURIComponent(state.create.artistId)}/portrait`, { stylePrompt, previewOnly: true });
+  const r = await api(`/api/artist/${encodeURIComponent(state.create.artistId)}/portrait`, { stylePrompt: look, overrideLook: true, previewOnly: true });
   btn.disabled = false;
   if (r.error || !r.prompt) { setMsg(msg, (r.error && r.error.message) || '提示词生成失败', false, true); return; }
   $('#crPromptText').value = r.prompt;
@@ -1031,13 +1072,13 @@ async function previewCreatePortrait() {
   btn.textContent = '↻ 重新预览';
   setMsg(msg, '可调整提示词，满意后点「确认生成」', false);
 }
-/* 第二步：用（可能改过的）提示词出图 */
+/* 第二步：用（可能改过的）提示词出图，并把这套外貌写回「外形」设定 */
 async function genCreatePortrait() {
   const msg = $('#crPortraitMsg'); const btn = $('#crGenBtn');
-  const stylePrompt = ($('#crLookStyle').value || '').trim();
+  const look = composeLook();
   const promptOverride = (($('#crPromptText') && $('#crPromptText').value) || '').trim();
   btn.disabled = true; setMsg(msg, '正在拍定妆照…（约 20 秒）', true);
-  const r = await api(`/api/artist/${encodeURIComponent(state.create.artistId)}/portrait`, { stylePrompt, promptOverride, makePrimary: true });
+  const r = await api(`/api/artist/${encodeURIComponent(state.create.artistId)}/portrait`, { stylePrompt: look, overrideLook: !!look, promptOverride, makePrimary: true });
   btn.disabled = false;
   if (r.error || !(r.portrait && r.portrait.url)) { setMsg(msg, (r.error && r.error.message) || '出图失败', false, true); return; }
   setMsg(msg, '定妆照好啦 ✨', false);
