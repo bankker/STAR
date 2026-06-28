@@ -24,17 +24,36 @@ function toast(msg) {
 
 const state = { artists: [], current: null, mode: 'chat', busy: false, panel: 'profile', chat: null, gallery: [], creating: false, create: null, createMsgs: [] };
 
-/* ── 作品图点击放大（lightbox）── */
-function openLightbox(src) {
+/* ── 作品图点击放大（lightbox）+ 多图前后浏览 ── */
+let _lbList = [], _lbIdx = 0;
+function _lbEl() {
   let lb = document.getElementById('imgLightbox');
   if (!lb) {
-    lb = document.createElement('div');
-    lb.id = 'imgLightbox'; lb.className = 'img-lightbox';
-    lb.addEventListener('click', () => lb.classList.remove('open'));
+    lb = document.createElement('div'); lb.id = 'imgLightbox'; lb.className = 'img-lightbox';
+    lb.addEventListener('click', (e) => {
+      if (e.target.closest('.lb-prev')) return lbStep(-1);
+      if (e.target.closest('.lb-next')) return lbStep(1);
+      if (e.target.tagName === 'IMG' && !e.target.closest('.lb-nav')) return;   // 点图本身不关闭
+      lb.classList.remove('open');                                              // 点遮罩 / ✕ 关闭
+    });
     document.body.appendChild(lb);
   }
-  lb.innerHTML = `<img src="${src}" alt=""><button class="lb-close" aria-label="关闭">✕</button>`;
+  return lb;
+}
+function lbRender() {
+  const lb = _lbEl(); const cur = _lbList[_lbIdx]; if (!cur) return;
+  const multi = _lbList.length > 1;
+  lb.innerHTML = `${multi ? '<button class="lb-nav lb-prev" aria-label="上一张">‹</button>' : ''}<img src="${cur}" alt="">${multi ? '<button class="lb-nav lb-next" aria-label="下一张">›</button>' : ''}<button class="lb-close" aria-label="关闭">✕</button>${multi ? `<div class="lb-count">${_lbIdx + 1} / ${_lbList.length}</div>` : ''}`;
   lb.classList.add('open');
+}
+function lbStep(d) { if (!_lbList.length) return; _lbIdx = (_lbIdx + d + _lbList.length) % _lbList.length; lbRender(); }
+function openLightbox(imgEl) {
+  const all = [...document.querySelectorAll('.op-tile img, .artifact img, .recent-strip img, [id$="TvArea"] img, .gal-tile img, .profile-hero img')]
+    .filter((im) => im.src && !im.closest('.ar-av, .msg-av, .rail, .tb-brand'));
+  const srcOf = (im) => im.currentSrc || im.src;
+  _lbList = all.length ? all.map(srcOf) : [srcOf(imgEl)];
+  const i = all.indexOf(imgEl); _lbIdx = i >= 0 ? i : 0;
+  lbRender();
 }
 document.addEventListener('click', (e) => {
   const img = e.target.closest && e.target.closest('img'); if (!img || !img.src) return;
@@ -42,9 +61,14 @@ document.addEventListener('click', (e) => {
   const inWork = img.closest('.op-tile, .artifact, .recent-strip, [id$="TvArea"], .profile-hero, .draft-card, .gal-tile, .thread');
   const isGen = /\/generated\/|^data:image/.test(img.src);
   if ((!inWork && !isGen) || img.closest('.ar-av, .msg-av, .rail, .tb-brand, button')) return;
-  openLightbox(img.currentSrc || img.src);
+  openLightbox(img);
 });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { const lb = document.getElementById('imgLightbox'); if (lb) lb.classList.remove('open'); } });
+document.addEventListener('keydown', (e) => {
+  const lb = document.getElementById('imgLightbox'); if (!lb || !lb.classList.contains('open')) return;
+  if (e.key === 'Escape') lb.classList.remove('open');
+  else if (e.key === 'ArrowLeft') lbStep(-1);
+  else if (e.key === 'ArrowRight') lbStep(1);
+});
 
 const STAGES = [[0, '陌生'], [20, '初识'], [40, '朋友'], [58, '暧昧'], [75, '恋人'], [92, '灵魂伴侣']];
 const stageName = (a) => { let n = '陌生'; STAGES.forEach(([m, s]) => { if ((a || 0) >= m) n = s; }); return n; };
