@@ -483,37 +483,35 @@ export function registerRoutes(route) {
     const g = (artist.gender || '').trim(), look = (artist.visualIdentity || '').trim();
     const base = String(body.promptOverride || '').trim()
       || [look ? `一位${g}虚拟人物，外形特征：${look}` : `一位${g || ''}虚拟人物`,
-          '穿着上衣、下装、鞋子齐全的得体时尚整套服装（若外形未指定服装则配一身简约时装；绝不只穿内衣或暴露），从头顶到鞋子完整入镜的全身像，站在纯白色背景前，影棚柔光，真人写实摄影、照片级真实质感，超高细节，画面干净无任何文字与水印、只有一个人'].filter(Boolean).join('，');
+          '【着装·必须严格遵守】全身穿着整齐保守的完整日常时装：上身穿一件不透明、完全遮盖胸部、肩膀与腹部的长袖针织衫或宽松衬衫，下身穿长裤或过膝长裙，脚穿鞋子；端庄保守、面料不透——绝对禁止只穿内衣/文胸/抹胸/吊带背心/比基尼/泳装/露脐装/低胸装，绝对禁止露胸、露肩、露腰、露腹或任何裸露半裸',
+          '从头顶到鞋子完整入镜的全身像，站在纯白色背景前，影棚柔光，真人写实摄影、照片级真实质感，超高细节，画面干净无任何文字与水印、只有一个人'].filter(Boolean).join('，');
     if (body.previewOnly) return json(res, { prompt: base });
-    // 一致性 + 正确朝向：把三视图作为「一张并排真人全身照」整体生成（同一人同套服装），再切成三张独立图片。
-    const sheetPrompt = `${base}，把同一个人物的三张真人全身照等距并排拼成一张图、三人同样大小、从头到脚完整：左为【正面·面朝镜头】、中为【正侧面·90 度侧身】、右为【背面·背对镜头】；三张都是同一张脸、同一发型、同一套服装与鞋子；脸型五官与参考人物严格一致（保持同一个人），纯白背景、人物之间留白；真人写实摄影风格`;
-    const neg = '卡通, 动漫, 插画, 漫画, 2D, 线稿, 三维渲染, Q版, 换脸, 不同的人, 裸露, 裸体, 内衣, 内裤, 比基尼, 暴露, 性感, NSFW, 文字, 水印, logo, 服装印字, 大头特写, 只有头部';
-    const labels = [['front', '正面'], ['side', '侧面'], ['back', '背面']];
+    // 方案B：一次画一张「四格等宽形象设定图」（头像 + 正/侧/背全身），再切成 4 张——同一次生成 → 天然同一张脸。
+    const sheetPrompt = `${base}，把同一个人物画成一张四格等宽并排的形象设定图（同一张脸、同一发型、四格都穿着上面要求的同一套完整保守服装与鞋子、上身是包裹严实的长袖上衣绝不是内衣）：第1格=头肩特写大头像（清晰正脸），第2格=全身正面（面朝镜头），第3格=全身侧面（90度正侧身），第4格=全身背面（背对镜头）；四格等宽等高、纯白背景、各格之间留白；真人写实摄影`;
+    const neg = '裸露, 裸体, 半裸, 内衣, 文胸, 胸罩, 抹胸, 吊带, 吊带背心, 低胸, 露胸, 露肩, 露腰, 露腹, 露脐, 露脐装, 短上衣, 内裤, 三角裤, 比基尼, 泳装, 仅穿内衣, 内衣模特, 性感内衣, lingerie, underwear, bra, bralette, crop top, bikini, swimsuit, nude, topless, cleavage, 暴露, 性感, NSFW, 卡通, 动漫, 插画, 漫画, 2D, 线稿, 三维渲染, Q版, 不同的人, 文字, 水印, logo, 服装印字';
+    const panels = [['avatar', '头像'], ['front', '正面'], ['side', '侧面'], ['back', '背面']];
     try {
-      // 注：万相 image_ref(imageedit) 会沿用参考图的构图与姿势——头肩定妆照会把整张压成大头照、毁掉全身三视图，
-      // 故三视图走纯文生图整张并排（朝向正确+全身），面部一致性靠与定妆照共享的同一套捏人外形（脸型/眼型/瞳色/发型）。
       const r = await execute('image', { prompt: sheetPrompt, refImages: [], aspect: '16:9', promptExtend: false, negativePrompt: neg });
       const sheetUrl = r.files?.[0]?.url;
-      if (!sheetUrl) return jsonError(res, 'provider_error', '三视图生成未返回文件');
+      if (!sheetUrl) return jsonError(res, 'provider_error', '形象生成未返回文件');
       const sheetPath = path.join(GENERATED_DIR, sheetUrl.replace(/^\/generated\//, ''));
       const dim = probeImageSize(sheetPath);
-      const views = [];
-      if (dim && dim.w && dim.h && ffmpegAvailable()) {
-        const third = Math.floor(dim.w / 3);
-        for (let i = 0; i < 3; i++) {
-          const name = `${Date.now()}_tv${i}.png`;
-          const outPath = path.join(GENERATED_DIR, name);
-          runFfmpeg(['-y', '-i', sheetPath, '-vf', `crop=${third}:${dim.h}:${i * third}:0`, '-frames:v', '1', outPath]);
-          const url = `/generated/${name}`;
-          addAssets(artist.id, [{ type: 'photo', url, prompt: sheetPrompt, title: '三视图·' + labels[i][1] }]);
-          views.push({ view: labels[i][0], label: labels[i][1], url });
-        }
-      } else {
-        // 无 ffmpeg：退化为返回整张三视图
-        addAssets(artist.id, [{ type: 'photo', url: sheetUrl, prompt: sheetPrompt, title: '三视图' }]);
-        views.push({ view: 'sheet', label: '三视图', url: sheetUrl });
+      if (!dim || !dim.w || !dim.h || !ffmpegAvailable()) {
+        // 无 ffmpeg：整张作为头像
+        addPortrait(artist.id, { url: sheetUrl, prompt: sheetPrompt }, { primary: body.makePrimary !== false });
+        return json(res, { avatar: sheetUrl, views: [], sheet: sheetUrl, artist: getArtist(artist.id) });
       }
-      json(res, { views, sheet: sheetUrl });
+      const q = Math.floor(dim.w / 4);
+      const stamp = Date.now();
+      const cut = [];
+      for (let i = 0; i < 4; i++) {
+        const name = `${stamp}_ls${i}.png`;
+        runFfmpeg(['-y', '-i', sheetPath, '-vf', `crop=${q}:${dim.h}:${i * q}:0`, '-frames:v', '1', path.join(GENERATED_DIR, name)]);
+        cut.push({ key: panels[i][0], label: panels[i][1], url: `/generated/${name}` });
+      }
+      addPortrait(artist.id, { url: cut[0].url, prompt: sheetPrompt }, { primary: body.makePrimary !== false });   // 第1格=头像/定妆照
+      const views = cut.slice(1).map((v) => { addAssets(artist.id, [{ type: 'photo', url: v.url, prompt: sheetPrompt, title: '三视图·' + v.label }]); return { view: v.key, label: v.label, url: v.url }; });
+      json(res, { avatar: cut[0].url, views, sheet: sheetUrl, artist: getArtist(artist.id) });
     } catch (e) { sendGatewayError(res, e); }
   });
 

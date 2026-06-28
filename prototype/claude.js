@@ -1107,14 +1107,14 @@ function wireLookBuilder(rootId) {
 /* ── 三视图（正面/侧面/背面 三张独立全身图）：可复用区块，prefix 区分创建页/资料页 ── */
 function threeViewSection(prefix) {
   return `<div class="op-form" style="margin-top:14px">
-    <div class="dp-fin-h">✦ 三视图（正面 / 侧面 / 背面）</div>
-    <div class="dp-fin-hint">基于 Ta 的外形与定妆照，生成正面/侧面/背面三张独立全身图；先预览提示词、可调整再生成。</div>
+    <div class="dp-fin-h">✦ 定妆照 · 头像 + 三视图（一次 4 张）</div>
+    <div class="dp-fin-hint">一次生成「头像 + 正面/侧面/背面全身」四张——同一次出图、天然同一张脸；第一张会设为 Ta 的头像。先预览提示词、可调整再生成。</div>
     <button class="op-gen" id="${prefix}TvPreview" style="margin-left:0">✦ 预览提示词</button>
     <div id="${prefix}TvWrap" hidden style="margin-top:12px">
       <div class="dp-fin-hint" style="margin-bottom:6px">提示词（可编辑后再生成）：</div>
       <textarea id="${prefix}TvPrompt" rows="4" style="width:100%;border:1px solid var(--line-2);border-radius:11px;background:var(--surface);font-size:13px;line-height:1.5;color:var(--ink);padding:10px 12px;outline:none;resize:vertical"></textarea>
       <div style="display:flex;gap:8px;margin-top:10px">
-        <button class="op-gen" id="${prefix}TvGen" style="margin-left:0">✦ 生成三视图</button>
+        <button class="op-gen" id="${prefix}TvGen" style="margin-left:0">✦ 生成（4 张）</button>
         <button class="profile-btn" id="${prefix}TvRe" style="flex:none">↻ 重新预览</button>
       </div>
     </div>
@@ -1132,18 +1132,26 @@ function wireThreeView(prefix, getId) {
     btn.disabled = false;
     if (r.error || !r.prompt) { setMsg(msg, (r.error && r.error.message) || '提示词生成失败', false, true); return; }
     id('TvPrompt').value = r.prompt; id('TvWrap').hidden = false; btn.textContent = '↻ 重新预览';
-    setMsg(msg, '可调整提示词，满意后点「生成三视图」', false);
+    setMsg(msg, '可调整提示词，满意后点「生成（4 张）」', false);
   };
   const gen = async () => {
     const aid = getId(); if (!aid) return;
     const btn = id('TvGen'), msg = id('TvMsg');
     const promptOverride = ((id('TvPrompt') && id('TvPrompt').value) || '').trim();
-    btn.disabled = true; setMsg(msg, '正在生成三视图…（三张，约 1 分钟）', true);
+    btn.disabled = true; setMsg(msg, '正在生成头像 + 三视图…（4 张，约 1 分钟）', true);
     const r = await api(`/api/artist/${encodeURIComponent(aid)}/threeview`, { promptOverride });
     btn.disabled = false;
-    if (r.error || !(r.views && r.views.length)) { setMsg(msg, (r.error && r.error.message) || '生成失败', false, true); return; }
-    setMsg(msg, '三视图好啦 ✨', false);
-    id('TvArea').innerHTML = r.views.map((v) => `<div style="flex:1"><div class="op-tile"><img src="${esc(v.url)}" alt=""></div><div style="text-align:center;font-size:11px;color:var(--ink-3);margin-top:3px">${esc(v.label)}</div></div>`).join('');
+    if (r.error || !(r.avatar || (r.views && r.views.length))) { setMsg(msg, (r.error && r.error.message) || '生成失败', false, true); return; }
+    setMsg(msg, '形象好啦 ✨ 头像已更新', false);
+    const tiles = (r.avatar ? [{ label: '头像', url: r.avatar }] : []).concat(r.views || []);
+    id('TvArea').innerHTML = tiles.map((v) => `<div style="flex:1"><div class="op-tile"><img src="${esc(v.url)}" alt=""></div><div style="text-align:center;font-size:11px;color:var(--ink-3);margin-top:3px">${esc(v.label)}</div></div>`).join('');
+    if (r.avatar) {   // 就地更新 hero 头像（第1格）
+      const heroImg = document.querySelector('.profile-hero img');
+      if (heroImg) heroImg.src = r.avatar;
+      else { const ph = document.querySelector('.profile-hero .profile-hero-ph'); if (ph) ph.outerHTML = `<img src="${esc(r.avatar)}" alt="">`; }
+    }
+    if (state.create && state.create.artist && r.artist) state.create.artist = r.artist;
+    loadArtists();   // 刷新左栏头像
   };
   if (id('TvPreview')) id('TvPreview').addEventListener('click', preview);
   if (id('TvGen')) id('TvGen').addEventListener('click', gen);
@@ -1160,62 +1168,13 @@ function renderCreatedPanel(body) {
         <div class="profile-hero-line">${a.positioning ? `<span class="profile-chip">${esc(a.positioning)}</span>` : ''}</div></div>
     </div>
     ${a.persona ? `<div class="profile-persona">${esc(a.persona)}</div>` : ''}
-    <div class="op-form" style="margin-top:16px">
-      <div class="dp-fin-h">✦ 定妆照</div>
-      <div class="dp-fin-hint">外貌已按你刚才捏的设定，这里直接预览提示词、可微调，再确认出图（也会成为头像）。</div>
-      <input id="crLookStyle" type="text" placeholder="风格/场景（选填）：如 影棚柔光、纯色背景、暖光…" style="width:100%;border:1px solid var(--line-2);border-radius:11px;background:var(--surface);font-size:13px;color:var(--ink);padding:9px 12px;outline:none">
-      <button class="op-gen" id="crPreviewBtn" style="margin-left:0;margin-top:12px">✦ 预览提示词</button>
-      <div id="crPromptWrap" hidden style="margin-top:12px">
-        <div class="dp-fin-hint" style="margin-bottom:6px">提示词（可编辑后再生成）：</div>
-        <textarea id="crPromptText" rows="5" style="width:100%;border:1px solid var(--line-2);border-radius:11px;background:var(--surface);font-size:13px;line-height:1.5;color:var(--ink);padding:10px 12px;outline:none;resize:vertical"></textarea>
-        <div style="display:flex;gap:8px;margin-top:10px">
-          <button class="op-gen" id="crGenBtn" style="margin-left:0">✦ 确认生成</button>
-          <button class="profile-btn" id="crRePreview" style="flex:none">↻ 按风格重算</button>
-        </div>
-      </div>
-      <div class="op-status" id="crPortraitMsg"></div>
-      <div id="crPortraitArea"></div>
-    </div>
     ${threeViewSection('cr')}
     <div class="profile-actions">
       <button class="profile-btn primary" id="crEnter">进入 Ta 的工作台 →</button>
     </div>
   </div>`;
-  $('#crPreviewBtn').addEventListener('click', previewCreatePortrait);
-  $('#crGenBtn').addEventListener('click', genCreatePortrait);
-  $('#crRePreview').addEventListener('click', previewCreatePortrait);
   wireThreeView('cr', () => state.create.artistId);
   $('#crEnter').addEventListener('click', () => { const id = state.create.artistId; state.creating = false; openArtist(id); });
-}
-/* 第一步：用已设定的外形（创建时捏好的）合成提示词预览，不出图。可选填风格/场景。 */
-async function previewCreatePortrait() {
-  const msg = $('#crPortraitMsg'); const btn = $('#crPreviewBtn');
-  const stylePrompt = (($('#crLookStyle') && $('#crLookStyle').value) || '').trim();
-  btn.disabled = true; setMsg(msg, '正在合成提示词…', true);
-  const r = await api(`/api/artist/${encodeURIComponent(state.create.artistId)}/portrait`, { stylePrompt, previewOnly: true });
-  btn.disabled = false;
-  if (r.error || !r.prompt) { setMsg(msg, (r.error && r.error.message) || '提示词生成失败', false, true); return; }
-  $('#crPromptText').value = r.prompt;
-  $('#crPromptWrap').hidden = false;
-  btn.textContent = '↻ 重新预览';
-  setMsg(msg, '可调整提示词，满意后点「确认生成」', false);
-}
-/* 第二步：用（可能改过的）提示词出图 */
-async function genCreatePortrait() {
-  const msg = $('#crPortraitMsg'); const btn = $('#crGenBtn');
-  const stylePrompt = (($('#crLookStyle') && $('#crLookStyle').value) || '').trim();
-  const promptOverride = (($('#crPromptText') && $('#crPromptText').value) || '').trim();
-  btn.disabled = true; setMsg(msg, '正在拍定妆照…（约 20 秒）', true);
-  const r = await api(`/api/artist/${encodeURIComponent(state.create.artistId)}/portrait`, { stylePrompt, promptOverride, makePrimary: true });
-  btn.disabled = false;
-  if (r.error || !(r.portrait && r.portrait.url)) { setMsg(msg, (r.error && r.error.message) || '出图失败', false, true); return; }
-  setMsg(msg, '定妆照好啦 ✨', false);
-  state.create.artist = r.artist || state.create.artist;
-  $('#crPortraitArea').innerHTML = `<div class="op-tile" style="margin-top:12px"><img src="${esc(r.portrait.url)}" alt=""></div>`;
-  // 同步 hero 头像
-  const heroImg = document.querySelector('.profile-hero');
-  if (heroImg) heroImg.innerHTML = `<img src="${esc(r.portrait.url)}" alt=""><div class="profile-hero-grad"></div><div class="profile-hero-cap"><div class="profile-hero-name">${esc(state.create.artist.name || '')}</div></div>`;
-  loadArtists();
 }
 
 /* ── 异步任务轮询 / SSE 工具 ── */
