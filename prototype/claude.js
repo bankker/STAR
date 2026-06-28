@@ -868,12 +868,12 @@ function assetTile(a) {
 /* ══════════════════════════════════════════
    新建艺人：左栏对话「和星探捏人」，右栏看艺人成形 + 定妆照
    ══════════════════════════════════════════ */
-const CREATE_OPENING = '在右侧用选项直接「捏」出 Ta ✨ 性别 / 气质 / 脸型 / 发型发色 / 五官 / 身材 / 妆容 / 服装 / 音乐，点一点就行；艺名和补充人设可留空（我来补）。捏好点【✦ 生成艺人】。想自己聊也行，在下面打字即可。';
+const CREATE_OPENING = '在右侧用选项直接「捏」出 Ta ✨ 性别 / 脸型 / 发型发色 / 五官 / 身材 / 妆容 / 服装，点一点就行；艺名和补充人设可留空（我来补）。捏好点【✦ 生成艺人】。想自己聊也行，在下面打字即可。';
 function startCreate() {
   state.creating = true; state.current = null; state.mode = 'chat'; state.chat = null; state.gallery = [];
   resetDeep();
   state.create = { phase: 'spec', draft: null, artistId: null, artist: null };
-  state.lookSel = {}; state.spec = { music: '' };
+  state.lookSel = {};
   state.createMsgs = [{ role: 'assistant', content: CREATE_OPENING }];
   loadArtists();
   $('#convEmpty').hidden = true; $('#conv').hidden = false;
@@ -918,20 +918,14 @@ function renderCreate(body) {
   if (c.phase === 'chat') return renderCreateChatPanel(body);
   return renderCreateSpecPanel(body);
 }
-const SPEC_MUSIC = ['流行', '电子', '民谣', '摇滚', 'R&B', '古风', '嘻哈', '治愈系', '爵士'];
 function renderCreateSpecPanel(body) {
-  const music = (state.spec && state.spec.music) || '';
   body.innerHTML = `<div class="rp-col">
     <div class="op-form">
       <div class="dp-fin-h">✦ 捏一位艺人</div>
-      <div class="dp-fin-hint">点选项直接捏出来：性别 / 气质 / 外貌 / 服装 / 音乐。外貌全是具体可绘制的特征，出图更好看。</div>
+      <div class="dp-fin-hint">点选项直接捏出来：性别 / 脸型 / 发型发色 / 五官 / 身材 / 妆容 / 服装。全是具体可绘制的特征，出图更好看。</div>
       <div id="specLookBuilder">${renderLookBuilder()}</div>
-      <div style="margin-top:12px">
-        <div style="font-size:11px;letter-spacing:1px;color:var(--ink-3);margin-bottom:5px">音乐风格</div>
-        <div id="specMusic" style="display:flex;flex-wrap:wrap;gap:6px">${SPEC_MUSIC.map((o) => `<button class="spec-music-chip" data-val="${esc(o)}" style="padding:5px 11px;font-size:12.5px;border-radius:14px;cursor:pointer;border:1px solid ${music === o ? 'var(--brand)' : 'var(--line-2)'};background:${music === o ? 'color-mix(in srgb,var(--brand) 16%,transparent)' : 'var(--surface)'};color:${music === o ? 'var(--brand)' : 'var(--ink-2)'}">${esc(o)}</button>`).join('')}</div>
-      </div>
       <input id="specName" type="text" placeholder="艺名（选填，留空我来起）" style="width:100%;margin-top:12px;border:1px solid var(--line-2);border-radius:11px;background:var(--surface);font-size:14px;color:var(--ink);padding:10px 12px;outline:none">
-      <input id="specExtra" type="text" placeholder="补充人设/背景（选填）：如 留学归来的电子音乐人…" style="width:100%;margin-top:8px;border:1px solid var(--line-2);border-radius:11px;background:var(--surface);font-size:13px;color:var(--ink);padding:9px 12px;outline:none">
+      <input id="specExtra" type="text" placeholder="补充人设/背景（选填）：如 留学归来的独立音乐人…" style="width:100%;margin-top:8px;border:1px solid var(--line-2);border-radius:11px;background:var(--surface);font-size:13px;color:var(--ink);padding:9px 12px;outline:none">
       <button class="op-gen" id="specGen" style="margin-left:0;margin-top:14px">✦ 生成艺人</button>
       <div class="op-status" id="specMsg"></div>
     </div>
@@ -940,11 +934,6 @@ function renderCreateSpecPanel(body) {
     </div>
   </div>`;
   wireLookBuilder('specLookBuilder');
-  $('#specMusic').addEventListener('click', (e) => {
-    const c2 = e.target.closest('.spec-music-chip'); if (!c2) return;
-    state.spec = state.spec || {}; state.spec.music = (state.spec.music === c2.dataset.val) ? '' : c2.dataset.val;
-    renderPanel();
-  });
   $('#specGen').addEventListener('click', genFromSpec);
   $('#specToChat').addEventListener('click', () => { state.create.phase = 'chat'; renderPanel(); });
 }
@@ -953,15 +942,12 @@ async function genFromSpec() {
   const sel = state.lookSel || {};
   const appearance = LOOK_DIMS.map((d) => sel[d.key]).filter(Boolean).join('，');   // 具体可绘制外貌
   if (!appearance) { setMsg(msg, '先从上面捏几项外貌吧（至少选脸型/发型等）', false, true); return; }
-  const vibe = sel.vibe || ''; const gender = sel.gender || '';
-  const music = (state.spec && state.spec.music) || '';
+  const gender = sel.gender || '';
   const name = (($('#specName') && $('#specName').value) || '').trim();
   const extra = (($('#specExtra') && $('#specExtra').value) || '').trim();
   const transcript = [
     gender && `性别：${gender}`,
-    vibe && `气质人设：${vibe}`,
     `外貌（必须严格采用这些具体特征，不要改写成意象）：${appearance}`,
-    music && `音乐风格：${music}`,
     name && `艺名：${name}`,
     extra && `补充：${extra}`,
   ].filter(Boolean).join('\n');
@@ -973,7 +959,6 @@ async function genFromSpec() {
   draft.visualIdentity = appearance;                 // 锁死具体外貌（防 LLM 文学化）
   if (name) draft.name = name;
   if (gender) draft.gender = gender;
-  if (music) draft.musicStyle = draft.musicStyle || music;
   state.create.draft = draft; state.create.phase = 'draft';
   renderPanel();
 }
@@ -1046,7 +1031,6 @@ async function doCreateFromDraft() {
 /* ── 捏人：结构化外貌设定（取代文学化背景描述，确保出图好看不奇怪）── */
 const LOOK_DIMS = [
   { key: 'gender', label: '性别', opts: ['少女', '女性', '少年', '男性'] },
-  { key: 'vibe', label: '气质', opts: ['清纯邻家', '清冷御姐', '甜美可爱', '英气飒爽', '温柔知性', '高级冷艳', '阳光元气'] },
   { key: 'face', label: '脸型', opts: ['鹅蛋脸', '瓜子脸', '圆润脸', '立体小脸'] },
   { key: 'hair', label: '发型', opts: ['黑长直', '微卷长发', '齐肩短发', '利落短发', '高马尾', '空气刘海', '丸子头'] },
   { key: 'haircolor', label: '发色', opts: ['乌黑', '深棕', '栗棕', '亚麻金', '银灰', '挑染'] },
